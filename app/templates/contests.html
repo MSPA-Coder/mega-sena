@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel contests-panel">
+  <div class="contests-header">
+    <div class="contests-heading">
+      <div class="contests-title-line">
+        <h2>Concursos</h2>
+        <span class="contests-title-summary {{ 'active-filter' if winners_only else 'muted' }}">{{ contests_summary }}</span>
+        <form method="get" class="contests-filter contests-filter-inline">
+          {% if consecutive_count is not none %}
+            <input type="hidden" name="consecutive_count" value="{{ consecutive_count }}">
+          {% endif %}
+          {% if even_count is not none %}
+            <input type="hidden" name="even_count" value="{{ even_count }}">
+          {% endif %}
+          <label><input type="checkbox" name="winners_only" value="1" onchange="this.form.submit()" {% if winners_only %}checked{% endif %}> Mega Sena</label>
+        </form>
+      </div>
+      {% if active_filters %}
+        <p class="active-filter">Filtro ativo: {{ active_filters|join(' e ') }}{% if winners_only %} e Mega Sena{% endif %}.</p>
+      {% endif %}
+    </div>
+    {% if pagination.pages > 1 %}
+      <nav class="pagination pagination-compact" aria-label="Paginação dos concursos">
+        {% if pagination.has_prev %}
+          <a class="button secondary" href="{{ url_for('web.contests', page=pagination.prev_num, **pagination_args) }}">Anterior</a>
+        {% else %}
+          <span class="button secondary disabled">Anterior</span>
+        {% endif %}
+        <span>Página {{ pagination.page }}/{{ pagination.pages }}</span>
+        {% if pagination.has_next %}
+          <a class="button secondary" href="{{ url_for('web.contests', page=pagination.next_num, **pagination_args) }}">Próxima</a>
+        {% else %}
+          <span class="button secondary disabled">Próxima</span>
+        {% endif %}
+      </nav>
+    {% endif %}
+  </div>
+  <div class="contests-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Concurso</th>
+          <th>Data</th>
+          <th>Números</th>
+          <th>Seq.</th>
+          <th>Pares</th>
+          <th>Prêmio</th>
+          <th>Acumulado</th>
+          <th>Prêmio Quina</th>
+          <th>Prêmio Quadra</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in pagination.items %}
+          <tr>
+            <td>{{ d.contest }}</td>
+            <td>{{ d.draw_date or '-' }}</td>
+            <td>{% for n in d.numbers %}<span class="ball small">{{ '%02d'|format(n) }}</span>{% endfor %}</td>
+            <td>{{ d.consecutive_count }}</td>
+            <td>{{ d.even_count }}</td>
+            <td>{{ d.prize_cents|brl0 }}</td>
+            <td><span class="winners-count">{{ d.winners_6 }} {{ 'acertador' if d.winners_6 == 1 else 'acertadores' }}</span>{{ d.accumulated_cents|brl0 }}</td>
+            <td><span class="winners-count">{{ d.winners_5 }} {{ 'acertador' if d.winners_5 == 1 else 'acertadores' }}</span>{{ d.quina_rateio_cents|brl0 }}</td>
+            <td><span class="winners-count">{{ d.winners_4 }} {{ 'acertador' if d.winners_4 == 1 else 'acertadores' }}</span>{{ d.quadra_rateio_cents|brl0 }}</td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="9" class="empty-state">Nenhum concurso encontrado para o filtro selecionado.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

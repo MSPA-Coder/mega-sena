@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="cards">
+  <div class="card metric-card">
+    <span>Concursos</span>
+    <strong>{{ stats.total_draws }}</strong>
+    <p><small>Com acertadores</small><b>{{ stats.mega_sena_games_with_winners }}</b><em>{{ stats.mega_sena_games_with_winners_pct }}%</em></p>
+    <p><small>Sem acertadores</small><b>{{ stats.mega_sena_games_without_winners }}</b><em>{{ stats.mega_sena_games_without_winners_pct }}%</em></p>
+  </div>
+  <div class="card metric-card winners-card">
+    <span>Acertadores</span>
+    <p><small>Mega Sena</small><b>{{ stats.prize_cards.mega_sena.winners }}</b></p>
+    <p><small>Quina</small><b>{{ stats.prize_cards.quina.winners }}</b></p>
+    <p><small>Quadra</small><b>{{ stats.prize_cards.quadra.winners }}</b></p>
+  </div>
+</section>
+
+<section class="dashboard-card-row">
+  <div class="dashboard-top-grid">
+    <div class="card compact-stats history-card">
+      <h3>Quantidade de números pares</h3>
+      {% for qtd, total in stats.even_distribution.items() %}
+        <p>
+          <a class="history-filter-link" href="{{ url_for('web.contests', even_count=qtd) }}"><b>{{ qtd }}</b></a>
+          <strong>{{ total }}</strong>
+          <em>concursos</em>
+          <em>{{ (total / stats.total_draws * 100)|round(1) if stats.total_draws else 0 }}%</em>
+        </p>
+      {% endfor %}
+    </div>
+    <div class="dashboard-stacked-cards">
+      <div class="card compact-stats history-card compact-half-card">
+        <h3>Maior sequência consecutiva</h3>
+        {% for qtd, total in stats.consecutive_distribution.items() %}
+          <p>
+            <a class="history-filter-link" href="{{ url_for('web.contests', consecutive_count=qtd) }}"><b>{{ qtd }}</b></a>
+            <strong>{{ total }}</strong>
+            <em>concursos</em>
+            <em>{{ (total / stats.total_draws * 100)|round(1) if stats.total_draws else 0 }}%</em>
+          </p>
+        {% endfor %}
+      </div>
+      <div class="card range-distribution-card compact-half-card">
+        <h3>5. Distribuição por faixas</h3>
+        <div class="range-band-list">
+          {% for faixa, total in stats.ranges.items() %}
+            <p><span>{{ faixa }}</span><strong>{{ total }}</strong><em>{{ (total / (stats.total_draws * 6) * 100)|round(1) if stats.total_draws else 0 }}%</em></p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    <div class="dashboard-stacked-cards dashboard-frequency-stacked">
+      <div class="card grouped-frequency-card compact-half-card">
+        <h3>Mais frequentes</h3>
+        <div id="most-frequent-list" class="frequency-sequence">
+          {% for n, c in stats.most_frequent %}
+            <span class="frequency-item"><b class="ball">{{ '%02d'|format(n) }}</b><strong>{{ c }}x</strong></span>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="card grouped-frequency-card compact-half-card">
+        <h3>Menos frequentes</h3>
+        <div id="least-frequent-list" class="frequency-sequence">
+          {% for n, c in stats.least_frequent %}
+            <span class="frequency-item"><b class="ball warn">{{ '%02d'|format(n) }}</b><strong>{{ c }}x</strong></span>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel chart-panel dashboard-chart-panel">
+    <h2>Frequência x Soma dos Números Sorteados</h2>
+    <div class="sum-histogram-frame">
+      <div class="sum-y-axis">
+        {% for tick in stats.sum_histogram.y_ticks|reverse %}
+          <span>{{ tick }}</span>
+        {% endfor %}
+      </div>
+      <div class="sum-histogram" style="--max-frequency: {{ stats.sum_histogram.max_frequency or 1 }};">
+        {% for tick in stats.sum_histogram.y_ticks %}
+          <span class="sum-gridline" style="--tick: {{ tick }};"></span>
+        {% endfor %}
+        {% for bin in stats.sum_histogram.bins %}
+          <div class="sum-histogram-bar" title="{{ bin.start }}-{{ bin.end }}: {{ bin.count }} concursos" style="--count: {{ bin.count }};">
+            <span></span>
+            <small>{{ bin.x_label }}</small>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="panel chart-panel dashboard-chart-panel">
+    <div class="freq-chart-header">
+      <h2>Frequência X Número Sorteado</h2>
+      <div class="period-selector" role="group" aria-label="Período de análise">
+        <span class="period-selector-label">Período:</span>
+        <button class="period-btn active" data-period="" aria-pressed="true">Todos</button>
+        <button class="period-btn" data-period="500" aria-pressed="false">Últ. 500</button>
+        <button class="period-btn" data-period="200" aria-pressed="false">Últ. 200</button>
+        <button class="period-btn" data-period="100" aria-pressed="false">Últ. 100</button>
+      </div>
+      <span id="freq-period-label" class="period-label">{{ stats.total_draws }} concursos</span>
+    </div>
+    {% set max_frequency = stats.frequency.values()|max if stats.frequency else 0 %}
+    <div class="frequency-chart-frame">
+      <div id="freq-y-axis" class="frequency-y-axis">
+        <span>{{ max_frequency }}</span>
+        <span>{{ (max_frequency * 0.75)|round|int }}</span>
+        <span>{{ (max_frequency * 0.5)|round|int }}</span>
+        <span>{{ (max_frequency * 0.25)|round|int }}</span>
+        <span>0</span>
+      </div>
+      <div id="freq-chart" class="frequency-chart" style="--max-frequency: {{ max_frequency or 1 }};">
+        <span class="frequency-gridline" style="--tick: {{ max_frequency }};"></span>
+        <span class="frequency-gridline" style="--tick: {{ (max_frequency * 0.75)|round|int }};"></span>
+        <span class="frequency-gridline" style="--tick: {{ (max_frequency * 0.5)|round|int }};"></span>
+        <span class="frequency-gridline" style="--tick: {{ (max_frequency * 0.25)|round|int }};"></span>
+        {% for n, c in stats.frequency.items() %}
+          <div class="frequency-bar" title="{{ '%02d'|format(n) }}: {{ c }}x" style="--count: {{ c }};">
+            <div class="frequency-bar-track"><span></span></div>
+            <small>{{ '%02d'|format(n) }}</small>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  "use strict";
+
+  var API_URL = "{{ url_for('web.recent_frequency') }}";
+
+  function pad2(n) { return String(n).padStart(2, "0"); }
+
+  function buildYAxis(maxFreq) {
+    return [maxFreq, Math.round(maxFreq * 0.75), Math.round(maxFreq * 0.5), Math.round(maxFreq * 0.25), 0]
+      .map(function (t) { return "<span>" + t + "</span>"; })
+      .join("");
+  }
+
+  function buildChartInner(data) {
+    var maxFreq = data.max_frequency || 1;
+    var ticks = [maxFreq, Math.round(maxFreq * 0.75), Math.round(maxFreq * 0.5), Math.round(maxFreq * 0.25)];
+    var gridlines = ticks.map(function (t) {
+      return '<span class="frequency-gridline" style="--tick:' + t + ';"></span>';
+    }).join("");
+    var bars = Object.keys(data.frequency)
+      .map(Number)
+      .sort(function (a, b) { return a - b; })
+      .map(function (n) {
+        var c = data.frequency[String(n)];
+        var label = pad2(n);
+        return '<div class="frequency-bar" title="' + label + ': ' + c + 'x" style="--count:' + c + ';">' +
+          '<div class="frequency-bar-track"><span></span></div>' +
+          '<small>' + label + '</small></div>';
+      }).join("");
+    return { html: gridlines + bars, maxFreq: maxFreq };
+  }
+
+  function buildCards(data) {
+    var most = (data.most_frequent || []).map(function (pair) {
+      return '<span class="frequency-item"><b class="ball">' + pad2(pair[0]) + '</b><strong>' + pair[1] + 'x</strong></span>';
+    }).join("");
+    var least = (data.least_frequent || []).map(function (pair) {
+      return '<span class="frequency-item"><b class="ball warn">' + pad2(pair[0]) + '</b><strong>' + pair[1] + 'x</strong></span>';
+    }).join("");
+    return { most: most, least: least };
+  }
+
+  function updatePeriodLabel(data) {
+    var el = document.getElementById("freq-period-label");
+    if (!el) return;
+    var n = data.actual_count || 0;
+    el.textContent = data.count ? ("últimos " + n + " concursos") : (n + " concursos");
+  }
+
+  function applyData(data) {
+    var chart = document.getElementById("freq-chart");
+    var yAxis = document.getElementById("freq-y-axis");
+    var mostEl = document.getElementById("most-frequent-list");
+    var leastEl = document.getElementById("least-frequent-list");
+    if (!chart || !yAxis || !mostEl || !leastEl) return;
+
+    var chartResult = buildChartInner(data);
+    chart.style.setProperty("--max-frequency", chartResult.maxFreq);
+    chart.innerHTML = chartResult.html;
+    chart.style.opacity = "1";
+
+    yAxis.innerHTML = buildYAxis(chartResult.maxFreq);
+
+    var cards = buildCards(data);
+    mostEl.innerHTML = cards.most;
+    leastEl.innerHTML = cards.least;
+
+    updatePeriodLabel(data);
+  }
+
+  function fetchPeriod(period) {
+    var url = API_URL + (period ? "?count=" + period : "");
+    var chart = document.getElementById("freq-chart");
+    if (chart) chart.style.opacity = "0.35";
+
+    fetch(url)
+      .then(function (r) { return r.json(); })
+      .then(applyData)
+      .catch(function () {
+        if (chart) chart.style.opacity = "1";
+      });
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    var buttons = document.querySelectorAll(".period-btn");
+    buttons.forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        buttons.forEach(function (b) {
+          b.classList.remove("active");
+          b.setAttribute("aria-pressed", "false");
+        });
+        btn.classList.add("active");
+        btn.setAttribute("aria-pressed", "true");
+        fetchPeriod(btn.dataset.period);
+      });
+    });
+  });
+}());
+</script>
+{% endblock %}

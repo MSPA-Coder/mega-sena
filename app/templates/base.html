@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="pt-br" data-theme="{{ request.cookies.get('theme', 'light') }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Mega Sena AI{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+{% block header %}
+<header class="topbar">
+  <div><strong>Mega Sena AI</strong><span>gerador estatístico de apostas</span></div>
+  <nav>
+    <a class="{{ 'active' if request.endpoint == 'web.dashboard' else '' }}" href="{{ url_for('web.dashboard') }}">Dashboard</a>
+    <a class="{{ 'active' if request.endpoint in ['web.bet_generation', 'web.rationale'] else '' }}" href="{{ url_for('web.bet_generation') }}">Gerar apostas</a>
+    <a class="{{ 'active' if request.endpoint == 'web.contests' else '' }}" href="{{ url_for('web.contests') }}">Concursos</a>
+    <a class="{{ 'active' if request.endpoint in ['web.import_results', 'web.save_settings'] else '' }}" href="{{ url_for('web.import_results') }}">Importar</a>
+  </nav>
+</header>
+{% endblock %}
+<main class="container">
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      <div class="flash-list">
+        {% for message in messages %}
+          <div class="flash">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</main>
+{% block scripts %}{% endblock %}
+</body>
+</html>

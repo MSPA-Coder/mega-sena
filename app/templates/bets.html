@@ -1,0 +1,366 @@
+{% extends "base.html" %}
+{% block content %}
+{% macro render_filter_summary_step(step) %}
+  <p><span>{{ step.label }} = {{ step.value }}</span><strong>{{ step.eliminated_formatted }}</strong><em>eliminadas</em><strong>{{ step.remaining_formatted }}</strong><em>restantes</em></p>
+{% endmacro %}
+
+
+<form method="post" class="panel form-grid generator-form" data-generation-form data-cleared="{{ '1' if request.args.get('cleared') == '1' else '0' }}">
+  <h2 class="form-title">Parâmetros para a Geração das Apostas</h2>
+  <input type="hidden" name="quantity" value="{{ selected_quantity }}">
+  <label>Quantas apostas deseja gerar?<input type="number" name="amount" min="1" max="100" value="{{ selected_amount }}"></label>
+  <label>Maior sequência consecutiva permitida<input type="number" name="consecutive_count" min="0" max="6" placeholder="Opcional" value="{{ selected_filters.consecutive_count if selected_filters.consecutive_count is not none else '' }}"></label>
+  <label>Mínimo de números pares<input type="number" name="even_min" min="0" max="6" placeholder="Opcional" value="{{ selected_filters.even_min if selected_filters.even_min is not none else '' }}"></label>
+  <label>Máximo de números pares<input type="number" name="even_max" min="0" max="6" placeholder="Opcional" value="{{ selected_filters.even_max if selected_filters.even_max is not none else '' }}"></label>
+  <label>Soma inicial<input type="number" name="sum_min" min="0" placeholder="Opcional" value="{{ selected_filters.sum_min if selected_filters.sum_min is not none else '' }}"></label>
+  <label>Soma final<input type="number" name="sum_max" min="0" placeholder="Opcional" value="{{ selected_filters.sum_max if selected_filters.sum_max is not none else '' }}"></label>
+  <label>Mínimo de faixas ocupadas<input type="number" name="range_min_occupied" min="1" max="6" placeholder="Opcional" value="{{ selected_filters.range_min_occupied if selected_filters.range_min_occupied is not none else '' }}"></label>
+  <label>Máximo de dezenas por faixa<input type="number" name="range_max_per_band" min="1" max="6" placeholder="Opcional" value="{{ selected_filters.range_max_per_band if selected_filters.range_max_per_band is not none else '' }}"></label>
+  <label>Dezenas do fechamento<input type="text" name="closure_numbers" placeholder="Ex: 01 02 03 04 05 06 07 08 09 10" value="{{ closure_numbers }}"></label>
+  <label>Concursos no BD que passariam<input type="text" readonly data-filter-preview-count value="{{ filter_preview.count }}"></label>
+  <label>Percentual de jogos que passariam<input type="text" readonly data-filter-preview-percent value="{{ filter_preview.percentage_text }}"></label>
+  <div class="target-row-separator" aria-hidden="true"></div>
+  <div class="target-action-row">
+    <label class="target-percentage-field">Percentual alvo individual (%)<input type="number" min="0" max="100" step="0.01" value="80" data-filter-target-percentage></label>
+    <div class="form-actions">
+      <button type="button" class="secondary" data-filter-target-button>Calcular parâmetros</button>
+      <button type="submit" class="secondary" formmethod="get" formaction="{{ url_for('web.rationale') }}">Racional</button>
+      <a class="button secondary" href="{{ url_for('web.clear_bet_generation') }}">Limpar filtros</a>
+      <button type="submit" class="secondary" name="action" value="generate">Gerar Apostas</button>
+    </div>
+  </div>
+  <p class="form-note" data-filter-target-status></p>
+  <p class="muted form-help">As apostas são geradas com gerador aleatório seguro do Python e validadas contra os filtros informados. Os filtros não aumentam a probabilidade matemática do sorteio, mas controlam o perfil das apostas para evitar combinações fora dos critérios definidos.</p>
+  <p class="muted form-help">Fluxo aplicado: geração de aposta candidata com secrets, aplicação dos filtros do usuário, controle de diversidade entre as apostas geradas, gravação opcional e racional dos filtros.</p>
+</form>
+<section class="panel combinations-panel" data-combination-report>
+  <div class="page-heading-row">
+    <div>
+      <h2>Resumo dos filtros</h2>
+      <p class="muted">Os números abaixo usam os filtros atuais da tela Gerar apostas.</p>
+    </div>
+  </div>
+  <div class="combination-summary">
+    <div>
+      <span>Total possível</span>
+      <strong data-combination-total>{{ combination_report.total_formatted }}</strong>
+      <small>sorteios de 6 números</small>
+    </div>
+    <div>
+      <span>Eliminadas pelos filtros</span>
+      <strong data-combination-eliminated>{{ combination_report.eliminated_formatted }}</strong>
+      <small>combinações removidas</small>
+    </div>
+    <div>
+      <span>Restantes</span>
+      <strong data-combination-remaining>{{ combination_report.remaining_formatted }}</strong>
+      <small>combinações possíveis</small>
+    </div>
+    <div>
+      <span data-combination-covered-label>{{ 'Apostas no fechamento' if closure_mode else ('Cobertas por ' ~ selected_amount ~ ' ' ~ ('aposta' if selected_amount == 1 else 'apostas')) }}</span>
+      <strong data-combination-covered>{{ covered_by_amount_formatted }}</strong>
+      {% if closure_mode %}
+      <small data-combination-covered-detail>C({{ closure_base_count }}, 6) com {{ closure_base_count }} dezenas-base</small>
+      {% else %}
+      <small data-combination-covered-detail>C({{ selected_quantity }}, 6) x {{ selected_amount }}</small>
+      {% endif %}
+    </div>
+    <div>
+      <span data-combination-chance-label>{{ 'Chance no fechamento' if closure_mode else ('Chance com ' ~ selected_amount ~ ' ' ~ ('aposta' if selected_amount == 1 else 'apostas')) }}</span>
+      <strong data-combination-chance>{{ chance_with_amount_percent_formatted }}%</strong>
+      <small data-combination-one-in>1 em {{ chance_with_amount_one_in_formatted }}</small>
+    </div>
+  </div>
+  <div class="combination-filter-list" data-combination-steps>
+    {% if combination_report.steps %}
+      {% for step in combination_report.steps %}
+        {{ render_filter_summary_step(step) }}
+      {% endfor %}
+    {% else %}
+      <p class="muted">Nenhum filtro aplicado. O universo permanece em {{ combination_report.total_formatted }} combinações.</p>
+    {% endif %}
+  </div>
+</section>
+<section class="panel">
+  <h2>Últimas apostas geradas</h2>
+  {% if recent_generations %}
+    <div class="generation-list">
+      {% for generation in recent_generations %}
+        <div class="generation-group">
+          <div class="generation-line">
+            <strong>Geração #{{ generation.generation_id }}</strong>
+            <span>{{ generation.bet_count }} {{ 'aposta' if generation.bet_count == 1 else 'apostas' }}</span>
+            <span>{{ generation.quantity }} {{ 'número' if generation.quantity == 1 else 'números' }}</span>
+            <small>{{ generation.created_at.strftime('%d/%m/%Y %H:%M') if generation.created_at else '' }}</small>
+            <button type="button" class="secondary generation-toggle" data-generation-toggle="{{ generation.generation_id }}">Ver</button>
+          </div>
+          <div class="generation-bets-inline" data-generation-bets="{{ generation.generation_id }}" hidden>
+            <h3>Apostas da geração #{{ generation.generation_id }}</h3>
+            {% for bet in generation.bets %}
+              <div class="bet-line">
+                {% for n in bet.numbers %}<b class="ball">{{ '%02d'|format(n) }}</b>{% endfor %}
+                <small>Diversidade {{ "%.2f"|format(bet.score) }}</small>
+              </div>
+            {% else %}
+              <p>Nenhuma aposta encontrada para esta geração.</p>
+            {% endfor %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}<p>Nenhuma aposta foi gerada ainda.</p>{% endif %}
+</section>
+{% if bets %}
+<section class="panel">
+  <h2>Apostas geradas</h2>
+  <form method="post">
+    <input type="hidden" name="action" value="save">
+    <input type="hidden" name="quantity" value="{{ bets[0].quantity }}">
+    <input type="hidden" name="amount" value="{{ selected_amount }}">
+    {% for key, value in selected_filters.items() %}
+      {% if value is not none %}
+        <input type="hidden" name="{{ key }}" value="{{ value }}">
+      {% endif %}
+    {% endfor %}
+    {% for bet in bets %}
+      <div class="bet-line">
+        <input type="hidden" name="bet" value="{{ bet.numbers_csv }}">
+        {% for n in bet.numbers %}<b class="ball">{{ '%02d'|format(n) }}</b>{% endfor %}
+        <small>Diversidade {{ "%.2f"|format(bet.score) }}</small>
+      </div>
+    {% endfor %}
+    <div class="actions">
+      <button type="submit">Gravar no banco</button>
+      <a class="button secondary" href="{{ url_for('web.bet_generation', **generation_params) }}">Não gravar</a>
+    </div>
+  </form>
+</section>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (() => {
+    const form = document.querySelector("[data-generation-form]");
+    const storageKey = "megaSenaGenerationParams";
+    const previewUrl = "{{ url_for('web.draw_filter_preview') }}";
+    const filterTargetsUrl = "{{ url_for('web.filter_targets') }}";
+    const combinationReportUrl = "{{ url_for('web.combinations') }}";
+    const filterFieldNames = ["consecutive_count", "even_min", "even_max", "sum_min", "sum_max", "range_min_occupied", "range_max_per_band"];
+    const fieldNames = ["amount", ...filterFieldNames];
+    if (form) {
+      const previewCountField = form.querySelector("[data-filter-preview-count]");
+      const previewPercentField = form.querySelector("[data-filter-preview-percent]");
+      const targetPercentageField = form.querySelector("[data-filter-target-percentage]");
+      const targetButton = form.querySelector("[data-filter-target-button]");
+      const targetStatus = form.querySelector("[data-filter-target-status]");
+      const closureNumbersField = form.elements.closure_numbers;
+      const amountField = form.elements.amount;
+      let previewRequest = 0;
+      const applyClosureMode = () => {
+        const closureMode = Boolean(closureNumbersField && closureNumbersField.value.trim());
+        if (amountField) {
+          if (closureMode) {
+            if (amountField.value !== "") amountField.dataset.lastValue = amountField.value;
+            amountField.value = "";
+          } else if (amountField.value === "" && amountField.dataset.lastValue) {
+            amountField.value = amountField.dataset.lastValue;
+          }
+          amountField.readOnly = closureMode;
+        }
+        for (const name of filterFieldNames) {
+          const field = form.elements[name];
+          if (!field) continue;
+          if (closureMode) field.value = "";
+          field.readOnly = closureMode;
+        }
+        if (targetButton) targetButton.disabled = closureMode;
+        if (targetStatus && closureMode) targetStatus.textContent = "";
+        return closureMode;
+      };
+      const normalizeEvenRange = () => {
+        const minField = form.elements.even_min;
+        const maxField = form.elements.even_max;
+        if (!minField || !maxField || minField.value === "" || maxField.value === "") return;
+        if (Number(maxField.value) < Number(minField.value)) maxField.value = minField.value;
+      };
+      const saveState = () => {
+        normalizeEvenRange();
+        const values = {};
+        for (const name of fieldNames) {
+          const field = form.elements[name];
+          if (field) values[name] = field.value;
+        }
+        localStorage.setItem(storageKey, JSON.stringify(values));
+      };
+      const buildGenerationParams = () => {
+        const params = new URLSearchParams();
+        const quantityField = form.elements.quantity;
+        if (quantityField) params.set("quantity", quantityField.value);
+        for (const name of fieldNames) {
+          const field = form.elements[name];
+          if (field) params.set(name, field.value);
+        }
+        const closureNumbersValue = closureNumbersField?.value;
+        if (closureNumbersValue !== undefined) params.set("closure_numbers", closureNumbersValue);
+        return params;
+      };
+      const escapeHtml = (value) => String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+      const updateCombinationReport = async (params, requestId) => {
+        const report = document.querySelector("[data-combination-report]");
+        if (!report) return;
+        const formatInt = (value) => Number(value || 0).toLocaleString("pt-BR");
+        const formatPercent = (value) => {
+          const numeric = Number(value || 0);
+          const fixed = numeric.toFixed(8).replace(/0+$/, "").replace(/\.$/, "");
+          return fixed.replace(".", ",");
+        };
+        try {
+          const response = await fetch(`${combinationReportUrl}?${params.toString()}`, {headers: {"Accept": "application/json"}});
+          if (!response.ok || requestId !== previewRequest) return;
+          const data = await response.json();
+          const setText = (selector, value) => {
+            const node = report.querySelector(selector);
+            if (node) node.textContent = value ?? "";
+          };
+          const selectedAmountValue = Number(data.selected_amount || 0);
+          const selectedAmount = Number.isFinite(selectedAmountValue) ? Math.max(1, Math.floor(selectedAmountValue)) : 1;
+          const coveredByAmount = data.covered_by_amount ?? 0;
+          const chanceWithAmountPercent = data.chance_with_amount_percent ?? 0;
+          const chanceWithAmountOneIn = data.chance_with_amount_one_in ?? 0;
+          const closureMode = Boolean(data.closure_mode);
+          const closureBaseCount = Number(data.closure_base_count || 0);
+          setText("[data-combination-total]", data.total_formatted);
+          if (closureMode) {
+            setText("[data-combination-covered-label]", "Apostas no fechamento");
+            setText("[data-combination-covered-detail]", `C(${closureBaseCount}, 6) com ${closureBaseCount} dezenas-base`);
+            setText("[data-combination-chance-label]", "Chance no fechamento");
+          } else {
+            setText("[data-combination-covered-label]", `Cobertas por ${selectedAmount} ${selectedAmount === 1 ? "aposta" : "apostas"}`);
+            setText("[data-combination-covered-detail]", `C(${form.elements.quantity?.value || "6"}, 6) x ${selectedAmount}`);
+            setText("[data-combination-chance-label]", `Chance com ${selectedAmount} ${selectedAmount === 1 ? "aposta" : "apostas"}`);
+          }
+          setText("[data-combination-covered]", formatInt(coveredByAmount));
+          setText("[data-combination-eliminated]", data.eliminated_formatted);
+          setText("[data-combination-remaining]", data.remaining_formatted);
+          setText("[data-combination-chance]", `${formatPercent(chanceWithAmountPercent)}%`);
+          setText("[data-combination-one-in]", `1 em ${formatInt(chanceWithAmountOneIn)}`);
+          const stepsNode = report.querySelector("[data-combination-steps]");
+          if (!stepsNode) return;
+          if (Array.isArray(data.steps) && data.steps.length) {
+            stepsNode.innerHTML = data.steps.map((step) => `
+              <p><span>${escapeHtml(step.label)} = ${escapeHtml(step.value)}</span><strong>${escapeHtml(step.eliminated_formatted)}</strong><em>eliminadas</em><strong>${escapeHtml(step.remaining_formatted)}</strong><em>restantes</em></p>
+            `).join("");
+          } else {
+            stepsNode.innerHTML = `<p class="muted">Nenhum filtro aplicado. O universo permanece em ${escapeHtml(data.total_formatted)} combinações.</p>`;
+          }
+        } catch (_error) {
+          return;
+        }
+      };
+      const updatePreview = async () => {
+        applyClosureMode();
+        normalizeEvenRange();
+        if (!previewCountField && !previewPercentField) return;
+        const requestId = ++previewRequest;
+        const params = buildGenerationParams();
+        updateCombinationReport(params, requestId);
+        try {
+          const response = await fetch(`${previewUrl}?${params.toString()}`, {headers: {"Accept": "application/json"}});
+          if (!response.ok) return;
+          const data = await response.json();
+          if (requestId === previewRequest && previewCountField) previewCountField.value = data.count ?? "";
+          if (requestId === previewRequest && previewPercentField) previewPercentField.value = data.percentage_text ?? "";
+        } catch (_error) {
+          if (requestId === previewRequest && previewCountField) previewCountField.value = "";
+          if (requestId === previewRequest && previewPercentField) previewPercentField.value = "";
+        }
+      };
+      const applyFilterTargets = async () => {
+        if (!targetPercentageField || !targetButton) return;
+        if (applyClosureMode()) return;
+        const parsedTargetPercentage = Number(targetPercentageField.value);
+        const targetPercentage = Number.isFinite(parsedTargetPercentage) ? Math.max(0, Math.min(parsedTargetPercentage, 100)) : 80;
+        targetPercentageField.value = targetPercentage;
+        targetButton.disabled = true;
+        if (targetStatus) targetStatus.textContent = "";
+        try {
+          const params = new URLSearchParams({target_percentage: String(targetPercentage)});
+          const response = await fetch(`${filterTargetsUrl}?${params.toString()}`, {headers: {"Accept": "application/json"}});
+          if (!response.ok) return;
+          const data = await response.json();
+          if (!data.total) {
+            if (targetStatus) targetStatus.textContent = "Importe concursos para calcular os parâmetros.";
+            return;
+          }
+          for (const [name, result] of Object.entries(data.parameters || {})) {
+            const field = form.elements[name];
+            if (field && result && result.value !== null && result.value !== undefined) field.value = result.value;
+          }
+          saveState();
+          updatePreview();
+          if (targetStatus) targetStatus.textContent = `Parâmetros preenchidos para pelo menos ${targetPercentage.toLocaleString("pt-BR")}% em cada critério isolado.`;
+        } catch (_error) {
+          if (targetStatus) targetStatus.textContent = "Não foi possível calcular os parâmetros.";
+        } finally {
+          targetButton.disabled = false;
+        }
+      };
+
+      if (form.dataset.cleared === "1") {
+        localStorage.removeItem(storageKey);
+        saveState();
+      } else {
+        try {
+          const values = JSON.parse(localStorage.getItem(storageKey) || "{}");
+          for (const name of fieldNames) {
+            const field = form.elements[name];
+            if (field && values[name] !== undefined) field.value = values[name];
+          }
+          normalizeEvenRange();
+        } catch (_error) {
+          localStorage.removeItem(storageKey);
+        }
+      }
+      applyClosureMode();
+
+      for (const name of fieldNames) {
+        const field = form.elements[name];
+        if (field) field.addEventListener("input", () => { saveState(); updatePreview(); });
+        if (field) field.addEventListener("change", () => { saveState(); updatePreview(); });
+      }
+      if (closureNumbersField) {
+        closureNumbersField.addEventListener("input", () => {
+          applyClosureMode();
+          saveState();
+          updatePreview();
+        });
+      }
+      if (targetButton) targetButton.addEventListener("click", applyFilterTargets);
+      form.addEventListener("submit", () => {
+        applyClosureMode();
+        normalizeEvenRange();
+        saveState();
+      });
+      updatePreview();
+    }
+
+    for (const button of document.querySelectorAll("[data-generation-toggle]")) {
+      button.addEventListener("click", () => {
+        const generationId = button.dataset.generationToggle;
+        const target = document.querySelector(`[data-generation-bets="${generationId}"]`);
+        if (!target) return;
+        const willOpen = target.hidden;
+        target.hidden = !willOpen;
+        button.textContent = willOpen ? "Recolher" : "Ver";
+        button.closest(".generation-line")?.classList.toggle("active-generation", willOpen);
+      });
+    }
+  })();
+</script>
+{% endblock %}

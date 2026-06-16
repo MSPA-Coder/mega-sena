@@ -1,0 +1,11 @@
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+.idea/
+dist/
+mega_sena.db
+instance/
+*.xls
+*.xlsx

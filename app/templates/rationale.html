@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block content %}
+{% macro render_rationale_step(step) %}
+  <div class="rationale-step">
+    <h3>{{ step.label }} = {{ step.value }}</h3>
+    <p class="formula">{{ step.formula }}</p>
+    <p>{{ step.explanation }}</p>
+    <p>Entrada do passo: <strong>{{ step.previous_remaining_formatted }}</strong>. Eliminadas: <strong>{{ step.eliminated_formatted }}</strong>. Restantes: <strong>{{ step.remaining_formatted }}</strong>.</p>
+  </div>
+{% endmacro %}
+<section class="panel rationale-explanation">
+  <div class="page-heading-row">
+    <h2>Racional da aposta e dos filtros</h2>
+    <a class="button secondary" href="{{ url_for('web.bet_generation', **return_params) }}">Voltar</a>
+  </div>
+  <p>A Mega Sena sorteia 6 números entre 60. Como a ordem não importa, o universo inicial é o conjunto S0 com todas as combinações possíveis:</p>
+  <p class="formula">S0 = C(60, 6) = 60! / (6! * 54!) = {{ combination_report.total_formatted }}</p>
+  {% if closure_mode %}
+  <p>No fechamento matemático, você informa um conjunto-base e o sistema gera todas as combinações de 6 dezenas desse conjunto.</p>
+  <p class="formula">Quantidade de apostas = C({{ closure_base_count }}, 6) = {{ covered_by_amount_formatted }}</p>
+  <p>Nesse modo, os filtros da aba de geração ficam opcionais e os cálculos desta página passam a usar apenas o fechamento informado.</p>
+  {% else %}
+  <p>Uma aposta com {{ selected_quantity }} {{ 'número' if selected_quantity == 1 else 'números' }} cobre todas as combinações internas de 6 números que existem dentro dela:</p>
+  <p class="formula">C({{ selected_quantity }}, 6) = {{ combination_report.covered_combinations_formatted }}</p>
+  <p>Com {{ selected_amount }} {{ 'aposta' if selected_amount == 1 else 'apostas' }}, a cobertura teórica exibida no resumo usa C({{ selected_quantity }}, 6) x {{ selected_amount }}, limitada ao total restante após os filtros.</p>
+  {% endif %}
+  {% if closure_mode %}
+  <p>No fechamento, não há sorteio de candidatas: o sistema enumera diretamente todas as combinações possíveis de 6 dezenas dentro do conjunto-base.</p>
+  {% else %}
+  <p>Na geração prática, o sistema cria uma aposta candidata com gerador aleatório seguro, aplica os filtros informados, descarta a candidata que não passar e repete o processo até atingir a quantidade solicitada ou o limite de tentativas.</p>
+  <p>Depois disso, cada filtro reduz o conjunto restante. O passo S1 usa S0 como entrada, o passo S2 usa S1, e assim por diante.</p>
+  {% endif %}
+  {% if combination_report.steps %}
+    {% for step in combination_report.steps %}
+      {{ render_rationale_step(step) }}
+    {% endfor %}
+  {% else %}
+    <p class="muted">Nenhum filtro foi informado. Portanto, o conjunto S0 não é reduzido antes do cálculo da chance.</p>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <h2>Leitura correta</h2>
+  {% if closure_mode %}
+  <p>Esse racional não prevê o sorteio. Ele mostra o volume matemático do fechamento informado e a cobertura combinatória correspondente.</p>
+  {% else %}
+  <p>Esse racional não prevê o sorteio. Ele apenas mostra o tamanho do universo possível depois dos filtros, a cobertura matemática de uma aposta com {{ selected_quantity }} {{ 'número' if selected_quantity == 1 else 'números' }}.</p>
+  {% endif %}
+  <p>Se os filtros forem alterados em Gerar apostas, o botão Racional abre esta página já recalculada com os novos parâmetros.</p>
+</section>
+{% endblock %}
