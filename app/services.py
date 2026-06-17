@@ -325,8 +325,19 @@ def draw_parameters(numbers: Iterable[int]) -> dict[str, int]:
     }
 
 
-def build_stats() -> dict:
-    draw_records = Draw.query.order_by(Draw.contest).all()
+def build_stats(count: int | None = None) -> dict:
+    """
+    Monta o conjunto de estatísticas exibidas no dashboard.
+
+    Se `count` for informado, considera apenas os `count` concursos mais
+    recentes (por número de concurso). Se for None, considera todo o
+    histórico — comportamento padrão usado no carregamento inicial da página.
+    """
+    query = Draw.query.order_by(Draw.contest.desc())
+    if count is not None:
+        query = query.limit(count)
+    draw_records = query.all()
+    draw_records.reverse()  # ordem cronológica ascendente, igual ao comportamento original
     draws = [draw.numbers for draw in draw_records]
     total = len(draws)
     flat = [n for draw in draws for n in draw]
@@ -384,6 +395,8 @@ def build_stats() -> dict:
 
     return {
         "total_draws": total,
+        "count": count,
+        "actual_count": total,
         "mega_sena_games_with_winners": mega_sena_games_with_winners,
         "mega_sena_games_without_winners": mega_sena_games_without_winners,
         "mega_sena_games_with_winners_pct": mega_sena_games_with_winners_pct,

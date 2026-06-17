@@ -91,7 +91,7 @@ Na primeira execução, as tabelas e configurações padrão são criadas automa
 
 ## Importação de Resultados
 
-A tela `/import` aceita planilhas `.xlsx` com os concursos históricos.
+A tela `/contests` (Concursos) tem, no topo, o card de importação de planilhas `.xlsx` com os concursos históricos.
 
 A importação reconhece colunas por nomes normalizados, incluindo campos como:
 
@@ -128,8 +128,8 @@ O gerador:
 - `/dashboard`: painel estatístico.
 - `/bets`: geração, fechamento e salvamento de apostas.
 - `/rationale`: racional matemático dos filtros ativos.
-- `/contests`: consulta de concursos importados.
-- `/import`: importação de planilha e configurações.
+- `/contests`: consulta de concursos importados e importação de planilhas.
+- `/settings`: configurações padrão de geração e reinício da base.
 - `/api/combinations`: relatório combinatório em JSON.
 - `/api/draw-filter-preview`: prévia de concursos históricos que passam nos filtros.
 - `/api/filter-targets`: sugestão de parâmetros por percentual alvo.

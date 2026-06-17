@@ -51,12 +51,25 @@ def create_app() -> Flask:
     app.register_blueprint(bp)
 
     # ------------------------------------------------------------------
+    # Cache-busting de assets estáticos: evita que o navegador continue
+    # servindo um style.css antigo do cache após alterações de CSS.
+    # ------------------------------------------------------------------
+    @app.context_processor
+    def _inject_asset_version():
+        css_path = Path(app.static_folder or "") / "style.css"
+        try:
+            version = int(css_path.stat().st_mtime)
+        except OSError:
+            version = 0
+        return {"asset_version": version}
+
+    # ------------------------------------------------------------------
     # Tratamento de arquivo muito grande (413)
     # ------------------------------------------------------------------
     @app.errorhandler(413)
     def _request_entity_too_large(error):  # type: ignore[return]
         flash("O arquivo enviado ultrapassa o limite de 10 MB.")
-        return redirect(url_for("web.import_results")), 413
+        return redirect(url_for("web.contests")), 413
 
     with app.app_context():
         from . import models  # noqa: F401

@@ -1,5 +1,15 @@
 {% extends "base.html" %}
 {% block content %}
+<section class="card import-card">
+  <div class="panel-header">
+    <h2>Importar resultados</h2>
+  </div>
+  <p class="muted">Selecione uma planilha .xlsx. O arquivo será lido somente para a importação e não será armazenado no projeto.</p>
+  <form method="post" action="{{ url_for('web.import_upload') }}" enctype="multipart/form-data" class="form import-form">
+    <label>Planilha<input type="file" name="file" accept=".xlsx,.xls" required></label>
+    <button type="submit">Importar</button>
+  </form>
+</section>
 <section class="panel contests-panel">
   <div class="contests-header">
     <div class="contests-heading">

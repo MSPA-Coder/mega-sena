@@ -9,7 +9,7 @@
   </div>
 {% endmacro %}
 <section class="panel rationale-explanation">
-  <div class="page-heading-row">
+  <div class="panel-header">
     <h2>Racional da aposta e dos filtros</h2>
     <a class="button secondary" href="{{ url_for('web.bet_generation', **return_params) }}">Voltar</a>
   </div>
@@ -40,7 +40,9 @@
 </section>
 
 <section class="panel">
-  <h2>Leitura correta</h2>
+  <div class="panel-header">
+    <h2>Leitura correta</h2>
+  </div>
   {% if closure_mode %}
   <p>Esse racional não prevê o sorteio. Ele mostra o volume matemático do fechamento informado e a cobertura combinatória correspondente.</p>
   {% else %}

@@ -26,7 +26,7 @@
       <button type="button" class="secondary" data-filter-target-button>Calcular parâmetros</button>
       <button type="submit" class="secondary" formmethod="get" formaction="{{ url_for('web.rationale') }}">Racional</button>
       <a class="button secondary" href="{{ url_for('web.clear_bet_generation') }}">Limpar filtros</a>
-      <button type="submit" class="secondary" name="action" value="generate">Gerar Apostas</button>
+      <button type="submit" name="action" value="generate">Gerar Apostas</button>
     </div>
   </div>
   <p class="form-note" data-filter-target-status></p>
@@ -34,10 +34,10 @@
   <p class="muted form-help">Fluxo aplicado: geração de aposta candidata com secrets, aplicação dos filtros do usuário, controle de diversidade entre as apostas geradas, gravação opcional e racional dos filtros.</p>
 </form>
 <section class="panel combinations-panel" data-combination-report>
-  <div class="page-heading-row">
+  <div class="panel-header">
     <div>
       <h2>Resumo dos filtros</h2>
-      <p class="muted">Os números abaixo usam os filtros atuais da tela Gerar apostas.</p>
+      <p class="panel-header-caption">Os números abaixo usam os filtros atuais da tela Gerar apostas.</p>
     </div>
   </div>
   <div class="combination-summary">
@@ -82,7 +82,9 @@
   </div>
 </section>
 <section class="panel">
-  <h2>Últimas apostas geradas</h2>
+  <div class="panel-header">
+    <h2>Últimas apostas geradas</h2>
+  </div>
   {% if recent_generations %}
     <div class="generation-list">
       {% for generation in recent_generations %}
@@ -112,7 +114,9 @@
 </section>
 {% if bets %}
 <section class="panel">
-  <h2>Apostas geradas</h2>
+  <div class="panel-header">
+    <h2>Apostas geradas</h2>
+  </div>
   <form method="post">
     <input type="hidden" name="action" value="save">
     <input type="hidden" name="quantity" value="{{ bets[0].quantity }}">

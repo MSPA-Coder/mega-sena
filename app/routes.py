@@ -60,31 +60,39 @@ def dashboard():
     return render_template("dashboard.html", stats=stats)
 
 
-@bp.route("/import", methods=["GET", "POST"])
+@bp.get("/import")
 def import_results():
-    if request.method == "GET":
-        return render_template("import_results.html", config_values=get_config_values())
+    """Compatibilidade: a página de importação foi movida para a aba Concursos."""
+    return redirect(url_for("web.contests"))
 
+
+@bp.get("/settings")
+def settings_page():
+    return render_template("settings.html", config_values=get_config_values())
+
+
+@bp.post("/contests/import")
+def import_upload():
     file = request.files.get("file")
     if not file or not file.filename:
         flash("Selecione uma planilha .xlsx para importar.")
-        return redirect(url_for("web.import_results"))
+        return redirect(url_for("web.contests"))
 
     ext = "." + file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
     if ext not in _ALLOWED_UPLOAD_EXTENSIONS:
         flash("Formato inválido. Envie apenas planilhas no formato .xlsx.")
-        return redirect(url_for("web.import_results"))
+        return redirect(url_for("web.contests"))
 
     file.stream.seek(0)
     try:
         result = import_results_from_xlsx(file.stream)
     except RuntimeError as exc:
         flash(str(exc))
-        return redirect(url_for("web.import_results"))
+        return redirect(url_for("web.contests"))
     except Exception as exc:
         _log.exception("Erro inesperado na importação: %s", exc)
         flash("Erro inesperado ao processar o arquivo. Verifique se é uma planilha válida.")
-        return redirect(url_for("web.import_results"))
+        return redirect(url_for("web.contests"))
 
     imported = result["imported"]
     updated = result["updated"]
@@ -95,7 +103,7 @@ def import_results():
         f"{updated} {_plural(updated, 'atualizado', 'atualizados')}, "
         f"{ignored} {_plural(ignored, 'ignorado', 'ignorados')}."
     )
-    return redirect(url_for("web.dashboard"))
+    return redirect(url_for("web.contests"))
 
 
 @bp.post("/settings")
@@ -105,7 +113,7 @@ def save_settings():
     session.modified = True
     _log.info("Configurações de geração atualizadas.")
     flash("Configurações salvas.")
-    return redirect(url_for("web.import_results", clear_generation_storage=1))
+    return redirect(url_for("web.settings_page", clear_generation_storage=1))
 
 
 @bp.post("/reset")
@@ -117,7 +125,7 @@ def reset_database():
     db.session.commit()
     _log.warning("Base reiniciada: %d concursos e %d apostas apagados.", draw_count, bet_count)
     flash("Base reiniciada: concursos e apostas apagados.")
-    return redirect(url_for("web.import_results"))
+    return redirect(url_for("web.settings_page"))
 
 
 @bp.route("/rationale")
@@ -465,6 +473,39 @@ def recent_frequency():
         count = max(10, min(count, 10_000))
     data = build_recent_frequency(count)
     return jsonify(data)
+
+
+@bp.get("/api/dashboard-stats")
+def dashboard_stats():
+    """
+    Payload completo para atualização do dashboard inteiro de acordo com um
+    período (quantidade de concursos mais recentes). Usado pelo seletor de
+    período global, que afeta todos os cards e gráficos da página.
+    """
+    raw = request.args.get("count", "").strip()
+    count = _optional_int(raw) if raw else None
+    if count is not None:
+        count = max(10, min(count, 10_000))
+
+    stats = build_stats(count)
+    payload = {
+        "count": stats["count"],
+        "actual_count": stats["actual_count"],
+        "total_draws": stats["total_draws"],
+        "mega_sena_games_with_winners": stats["mega_sena_games_with_winners"],
+        "mega_sena_games_without_winners": stats["mega_sena_games_without_winners"],
+        "mega_sena_games_with_winners_pct": stats["mega_sena_games_with_winners_pct"],
+        "mega_sena_games_without_winners_pct": stats["mega_sena_games_without_winners_pct"],
+        "prize_cards": stats["prize_cards"],
+        "even_distribution": stats["even_distribution"],
+        "consecutive_distribution": stats["consecutive_distribution"],
+        "ranges": stats["ranges"],
+        "most_frequent": stats["most_frequent"],
+        "least_frequent": stats["least_frequent"],
+        "frequency": stats["frequency"],
+        "sum_histogram": stats["sum_histogram"],
+    }
+    return jsonify(payload)
 
 
 @bp.route("/contests")

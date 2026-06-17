@@ -1,15 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="card">
-    <h2>Importar resultados</h2>
-    <p>Selecione uma planilha .xlsx. O arquivo será lido somente para a importação e não será armazenado no projeto.</p>
-    <form method="post" enctype="multipart/form-data" class="form">
-        <label>Planilha<input type="file" name="file" accept=".xlsx,.xls" required></label>
-        <button type="submit">Importar</button>
-    </form>
-</section>
 <section class="card settings-section">
-    <h2>Configurações</h2>
+    <div class="panel-header">
+      <h2>Configurações</h2>
+    </div>
     <p>Valores padrão usados ao abrir a geração e o racional.</p>
     <form method="post" action="{{ url_for('web.save_settings') }}" class="form-grid settings-grid">
         <label>Números por aposta<input type="number" name="bet_quantity" min="6" max="15" value="{{ config_values.bet_quantity }}"></label>
@@ -27,9 +21,12 @@
     </form>
 </section>
 <section class="card danger-zone">
-    <h2>Reiniciar base</h2>
+    <div class="panel-header">
+      <h2>Reiniciar base</h2>
+    </div>
+    <p class="muted">Apaga todos os concursos e apostas salvos. Use isso apenas para começar do zero.</p>
     <form method="post" action="{{ url_for('web.reset_database') }}">
-        <button type="submit" class="secondary">Apagar concursos e apostas</button>
+        <button type="submit" class="danger" onclick="return confirm('Apagar todos os concursos e apostas? Essa ação não pode ser desfeita.');">Apagar concursos e apostas</button>
     </form>
 </section>
 {% endblock %}

@@ -10,7 +10,7 @@ from openpyxl import Workbook
 from app import db
 from app.models import Config, Draw
 from app.routes import bp
-from app.services import build_combination_report, build_recent_frequency, calculate_individual_filter_targets, count_consecutive_numbers, count_draws_matching_filters, count_even_numbers, count_occupied_range_bands, count_possible_draw_combinations, draw_parameters, generate_closure_bets, get_config_values, import_results_from_xlsx, list_recent_generations, list_recent_generations_with_bets, max_range_band_count, save_generated_bets
+from app.services import build_combination_report, build_recent_frequency, build_stats, calculate_individual_filter_targets, count_consecutive_numbers, count_draws_matching_filters, count_even_numbers, count_occupied_range_bands, count_possible_draw_combinations, draw_parameters, generate_closure_bets, get_config_values, import_results_from_xlsx, list_recent_generations, list_recent_generations_with_bets, max_range_band_count, save_generated_bets
 
 
 def make_app() -> Flask:
@@ -414,7 +414,7 @@ def test_import_settings_save_default_generation_parameters() -> None:
         db.create_all()
 
     client = app.test_client()
-    response = client.get("/import")
+    response = client.get("/settings")
     text = response.get_data(as_text=True)
 
     assert response.status_code == 200
@@ -666,7 +666,7 @@ def test_dashboard_chart_titles_and_frequency_cards() -> None:
     assert response.status_code == 200
     assert "Frequência X Número Sorteado" in text
     assert "Frequência x Soma dos Números Sorteados" in text
-    assert "5. Distribuição por faixas" in text
+    assert "Distribuição por faixas" in text
     assert "Divide as dezenas em blocos" not in text
     assert "frequency-y-axis-title" not in text
     assert "frequency-x-axis-title" not in text
@@ -676,8 +676,8 @@ def test_dashboard_chart_titles_and_frequency_cards() -> None:
     assert "chart-panel" in text
     assert "dashboard-chart-panel" in text
     assert text.index("Quantidade de números pares") < text.index("Maior sequência consecutiva")
-    assert text.index("Maior sequência consecutiva") < text.index("5. Distribuição por faixas")
-    assert text.index("5. Distribuição por faixas") < text.index("Mais frequentes")
+    assert text.index("Maior sequência consecutiva") < text.index("Distribuição por faixas")
+    assert text.index("Distribuição por faixas") < text.index("Mais frequentes")
     assert text.index("Mais frequentes") < text.index("Frequência x Soma dos Números Sorteados")
     assert text.index("Mais frequentes") < text.index("Frequência X Número Sorteado")
 
@@ -695,7 +695,7 @@ def test_import_rejects_non_xlsx_files() -> None:
 
     client = app.test_client()
     response = client.post(
-        "/import",
+        "/contests/import",
         data={"file": (BytesIO(b"dummy content"), "resultados.csv")},
         content_type="multipart/form-data",
         follow_redirects=True,
@@ -713,7 +713,7 @@ def test_import_rejects_missing_file() -> None:
         db.create_all()
 
     client = app.test_client()
-    response = client.post("/import", data={}, follow_redirects=True)
+    response = client.post("/contests/import", data={}, follow_redirects=True)
     text = response.get_data(as_text=True)
 
     assert response.status_code == 200
@@ -728,7 +728,7 @@ def test_import_handles_corrupted_xlsx_gracefully() -> None:
 
     client = app.test_client()
     response = client.post(
-        "/import",
+        "/contests/import",
         data={"file": (BytesIO(b"not an xlsx file at all"), "resultados.xlsx")},
         content_type="multipart/form-data",
         follow_redirects=True,
@@ -951,4 +951,417 @@ def test_dashboard_renders_period_selector_buttons() -> None:
     assert 'data-period="200"' in text
     assert 'data-period="100"' in text
     assert 'id="freq-chart"' in text
-    assert "/api/recent-frequency" in text
+    assert "/api/dashboard-stats" in text
+
+
+# ---------------------------------------------------------------------------
+# Layout: largura dos cards do topo e card de período global
+# ---------------------------------------------------------------------------
+
+
+def test_dashboard_has_three_cards_in_top_row_matching_grid_widths() -> None:
+    """
+    A seção .cards deve ter 3 cards (Concursos, Acertadores, Período),
+    usando a mesma proporção de colunas de .dashboard-top-grid, para que
+    cada um se alinhe em largura com o card correspondente na linha abaixo.
+    """
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+
+    response = app.test_client().get("/dashboard")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert 'id="dash-concursos-card"' in text
+    assert 'id="dash-acertadores-card"' in text
+    assert 'id="dash-period-card"' in text
+    # As 3 seções devem aparecer antes de "Quantidade de números pares",
+    # ou seja, dentro da seção .cards.
+    cards_idx = text.index('<section class="cards">')
+    grid_idx = text.index("Quantidade de números pares")
+    assert cards_idx < text.index('id="dash-period-card"') < grid_idx
+
+
+def test_period_card_contains_buttons_moved_from_chart_panel() -> None:
+    """Os botões de período devem estar dentro do novo card, não mais no painel do gráfico."""
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+
+    response = app.test_client().get("/dashboard")
+    text = response.get_data(as_text=True)
+
+    period_card_start = text.index('id="dash-period-card"')
+    period_card_end = text.index("</div>", text.index("freq-period-label"))
+    period_card_html = text[period_card_start:period_card_end]
+
+    assert 'data-period="500"' in period_card_html
+    assert 'data-period="200"' in period_card_html
+    assert 'data-period="100"' in period_card_html
+    assert "freq-chart-header" not in text  # wrapper antigo não existe mais
+
+
+def test_css_cards_grid_matches_dashboard_top_grid_proportions() -> None:
+    """O CSS de .cards deve usar a mesma proporção 0.9fr/1fr/1.35fr de .dashboard-top-grid."""
+    with open("app/static/style.css", encoding="utf-8") as f:
+        css = f.read()
+
+    assert "minmax(0, .9fr) minmax(0, 1fr) minmax(0, 1.35fr)" in css
+    # A regra antiga de 4 colunas iguais não deve mais existir para .cards.
+    cards_rule_start = css.index(".cards {")
+    cards_rule_end = css.index("}", cards_rule_start)
+    cards_rule = css[cards_rule_start:cards_rule_end]
+    assert "repeat(4, 1fr)" not in cards_rule
+
+
+# ---------------------------------------------------------------------------
+# Filtro de período global (build_stats + /api/dashboard-stats)
+# ---------------------------------------------------------------------------
+
+
+def test_build_stats_with_no_count_considers_full_history() -> None:
+    """build_stats() sem argumento deve manter o comportamento original (todo o histórico)."""
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+        for contest in range(1, 11):
+            db.session.add(
+                Draw(contest=contest, n1=1, n2=2, n3=3, n4=4, n5=5, n6=6, **draw_parameters([1, 2, 3, 4, 5, 6]))
+            )
+        db.session.commit()
+
+        stats = build_stats()
+
+    assert stats["total_draws"] == 10
+    assert stats["count"] is None
+    assert stats["actual_count"] == 10
+
+
+def test_build_stats_with_count_limits_to_recent_draws() -> None:
+    """build_stats(count) deve considerar apenas os N concursos mais recentes."""
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+        # 5 concursos com números pares "1-6", 5 concursos mais recentes com números "10-15"
+        for contest in range(1, 6):
+            db.session.add(
+                Draw(contest=contest, n1=1, n2=2, n3=3, n4=4, n5=5, n6=6, **draw_parameters([1, 2, 3, 4, 5, 6]))
+            )
+        for contest in range(6, 11):
+            db.session.add(
+                Draw(contest=contest, n1=10, n2=11, n3=12, n4=13, n5=14, n6=15, **draw_parameters([10, 11, 12, 13, 14, 15]))
+            )
+        db.session.commit()
+
+        stats = build_stats(5)
+
+    assert stats["total_draws"] == 5
+    assert stats["count"] == 5
+    assert stats["frequency"][10] == 5
+    assert stats["frequency"][1] == 0
+
+
+def test_dashboard_stats_endpoint_returns_full_payload_for_all_sections() -> None:
+    """GET /api/dashboard-stats deve retornar todos os campos usados pelo dashboard."""
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+        for contest in range(1, 21):
+            db.session.add(
+                Draw(contest=contest, n1=1, n2=2, n3=3, n4=4, n5=5, n6=6, **draw_parameters([1, 2, 3, 4, 5, 6]))
+            )
+        db.session.commit()
+
+    response = app.test_client().get("/api/dashboard-stats?count=10")
+    data = response.get_json()
+
+    assert response.status_code == 200
+    expected_keys = {
+        "count", "actual_count", "total_draws",
+        "mega_sena_games_with_winners", "mega_sena_games_without_winners",
+        "mega_sena_games_with_winners_pct", "mega_sena_games_without_winners_pct",
+        "prize_cards", "even_distribution", "consecutive_distribution",
+        "ranges", "most_frequent", "least_frequent", "frequency", "sum_histogram",
+    }
+    assert expected_keys.issubset(data.keys())
+    assert data["count"] == 10
+    assert data["actual_count"] == 10
+    assert data["total_draws"] == 10
+
+
+def test_dashboard_stats_endpoint_default_considers_all_draws() -> None:
+    """GET /api/dashboard-stats sem `count` deve considerar todo o histórico."""
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+        for contest in range(1, 8):
+            db.session.add(
+                Draw(contest=contest, n1=1, n2=2, n3=3, n4=4, n5=5, n6=6, **draw_parameters([1, 2, 3, 4, 5, 6]))
+            )
+        db.session.commit()
+
+    response = app.test_client().get("/api/dashboard-stats")
+    data = response.get_json()
+
+    assert response.status_code == 200
+    assert data["count"] is None
+    assert data["total_draws"] == 7
+
+
+def test_dashboard_stats_endpoint_clamps_out_of_range_count() -> None:
+    """`count` fora do intervalo 10-10000 deve ser ajustado, sem erro 400."""
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+        for contest in range(1, 4):
+            db.session.add(
+                Draw(contest=contest, n1=1, n2=2, n3=3, n4=4, n5=5, n6=6, **draw_parameters([1, 2, 3, 4, 5, 6]))
+            )
+        db.session.commit()
+
+    response = app.test_client().get("/api/dashboard-stats?count=1")
+    data = response.get_json()
+
+    assert response.status_code == 200
+    assert data["total_draws"] == 3
+
+
+# ---------------------------------------------------------------------------
+# Revisão de UX: tema, hierarquia de botões e elemento assinatura
+# ---------------------------------------------------------------------------
+
+
+def test_theme_toggle_button_is_present_on_every_page() -> None:
+    """O controle de tema deve existir e funcionar (cookie 'theme' já era lido, mas sem controle visível)."""
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+
+    text = app.test_client().get("/dashboard").get_data(as_text=True)
+
+    assert 'id="theme-toggle"' in text
+    assert "data-theme=" in text
+
+
+def test_destructive_reset_button_uses_danger_styling_not_secondary() -> None:
+    """A ação destrutiva de apagar a base deve ter estilo visual distinto (danger), não genérico (secondary)."""
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+
+    text = app.test_client().get("/settings").get_data(as_text=True)
+    danger_button_start = text.index("Apagar concursos e apostas")
+    button_tag = text[max(0, danger_button_start - 200):danger_button_start]
+
+    assert "danger" in button_tag
+    assert 'confirm(' in button_tag
+
+
+def test_css_defines_distinct_secondary_and_danger_button_styles() -> None:
+    """.secondary não deve mais ser idêntico ao botão primário; .danger deve existir."""
+    with open("app/static/style.css", encoding="utf-8") as f:
+        css = f.read()
+
+    assert ".button.danger" in css
+    secondary_rule_start = css.index(".button.secondary,")
+    secondary_rule_end = css.index("}", secondary_rule_start)
+    secondary_rule = css[secondary_rule_start:secondary_rule_end]
+    # O estilo "secondary" não deve mais usar a cor de fundo do botão primário.
+    assert "background: var(--button-bg)" not in secondary_rule
+
+
+def test_css_defines_design_tokens_for_typography_and_radius() -> None:
+    """A folha de estilo deve declarar as fontes e a escala de raio usadas na revisão de UX."""
+    with open("app/static/style.css", encoding="utf-8") as f:
+        css = f.read()
+
+    assert "--font-display" in css
+    assert "--font-mono" in css
+    assert "--radius-sm" in css
+    assert "--radius-md" in css
+    assert "--radius-lg" in css
+    assert "Space Grotesk" in css
+    assert "JetBrains Mono" in css
+
+
+def test_dashboard_heading_no_longer_has_stray_numeric_prefix() -> None:
+    """O título 'Distribuição por faixas' não deve mais ter o prefixo solto '5.'."""
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+
+    text = app.test_client().get("/dashboard").get_data(as_text=True)
+
+    assert "<h3>Distribuição por faixas</h3>" in text
+    assert "5. Distribuição por faixas" not in text
+
+
+def test_static_css_link_has_cache_busting_version() -> None:
+    """O link do style.css deve ter ?v=<versão> para o navegador nunca servir uma cópia velha do cache."""
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+
+    text = app.test_client().get("/dashboard").get_data(as_text=True)
+
+    assert "style.css?v=" in text
+
+
+def test_frequency_card_ball_spacing_uses_margin_not_only_gap() -> None:
+    """
+    O espaçamento bola->rótulo nos cards Mais/Menos frequentes não deve depender
+    só de 'gap' do flexbox: precisa de uma margem explícita como reforço, para
+    garantir o espaçamento mesmo se 'gap' não for respeitado pelo navegador.
+    """
+    with open("app/static/style.css", encoding="utf-8") as f:
+        css = f.read()
+
+    rule_start = css.index(".dashboard-frequency-stacked .frequency-item .ball {")
+    rule_end = css.index("}", rule_start)
+    rule = css[rule_start:rule_end]
+
+    assert "margin-right" in rule
+    # Garante que a margem aplicada é claramente maior que o espaçamento original (4px).
+    import re
+    match = re.search(r"margin-right:\s*(\d+)px", rule)
+    assert match is not None
+    assert int(match.group(1)) >= 16
+
+
+# ---------------------------------------------------------------------------
+# Mover "Importar resultados" para Concursos + renomear aba para Configurações
+# ---------------------------------------------------------------------------
+
+
+def test_import_card_now_lives_on_contests_page() -> None:
+    """O card 'Importar resultados' deve aparecer na aba Concursos, postando para /contests/import."""
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+
+    text = app.test_client().get("/contests").get_data(as_text=True)
+
+    assert "Importar resultados" in text
+    assert 'action="/contests/import"' in text
+    # O card de importação deve vir antes da tabela de concursos na página.
+    assert text.index("Importar resultados") < text.index("<h2>Concursos</h2>")
+
+
+def test_settings_page_no_longer_has_import_card() -> None:
+    """A aba Configurações (antiga Importar) não deve mais ter o card de upload."""
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+
+    text = app.test_client().get("/settings").get_data(as_text=True)
+
+    assert "Configurações" in text
+    assert "Reiniciar base" in text
+    assert "Importar resultados" not in text
+    assert 'name="file"' not in text
+
+
+def test_old_import_path_redirects_to_contests() -> None:
+    """GET /import (caminho antigo) deve redirecionar para /contests, onde o card vive agora."""
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+
+    response = app.test_client().get("/import", follow_redirects=False)
+
+    assert response.status_code == 302
+    assert response.headers["Location"] == "/contests"
+
+
+def test_nav_tab_renamed_from_importar_to_configuracoes() -> None:
+    """O link de navegação deve mostrar 'Configurações', não mais 'Importar'."""
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+
+    text = app.test_client().get("/dashboard").get_data(as_text=True)
+
+    assert ">Configurações</a>" in text
+    assert ">Importar</a>" not in text
+    assert 'href="/settings"' in text
+
+
+def test_save_settings_and_reset_redirect_to_settings_page() -> None:
+    """Salvar configurações e resetar a base devem continuar redirecionando para a página /settings."""
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+
+    client = app.test_client()
+    response = client.post("/settings", data={"bet_quantity": "6"}, follow_redirects=False)
+    assert response.status_code == 302
+    assert response.headers["Location"].startswith("/settings")
+
+    response = client.post("/reset", follow_redirects=False)
+    assert response.status_code == 302
+    assert response.headers["Location"] == "/settings"
+
+
+def test_upload_endpoint_redirects_back_to_contests_on_every_outcome() -> None:
+    """Sucesso ou falha no upload, o usuário deve voltar para /contests (onde o form vive)."""
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+
+    client = app.test_client()
+    response = client.post("/contests/import", data={}, follow_redirects=False)
+
+    assert response.status_code == 302
+    assert response.headers["Location"] == "/contests"
+
+
+# ---------------------------------------------------------------------------
+# Harmonização visual: padrão de cabeçalho do tema Concursos nas outras abas
+# ---------------------------------------------------------------------------
+
+
+def test_panel_header_pattern_is_shared_across_pages() -> None:
+    """A classe .panel-header (tema herdado de Concursos) deve aparecer em várias abas, não só em uma."""
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+
+    client = app.test_client()
+    contests_text = client.get("/contests").get_data(as_text=True)
+    settings_text = client.get("/settings").get_data(as_text=True)
+    bets_text = client.get("/bets").get_data(as_text=True)
+    rationale_text = client.get("/rationale").get_data(as_text=True)
+
+    assert "panel-header" in contests_text
+    assert "panel-header" in settings_text
+    assert "panel-header" in bets_text
+    assert "panel-header" in rationale_text
+
+
+def test_dashboard_has_page_title_matching_other_tabs() -> None:
+    """O Dashboard não tinha título de página; agora deve ter, como as demais abas."""
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+
+    text = app.test_client().get("/dashboard").get_data(as_text=True)
+
+    assert "<h2>Dashboard</h2>" in text
+
+
+def test_generate_bets_button_is_primary_not_secondary() -> None:
+    """
+    Regressão: 'Gerar Apostas' é a ação principal da tela e não deve usar a classe
+    'secondary' (bug encontrado durante a harmonização: estava marcado como secundário).
+    """
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+
+    text = app.test_client().get("/bets").get_data(as_text=True)
+    button_start = text.rindex("<button", 0, text.index('value="generate"'))
+    button_end = text.index(">", text.index('value="generate"'))
+    button_tag = text[button_start:button_end]
+
+    assert "secondary" not in button_tag
