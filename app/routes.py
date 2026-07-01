@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import logging
 import math
+import secrets
 
-from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, session, url_for
 from werkzeug.datastructures import MultiDict
 
 from . import db
@@ -30,6 +31,19 @@ bp = Blueprint("web", __name__)
 GENERATION_FILTER_KEYS = ("consecutive_count", "even_min", "even_max", "sum_min", "sum_max", "range_min_occupied", "range_max_per_band")
 GENERATION_PARAM_KEYS = (*GENERATION_FILTER_KEYS, "amount")
 GENERATION_SESSION_KEY = "generation_params"
+CSRF_SESSION_KEY = "_csrf_token"
+_MUTATING_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+_CONTENT_SECURITY_POLICY = (
+    "default-src 'self'; "
+    "base-uri 'self'; "
+    "form-action 'self'; "
+    "frame-ancestors 'self'; "
+    "img-src 'self' data:; "
+    "font-src 'self' https://fonts.gstatic.com data:; "
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+    "script-src 'self' 'unsafe-inline'; "
+    "connect-src 'self'"
+)
 
 _log = logging.getLogger(__name__)
 
@@ -38,6 +52,42 @@ _ALLOWED_UPLOAD_EXTENSIONS = frozenset({".xlsx"})
 
 def _plural(value: int, singular: str, plural: str) -> str:
     return singular if value == 1 else plural
+
+
+def _csrf_token() -> str:
+    token = session.get(CSRF_SESSION_KEY)
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session[CSRF_SESSION_KEY] = token
+        session.modified = True
+    return token
+
+
+@bp.app_context_processor
+def _inject_security_helpers():
+    return {"csrf_token": _csrf_token}
+
+
+@bp.before_app_request
+def _verify_csrf_token():
+    if request.method not in _MUTATING_METHODS:
+        return None
+    expected = session.get(CSRF_SESSION_KEY)
+    supplied = request.form.get("_csrf_token") or request.headers.get("X-CSRF-Token")
+    if not expected or not supplied or not secrets.compare_digest(str(expected), str(supplied)):
+        _log.warning("POST rejeitado por CSRF ausente ou invalido em %s.", request.path)
+        abort(400)
+    return None
+
+
+@bp.after_app_request
+def _set_security_headers(response):
+    response.headers.setdefault("Content-Security-Policy", _CONTENT_SECURITY_POLICY)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    response.headers.setdefault("Referrer-Policy", "same-origin")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    return response
 
 
 # Aliases locais para os formatadores importados de services
@@ -336,7 +386,7 @@ def _draw_filter_preview_payload(selected_filters: dict[str, int | None]) -> dic
     }
 
 
-@bp.get("/bets/clear")
+@bp.post("/bets/clear")
 def clear_bet_generation():
     stored = dict(session.get(GENERATION_SESSION_KEY, {}))
     for key in GENERATION_FILTER_KEYS:

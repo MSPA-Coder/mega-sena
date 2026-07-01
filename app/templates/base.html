@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="pt-br" data-theme="{{ request.cookies.get('theme', 'light') }}">
+<html lang="pt-br" data-theme="{{ 'dark' if request.cookies.get('theme') == 'dark' else 'light' }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -21,7 +21,12 @@
       <span>AI · análise estatística</span>
     </div>
   </div>
-  <nav>
+  <button type="button" class="nav-toggle" id="nav-toggle" aria-label="Abrir menu principal" aria-controls="primary-nav" aria-expanded="false">
+    <span class="nav-toggle-line" aria-hidden="true"></span>
+    <span class="nav-toggle-line" aria-hidden="true"></span>
+    <span class="nav-toggle-line" aria-hidden="true"></span>
+  </button>
+  <nav id="primary-nav" aria-label="Navegação principal">
     <a class="{{ 'active' if request.endpoint == 'web.dashboard' else '' }}" href="{{ url_for('web.dashboard') }}">Dashboard</a>
     <a class="{{ 'active' if request.endpoint in ['web.bet_generation', 'web.rationale'] else '' }}" href="{{ url_for('web.bet_generation') }}">Gerar apostas</a>
     <a class="{{ 'active' if request.endpoint == 'web.contests' or request.endpoint == 'web.import_upload' else '' }}" href="{{ url_for('web.contests') }}">Concursos</a>
@@ -51,9 +56,47 @@
     btn.addEventListener("click", function () {
       var next = root.dataset.theme === "dark" ? "light" : "dark";
       root.dataset.theme = next;
-      document.cookie = "theme=" + next + ";path=/;max-age=" + 60 * 60 * 24 * 365;
+      document.cookie = "theme=" + next + ";path=/;max-age=" + 60 * 60 * 24 * 365 + ";SameSite=Lax";
       describe(next);
     });
+  }());
+  (function () {
+    "use strict";
+    var topbar = document.querySelector(".topbar");
+    var btn = document.getElementById("nav-toggle");
+    var nav = document.getElementById("primary-nav");
+    if (!topbar || !btn || !nav) return;
+    topbar.classList.add("nav-ready");
+
+    function setOpen(open) {
+      topbar.classList.toggle("nav-open", open);
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
+      btn.setAttribute("aria-label", open ? "Fechar menu principal" : "Abrir menu principal");
+    }
+
+    btn.addEventListener("click", function () {
+      setOpen(btn.getAttribute("aria-expanded") !== "true");
+    });
+
+    nav.addEventListener("click", function (event) {
+      if (event.target.closest("a")) setOpen(false);
+    });
+
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") setOpen(false);
+    });
+
+    if (window.matchMedia) {
+      var desktop = window.matchMedia("(min-width: 851px)");
+      var closeOnDesktop = function (event) {
+        if (event.matches) setOpen(false);
+      };
+      if (desktop.addEventListener) {
+        desktop.addEventListener("change", closeOnDesktop);
+      } else if (desktop.addListener) {
+        desktop.addListener(closeOnDesktop);
+      }
+    }
   }());
 </script>
 <main class="container">

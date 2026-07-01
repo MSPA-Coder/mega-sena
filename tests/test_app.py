@@ -25,6 +25,16 @@ def make_app() -> Flask:
     return app
 
 
+def csrf_form_data(client, token_path: str, data: dict | None = None) -> dict:
+    text = client.get(token_path).get_data(as_text=True)
+    marker = 'name="_csrf_token" value="'
+    start = text.index(marker) + len(marker)
+    end = text.index('"', start)
+    payload = dict(data or {})
+    payload["_csrf_token"] = text[start:end]
+    return payload
+
+
 def workbook_bytes(rows: list[list[object]], bad_dimension: bool = False) -> BytesIO:
     workbook = Workbook()
     sheet = workbook.active
@@ -429,17 +439,21 @@ def test_import_settings_save_default_generation_parameters() -> None:
 
     response = client.post(
         "/settings",
-        data={
-            "bet_quantity": "7",
-            "generation_amount": "8",
-            "consecutive_count": "3",
-            "even_min": "2",
-            "even_max": "4",
-            "sum_min": "100",
-            "sum_max": "220",
-            "range_min_occupied": "4",
-            "range_max_per_band": "2",
-        },
+        data=csrf_form_data(
+            client,
+            "/settings",
+            {
+                "bet_quantity": "7",
+                "generation_amount": "8",
+                "consecutive_count": "3",
+                "even_min": "2",
+                "even_max": "4",
+                "sum_min": "100",
+                "sum_max": "220",
+                "range_min_occupied": "4",
+                "range_max_per_band": "2",
+            },
+        ),
         follow_redirects=True,
     )
     text = response.get_data(as_text=True)
@@ -481,7 +495,7 @@ def test_generation_params_are_restored_and_can_be_cleared() -> None:
     assert 'name="even_min" min="0" max="6" placeholder="Opcional" value="2"' in text
     assert 'name="even_max" min="0" max="6" placeholder="Opcional" value="4"' in text
 
-    response = client.get("/bets/clear", follow_redirects=True)
+    response = client.post("/bets/clear", data=csrf_form_data(client, "/bets"), follow_redirects=True)
     text = response.get_data(as_text=True)
     assert response.status_code == 200
     assert 'name="amount" min="1" max="100" value="9"' in text
@@ -511,15 +525,19 @@ def test_clear_generation_filters_overrides_config_defaults() -> None:
     client = app.test_client()
     response = client.post(
         "/settings",
-        data={
-            "bet_quantity": "6",
-            "generation_amount": "8",
-            "consecutive_count": "3",
-            "even_min": "2",
-            "even_max": "4",
-            "sum_min": "100",
-            "sum_max": "220",
-        },
+        data=csrf_form_data(
+            client,
+            "/settings",
+            {
+                "bet_quantity": "6",
+                "generation_amount": "8",
+                "consecutive_count": "3",
+                "even_min": "2",
+                "even_max": "4",
+                "sum_min": "100",
+                "sum_max": "220",
+            },
+        ),
         follow_redirects=True,
     )
     assert response.status_code == 200
@@ -529,7 +547,7 @@ def test_clear_generation_filters_overrides_config_defaults() -> None:
     assert 'name="consecutive_count" min="0" max="6" placeholder="Opcional" value="3"' in text
     assert 'name="even_min" min="0" max="6" placeholder="Opcional" value="2"' in text
 
-    response = client.get("/bets/clear", follow_redirects=True)
+    response = client.post("/bets/clear", data=csrf_form_data(client, "/bets"), follow_redirects=True)
     text = response.get_data(as_text=True)
 
     assert response.status_code == 200
@@ -579,14 +597,19 @@ def test_bets_can_generate_mathematical_closure_from_base_numbers() -> None:
     with app.app_context():
         db.create_all()
 
-    response = app.test_client().post(
+    client = app.test_client()
+    response = client.post(
         "/bets",
-        data={
-            "action": "closure",
-            "quantity": "6",
-            "amount": "5",
-            "closure_numbers": "1 2 3 4 5 6 7",
-        },
+        data=csrf_form_data(
+            client,
+            "/bets",
+            {
+                "action": "closure",
+                "quantity": "6",
+                "amount": "5",
+                "closure_numbers": "1 2 3 4 5 6 7",
+            },
+        ),
     )
     text = response.get_data(as_text=True)
 
@@ -696,7 +719,7 @@ def test_import_rejects_non_xlsx_files() -> None:
     client = app.test_client()
     response = client.post(
         "/contests/import",
-        data={"file": (BytesIO(b"dummy content"), "resultados.csv")},
+        data=csrf_form_data(client, "/contests", {"file": (BytesIO(b"dummy content"), "resultados.csv")}),
         content_type="multipart/form-data",
         follow_redirects=True,
     )
@@ -713,7 +736,7 @@ def test_import_rejects_missing_file() -> None:
         db.create_all()
 
     client = app.test_client()
-    response = client.post("/contests/import", data={}, follow_redirects=True)
+    response = client.post("/contests/import", data=csrf_form_data(client, "/contests"), follow_redirects=True)
     text = response.get_data(as_text=True)
 
     assert response.status_code == 200
@@ -729,7 +752,7 @@ def test_import_handles_corrupted_xlsx_gracefully() -> None:
     client = app.test_client()
     response = client.post(
         "/contests/import",
-        data={"file": (BytesIO(b"not an xlsx file at all"), "resultados.xlsx")},
+        data=csrf_form_data(client, "/contests", {"file": (BytesIO(b"not an xlsx file at all"), "resultados.xlsx")}),
         content_type="multipart/form-data",
         follow_redirects=True,
     )
@@ -746,6 +769,55 @@ def test_import_service_raises_runtime_error_on_bad_workbook() -> None:
         assert False, "Deveria ter levantado RuntimeError"
     except RuntimeError as exc:
         assert "Não foi possível ler o arquivo" in str(exc)
+
+
+def test_mutating_forms_include_csrf_tokens_and_clear_uses_post() -> None:
+    """Formulários que alteram estado devem levar token CSRF; limpar filtros não deve usar GET."""
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+
+    client = app.test_client()
+    settings_text = client.get("/settings").get_data(as_text=True)
+    contests_text = client.get("/contests").get_data(as_text=True)
+    bets_text = client.get("/bets").get_data(as_text=True)
+
+    assert settings_text.count('name="_csrf_token"') >= 2
+    assert 'name="_csrf_token"' in contests_text
+    assert 'name="_csrf_token"' in bets_text
+    assert 'formaction="/bets/clear"' in bets_text
+    assert 'formmethod="post"' in bets_text
+    assert client.get("/bets/clear").status_code == 405
+
+
+def test_post_without_csrf_token_is_rejected() -> None:
+    """POST sem token não deve executar ação destrutiva."""
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+        db.session.add(Draw(contest=1, n1=1, n2=2, n3=3, n4=4, n5=5, n6=6, **draw_parameters([1, 2, 3, 4, 5, 6])))
+        db.session.commit()
+
+    response = app.test_client().post("/reset")
+
+    assert response.status_code == 400
+    with app.app_context():
+        assert Draw.query.count() == 1
+
+
+def test_security_headers_are_applied() -> None:
+    """Respostas HTML devem sair com cabeçalhos defensivos básicos."""
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+
+    response = app.test_client().get("/dashboard")
+
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["X-Frame-Options"] == "SAMEORIGIN"
+    assert response.headers["Referrer-Policy"] == "same-origin"
+    assert "form-action 'self'" in response.headers["Content-Security-Policy"]
+    assert "frame-ancestors 'self'" in response.headers["Content-Security-Policy"]
 
 
 def test_format_int_and_format_percent_are_public() -> None:
@@ -766,7 +838,8 @@ def test_reset_logs_counts_and_clears_all_data() -> None:
         db.session.add(Draw(contest=1, n1=1, n2=2, n3=3, n4=4, n5=5, n6=6, **draw_parameters([1, 2, 3, 4, 5, 6])))
         db.session.commit()
 
-    response = app.test_client().post("/reset", follow_redirects=True)
+    client = app.test_client()
+    response = client.post("/reset", data=csrf_form_data(client, "/settings"), follow_redirects=True)
     text = response.get_data(as_text=True)
 
     assert response.status_code == 200
@@ -1244,6 +1317,7 @@ def test_import_card_now_lives_on_contests_page() -> None:
 
     assert "Importar resultados" in text
     assert 'action="/contests/import"' in text
+    assert 'accept=".xlsx"' in text
     # O card de importação deve vir antes da tabela de concursos na página.
     assert text.index("Importar resultados") < text.index("<h2>Concursos</h2>")
 
@@ -1287,6 +1361,21 @@ def test_nav_tab_renamed_from_importar_to_configuracoes() -> None:
     assert 'href="/settings"' in text
 
 
+def test_primary_nav_has_accessible_mobile_toggle() -> None:
+    """O menu principal deve ter botão colapsável acessível para telas pequenas."""
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+
+    text = app.test_client().get("/dashboard").get_data(as_text=True)
+
+    assert 'id="nav-toggle"' in text
+    assert 'aria-controls="primary-nav"' in text
+    assert 'aria-expanded="false"' in text
+    assert 'id="primary-nav"' in text
+    assert 'aria-label="Navegação principal"' in text
+
+
 def test_save_settings_and_reset_redirect_to_settings_page() -> None:
     """Salvar configurações e resetar a base devem continuar redirecionando para a página /settings."""
     app = make_app()
@@ -1294,11 +1383,11 @@ def test_save_settings_and_reset_redirect_to_settings_page() -> None:
         db.create_all()
 
     client = app.test_client()
-    response = client.post("/settings", data={"bet_quantity": "6"}, follow_redirects=False)
+    response = client.post("/settings", data=csrf_form_data(client, "/settings", {"bet_quantity": "6"}), follow_redirects=False)
     assert response.status_code == 302
     assert response.headers["Location"].startswith("/settings")
 
-    response = client.post("/reset", follow_redirects=False)
+    response = client.post("/reset", data=csrf_form_data(client, "/settings"), follow_redirects=False)
     assert response.status_code == 302
     assert response.headers["Location"] == "/settings"
 
@@ -1310,7 +1399,7 @@ def test_upload_endpoint_redirects_back_to_contests_on_every_outcome() -> None:
         db.create_all()
 
     client = app.test_client()
-    response = client.post("/contests/import", data={}, follow_redirects=False)
+    response = client.post("/contests/import", data=csrf_form_data(client, "/contests"), follow_redirects=False)
 
     assert response.status_code == 302
     assert response.headers["Location"] == "/contests"
@@ -1365,3 +1454,92 @@ def test_generate_bets_button_is_primary_not_secondary() -> None:
     button_tag = text[button_start:button_end]
 
     assert "secondary" not in button_tag
+
+
+# ---------------------------------------------------------------------------
+# Harmonização do tema "Concursos" (zebra + tons semânticos) nas demais abas
+# ---------------------------------------------------------------------------
+
+
+def test_css_defines_semantic_tint_tokens() -> None:
+    """As cores de tinta (positivo/aviso/dourado) devem existir nos dois temas."""
+    with open("app/static/style.css", encoding="utf-8") as f:
+        css = f.read()
+
+    assert "--surface-tint-positive" in css
+    assert "--surface-tint-warm" in css
+    assert "--surface-tint-gold" in css
+    assert ".tint-positive" in css
+    assert ".tint-warm" in css
+    assert ".tint-gold" in css
+
+
+def test_dashboard_frequency_cards_use_semantic_tints() -> None:
+    """Mais frequentes/Menos frequentes/Acertadores devem ter cor própria, não brancos neutros."""
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+
+    text = app.test_client().get("/dashboard").get_data(as_text=True)
+
+    acertadores_start = text.index('id="dash-acertadores-card"')
+    acertadores_tag = text[max(0, acertadores_start - 120):acertadores_start]
+    assert "tint-gold" in acertadores_tag
+
+    most_idx = text.index("Mais frequentes")
+    most_card_tag = text[max(0, most_idx - 150):most_idx]
+    assert "tint-positive" in most_card_tag
+
+    least_idx = text.index("Menos frequentes")
+    least_card_tag = text[max(0, least_idx - 150):least_idx]
+    assert "tint-warm" in least_card_tag
+
+
+def test_combination_summary_highlights_eliminated_and_chance_cards() -> None:
+    """'Eliminadas pelos filtros' e 'Chance com N apostas' devem ter destaque visual (não cards neutros)."""
+    with open("app/static/style.css", encoding="utf-8") as f:
+        css = f.read()
+
+    assert ".combination-summary div:nth-child(2)" in css
+    assert ".combination-summary div:last-child" in css
+    summary_block_start = css.index(".combination-summary div:nth-child(2)")
+    summary_block_end = css.index(".combination-summary div:last-child")
+    eliminated_rule = css[summary_block_start:summary_block_end]
+    assert "var(--surface-tint-warm)" in eliminated_rule
+
+
+def test_repeated_row_lists_have_zebra_striping() -> None:
+    """
+    As listas repetidas do app (pares, faixas, apostas de uma geração, lista de
+    gerações, etapas de filtro) devem ter zebra, espelhando o tema de Concursos.
+    """
+    with open("app/static/style.css", encoding="utf-8") as f:
+        css = f.read()
+
+    assert ".compact-stats p:nth-child(even)" in css
+    assert ".range-band-list p:nth-child(4n+3)" in css
+    assert ".bet-line:nth-child(even)" in css
+    assert ".generation-group:nth-child(even) .generation-line" in css
+    assert ".combination-filter-list p:nth-child(even)" in css
+
+
+def test_generation_list_zebra_targets_correct_alternating_element() -> None:
+    """
+    Regressão: cada .generation-line vive dentro do seu próprio .generation-group,
+    então ':nth-child(even)' direto em .generation-line nunca alternava (sempre
+    era o 1º filho do seu grupo). A zebra precisa alternar por .generation-group.
+    """
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+        from app.services import draw_parameters, generate_bets, save_generated_bets
+        import random
+
+        random.seed(7)
+        for _ in range(3):
+            bets = generate_bets(6, 2, persist=False)
+            save_generated_bets(6, [b.numbers_csv for b in bets])
+
+    text = app.test_client().get("/bets").get_data(as_text=True)
+
+    assert text.count("generation-group") >= 3

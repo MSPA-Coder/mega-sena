@@ -6,6 +6,7 @@
     </div>
     <p>Valores padrão usados ao abrir a geração e o racional.</p>
     <form method="post" action="{{ url_for('web.save_settings') }}" class="form-grid settings-grid">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
         <label>Números por aposta<input type="number" name="bet_quantity" min="6" max="15" value="{{ config_values.bet_quantity }}"></label>
         <label>Quantas apostas deseja gerar<input type="number" name="generation_amount" min="1" max="100" value="{{ config_values.generation_amount }}"></label>
         <label>Maior sequência consecutiva permitida<input type="number" name="consecutive_count" min="0" max="6" placeholder="Opcional" value="{{ config_values.consecutive_count }}"></label>
@@ -26,6 +27,7 @@
     </div>
     <p class="muted">Apaga todos os concursos e apostas salvos. Use isso apenas para começar do zero.</p>
     <form method="post" action="{{ url_for('web.reset_database') }}">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="danger" onclick="return confirm('Apagar todos os concursos e apostas? Essa ação não pode ser desfeita.');">Apagar concursos e apostas</button>
     </form>
 </section>

@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import logging
 import os
+import secrets
 from pathlib import Path
 
 from flask import Flask, flash, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import event
 
 db = SQLAlchemy()
 
@@ -27,10 +29,10 @@ def create_app() -> Flask:
     if not secret_key:
         _log.warning(
             "SECRET_KEY não definida no ambiente. "
-            "Usando chave temporária de desenvolvimento — "
+            "Usando chave temporária de desenvolvimento gerada na inicialização — "
             "defina SECRET_KEY antes de expor a aplicação na rede."
         )
-        secret_key = "dev-mega-sena-change-me"
+        secret_key = secrets.token_urlsafe(32)
 
     app.config["SECRET_KEY"] = secret_key
     app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{instance_dir / 'mega_sena.db'}"
@@ -75,6 +77,7 @@ def create_app() -> Flask:
         from . import models  # noqa: F401
         from .services import ensure_default_config, refresh_draw_parameters
 
+        _configure_sqlite_engine(app)
         db.create_all()
         ensure_default_config()
         refresh_draw_parameters()
@@ -91,6 +94,22 @@ def _configure_logging() -> None:
             format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
         )
+
+
+def _configure_sqlite_engine(app: Flask) -> None:
+    database_uri = str(app.config.get("SQLALCHEMY_DATABASE_URI", ""))
+    if not database_uri.startswith("sqlite:"):
+        return
+
+    @event.listens_for(db.engine, "connect")
+    def _set_sqlite_pragmas(dbapi_connection, _connection_record) -> None:
+        cursor = dbapi_connection.cursor()
+        try:
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.execute("PRAGMA busy_timeout=30000")
+            cursor.execute("PRAGMA journal_mode=WAL")
+        finally:
+            cursor.close()
 
 
 def _format_brl(cents: int | None) -> str:

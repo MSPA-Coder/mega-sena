@@ -7,6 +7,7 @@
 
 <form method="post" class="panel form-grid generator-form" data-generation-form data-cleared="{{ '1' if request.args.get('cleared') == '1' else '0' }}">
   <h2 class="form-title">Parâmetros para a Geração das Apostas</h2>
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" data-csrf-token>
   <input type="hidden" name="quantity" value="{{ selected_quantity }}">
   <label>Quantas apostas deseja gerar?<input type="number" name="amount" min="1" max="100" value="{{ selected_amount }}"></label>
   <label>Maior sequência consecutiva permitida<input type="number" name="consecutive_count" min="0" max="6" placeholder="Opcional" value="{{ selected_filters.consecutive_count if selected_filters.consecutive_count is not none else '' }}"></label>
@@ -25,7 +26,7 @@
     <div class="form-actions">
       <button type="button" class="secondary" data-filter-target-button>Calcular parâmetros</button>
       <button type="submit" class="secondary" formmethod="get" formaction="{{ url_for('web.rationale') }}">Racional</button>
-      <a class="button secondary" href="{{ url_for('web.clear_bet_generation') }}">Limpar filtros</a>
+      <button type="submit" class="secondary" formmethod="post" formaction="{{ url_for('web.clear_bet_generation') }}">Limpar filtros</button>
       <button type="submit" name="action" value="generate">Gerar Apostas</button>
     </div>
   </div>
@@ -118,6 +119,7 @@
     <h2>Apostas geradas</h2>
   </div>
   <form method="post">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="action" value="save">
     <input type="hidden" name="quantity" value="{{ bets[0].quantity }}">
     <input type="hidden" name="amount" value="{{ selected_amount }}">
@@ -158,6 +160,7 @@
       const targetPercentageField = form.querySelector("[data-filter-target-percentage]");
       const targetButton = form.querySelector("[data-filter-target-button]");
       const targetStatus = form.querySelector("[data-filter-target-status]");
+      const csrfField = form.querySelector("[data-csrf-token]");
       const closureNumbersField = form.elements.closure_numbers;
       const amountField = form.elements.amount;
       let previewRequest = 0;
@@ -346,7 +349,9 @@
         });
       }
       if (targetButton) targetButton.addEventListener("click", applyFilterTargets);
-      form.addEventListener("submit", () => {
+      form.addEventListener("submit", (event) => {
+        const method = (event.submitter?.formMethod || form.method || "get").toLowerCase();
+        if (csrfField) csrfField.disabled = method === "get";
         applyClosureMode();
         normalizeEvenRange();
         saveState();

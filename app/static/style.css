@@ -40,6 +40,9 @@
   --flash-bg: #e3f3e8;
   --flash-border: #9cc7ab;
   --row-hover: #dcebe1;
+  --surface-tint-positive: #e3f1e8;
+  --surface-tint-warm: #f7e8e1;
+  --surface-tint-gold: #f6ecd6;
   --info-bg: #eff6ff;
   --info-border: #bfdbfe;
   --info-text: #1e3a8a;
@@ -75,6 +78,9 @@
   --flash-bg: #14321f;
   --flash-border: #2f6b46;
   --row-hover: #1f3a2c;
+  --surface-tint-positive: #1d3a2a;
+  --surface-tint-warm: #3a2620;
+  --surface-tint-gold: #3a2f18;
   --info-bg: #172554;
   --info-border: #2563eb;
   --info-text: #bfdbfe;
@@ -163,6 +169,65 @@ td,
   letter-spacing: .09em;
   text-transform: uppercase;
   opacity: .68;
+}
+
+.nav-toggle {
+  position: relative;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin-left: auto;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, .18);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, .06);
+  color: var(--text-inverted);
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+}
+
+.nav-toggle:hover {
+  background: rgba(255, 255, 255, .14);
+  border-color: rgba(255, 255, 255, .3);
+}
+
+.nav-toggle:focus-visible,
+.theme-toggle:focus-visible,
+.topbar a:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, .26);
+}
+
+.nav-toggle-line {
+  position: absolute;
+  display: block;
+  width: 18px;
+  height: 2px;
+  border-radius: 2px;
+  background: currentColor;
+  transition: transform .15s ease, opacity .15s ease;
+}
+
+.nav-toggle-line:nth-child(1) {
+  transform: translateY(-6px);
+}
+
+.nav-toggle-line:nth-child(3) {
+  transform: translateY(6px);
+}
+
+.topbar.nav-open .nav-toggle-line:nth-child(1) {
+  transform: rotate(45deg);
+}
+
+.topbar.nav-open .nav-toggle-line:nth-child(2) {
+  opacity: 0;
+}
+
+.topbar.nav-open .nav-toggle-line:nth-child(3) {
+  transform: rotate(-45deg);
 }
 
 .topbar nav {
@@ -575,7 +640,12 @@ a:focus-visible {
   gap: 6px;
   flex-wrap: wrap;
   border-bottom: 1px solid var(--border);
-  padding: 10px 0;
+  padding: 10px 8px;
+  margin: 0 -8px;
+}
+
+.bet-line:nth-child(even) {
+  background: var(--surface-subtle);
 }
 
 .bet-line span {
@@ -597,7 +667,17 @@ a:focus-visible {
   grid-template-columns: 120px 110px 110px 1fr 150px auto;
   align-items: center;
   gap: 10px;
-  padding: 10px 0;
+  padding: 10px 8px;
+  margin: 0 -8px;
+  border-radius: var(--radius-sm);
+}
+
+.generation-line:nth-child(even) {
+  background: var(--surface-subtle);
+}
+
+.generation-group:nth-child(even) .generation-line {
+  background: var(--surface-subtle);
 }
 
 .generation-line span,
@@ -620,6 +700,10 @@ a:focus-visible {
 .generation-bets-inline h3 {
   font-size: 16px;
   margin: 0 0 8px;
+}
+
+.generation-bets-inline .bet-line:nth-child(even) {
+  background: var(--surface);
 }
 
 .winners-count {
@@ -879,16 +963,44 @@ tbody tr:hover {
   }
 
   .topbar {
-    display: block;
+    flex-wrap: wrap;
+    padding: 14px 18px;
+  }
+
+  .brand {
+    min-width: 0;
+  }
+
+  .topbar.nav-ready .nav-toggle {
+    display: inline-flex;
   }
 
   .topbar nav {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
     margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, .14);
+  }
+
+  .topbar.nav-ready nav {
+    display: none;
+  }
+
+  .topbar.nav-ready.nav-open nav {
+    display: flex;
   }
 
   .topbar a {
-    display: inline-block;
-    margin: 6px 8px 0 0;
+    display: block;
+    margin: 0;
+    padding: 12px 10px;
+  }
+
+  .theme-toggle {
+    align-self: flex-start;
+    margin: 10px 0 0;
   }
 
   .generator-form .form-actions {
@@ -1058,6 +1170,16 @@ tbody tr:hover {
   padding: 12px;
 }
 
+.combination-summary div:nth-child(2) {
+  background: var(--surface-tint-warm);
+  border-color: transparent;
+}
+
+.combination-summary div:last-child {
+  background: var(--surface-tint-gold);
+  border-color: var(--accent-gold);
+}
+
 .combination-summary span,
 .combination-summary small {
   color: var(--text-muted);
@@ -1081,8 +1203,12 @@ tbody tr:hover {
   align-items: baseline;
   gap: 8px;
   border-top: 1px solid var(--border);
-  margin: 0;
-  padding: 8px 0;
+  margin: 0 -8px;
+  padding: 8px;
+}
+
+.combination-filter-list p:nth-child(even) {
+  background: var(--surface-subtle);
 }
 
 .combination-filter-list p span {
@@ -1312,9 +1438,13 @@ tbody tr:hover {
   align-items: baseline;
   gap: 8px;
   border-bottom: 1px solid var(--border);
-  margin: 0;
-  padding: 4px 0;
+  margin: 0 -8px;
+  padding: 4px 8px;
   font-size: 14px;
+}
+
+.compact-stats p:nth-child(even) {
+  background: var(--surface-subtle);
 }
 
 .compact-stats p span {
@@ -1409,8 +1539,13 @@ tbody tr:hover {
   gap: 6px;
   border-top: 1px solid var(--border);
   margin: 0;
-  padding-top: 4px;
+  padding: 4px 6px;
   font-size: 13px;
+}
+
+.range-band-list p:nth-child(4n+3),
+.range-band-list p:nth-child(4n) {
+  background: var(--surface-subtle);
 }
 
 .range-band-list span,
@@ -1509,6 +1644,21 @@ tbody tr:hover {
 
 .import-card {
   margin-bottom: 24px;
+}
+
+/* Tons semânticos: cada card herda uma cor ligada ao que ele representa,
+   em vez de todo card ser branco neutro — o mesmo princípio das linhas
+   zebradas da tabela de Concursos, aplicado a blocos inteiros. */
+.tint-positive {
+  background: var(--surface-tint-positive);
+}
+
+.tint-warm {
+  background: var(--surface-tint-warm);
+}
+
+.tint-gold {
+  background: var(--surface-tint-gold);
 }
 
 .import-form {

@@ -45,6 +45,10 @@ CONFIG_LIMITS = {
     "range_max_per_band": (1, 6),
 }
 
+GENERATION_FILTER_KEYS = ("consecutive_count", "even_min", "even_max", "sum_min", "sum_max", "range_min_occupied", "range_max_per_band")
+MAX_IMPORT_ROWS = 10_000
+_RNG = secrets.SystemRandom()
+
 
 def _norm(value: object) -> str:
     text = "" if value is None else str(value)
@@ -74,8 +78,11 @@ def _to_int(value: object) -> int | None:
     try:
         if value is None or value == "":
             return None
-        return int(float(str(value).strip()))
-    except (TypeError, ValueError):
+        parsed = float(str(value).strip())
+        if not math.isfinite(parsed):
+            return None
+        return int(parsed)
+    except (OverflowError, TypeError, ValueError):
         return None
 
 
@@ -109,6 +116,25 @@ def _normalize_config_values(values: dict[str, object]) -> dict[str, str]:
     if normalized["sum_min"] and normalized["sum_max"] and int(normalized["sum_min"]) > int(normalized["sum_max"]):
         normalized["sum_min"], normalized["sum_max"] = normalized["sum_max"], normalized["sum_min"]
     return normalized
+
+
+def _coerce_generation_filters(filters: dict | None) -> dict[str, int]:
+    if not filters:
+        return {}
+    normalized: dict[str, int] = {}
+    for key in GENERATION_FILTER_KEYS:
+        parsed = _to_int(filters.get(key))
+        if parsed is not None:
+            normalized[key] = parsed
+    return normalized
+
+
+def _count_rows_with_limit(rows: Iterable[tuple[object, ...]]) -> int:
+    count = 0
+    for count, _row in enumerate(rows, start=1):
+        if count > MAX_IMPORT_ROWS:
+            raise RuntimeError(f"A planilha ultrapassa o limite de {MAX_IMPORT_ROWS} linhas de dados.")
+    return count
 
 
 def ensure_default_config() -> dict[str, str]:
@@ -183,95 +209,104 @@ def import_results_from_xlsx(source: str | Path | BinaryIO) -> dict[str, int]:
         _log.error("Falha ao abrir planilha: %s", exc)
         raise RuntimeError(f"Não foi possível ler o arquivo: {exc}") from exc
 
-    sheet = workbook[workbook.sheetnames[0]]
-    if hasattr(sheet, "reset_dimensions"):
-        sheet.reset_dimensions()
-    rows = sheet.iter_rows(values_only=True)
-    header = next(rows, None)
-    if not header:
-        return {"imported": 0, "updated": 0, "ignored": 0}
+    try:
+        sheet = workbook[workbook.sheetnames[0]]
+        if hasattr(sheet, "reset_dimensions"):
+            sheet.reset_dimensions()
+        rows = sheet.iter_rows(values_only=True)
+        header = next(rows, None)
+        if not header:
+            return {"imported": 0, "updated": 0, "ignored": 0}
 
-    normalized = [_norm(c) for c in header]
+        normalized = [_norm(c) for c in header]
 
-    def find_one(candidates: Iterable[str]) -> int | None:
-        cand = {_norm(c) for c in candidates}
-        for idx, name in enumerate(normalized):
-            if name in cand:
-                return idx
-        for idx, name in enumerate(normalized):
-            if any(c in name for c in cand):
-                return idx
-        return None
+        def find_one(candidates: Iterable[str]) -> int | None:
+            cand = {_norm(c) for c in candidates}
+            for idx, name in enumerate(normalized):
+                if name in cand:
+                    return idx
+            for idx, name in enumerate(normalized):
+                if any(c in name for c in cand):
+                    return idx
+            return None
 
-    contest_idx = find_one(["concurso", "contest", "numero concurso", "n concurso"])
-    date_idx = find_one(["data sorteio", "data", "draw date"])
-    winners_6_idx = find_one(["ganhadores 6 acertos", "ganhadores sena", "sena"])
-    winners_5_idx = find_one(["ganhadores 5 acertos", "ganhadores quina", "quina"])
-    winners_4_idx = find_one(["ganhadores 4 acertos", "ganhadores quadra", "quadra"])
-    prize_idx = find_one(["rateio 6 acertos", "premio", "prêmio"])
-    accumulated_idx = find_one(["acumulado 6 acertos", "acumulado"])
-    quina_rateio_idx = find_one(["rateio 5 acertos", "rateio quina"])
-    quadra_rateio_idx = find_one(["rateio 4 acertos", "rateio quadra"])
+        contest_idx = find_one(["concurso", "contest", "numero concurso", "n concurso"])
+        date_idx = find_one(["data sorteio", "data", "draw date"])
+        winners_6_idx = find_one(["ganhadores 6 acertos", "ganhadores sena", "sena"])
+        winners_5_idx = find_one(["ganhadores 5 acertos", "ganhadores quina", "quina"])
+        winners_4_idx = find_one(["ganhadores 4 acertos", "ganhadores quadra", "quadra"])
+        prize_idx = find_one(["rateio 6 acertos", "premio", "prêmio"])
+        accumulated_idx = find_one(["acumulado 6 acertos", "acumulado"])
+        quina_rateio_idx = find_one(["rateio 5 acertos", "rateio quina"])
+        quadra_rateio_idx = find_one(["rateio 4 acertos", "rateio quadra"])
 
-    number_indexes: list[int] = []
-    for token in ["bola 1", "bola1", "dezena 1", "n1", "bola 2", "bola2", "dezena 2", "n2", "bola 3", "bola3", "dezena 3", "n3", "bola 4", "bola4", "dezena 4", "n4", "bola 5", "bola5", "dezena 5", "n5", "bola 6", "bola6", "dezena 6", "n6"]:
-        idx = find_one([token])
-        if idx is not None and idx not in number_indexes:
-            number_indexes.append(idx)
-        if len(number_indexes) == 6:
-            break
+        number_indexes: list[int] = []
+        for token in ["bola 1", "bola1", "dezena 1", "n1", "bola 2", "bola2", "dezena 2", "n2", "bola 3", "bola3", "dezena 3", "n3", "bola 4", "bola4", "dezena 4", "n4", "bola 5", "bola5", "dezena 5", "n5", "bola 6", "bola6", "dezena 6", "n6"]:
+            idx = find_one([token])
+            if idx is not None and idx not in number_indexes:
+                number_indexes.append(idx)
+            if len(number_indexes) == 6:
+                break
 
-    if contest_idx is None or len(number_indexes) < 6:
-        return {"imported": 0, "updated": 0, "ignored": sum(1 for _ in rows)}
+        if contest_idx is None or len(number_indexes) < 6:
+            return {"imported": 0, "updated": 0, "ignored": _count_rows_with_limit(rows)}
 
-    imported = updated = ignored = 0
-    existing_draws = {draw.contest: draw for draw in Draw.query.all()}
-    seen_contests: set[int] = set()
-    for row in rows:
-        contest = _to_int(row[contest_idx] if contest_idx < len(row) else None)
-        numbers = [_to_int(row[i] if i < len(row) else None) for i in number_indexes[:6]]
-        if not contest or any(n is None or n < 1 or n > 60 for n in numbers) or len(set(numbers)) != 6:
-            ignored += 1
-            continue
-        if contest in seen_contests:
-            ignored += 1
-            continue
-        numbers = sorted(numbers)  # type: ignore[arg-type]
-        derived = draw_parameters(numbers)
-        payload = {
-            "draw_date": _parse_date(row[date_idx]) if date_idx is not None and date_idx < len(row) else None,
-            "n1": numbers[0], "n2": numbers[1], "n3": numbers[2],
-            "n4": numbers[3], "n5": numbers[4], "n6": numbers[5],
-            "total_sum": derived["total_sum"],
-            "even_count": derived["even_count"],
-            "consecutive_count": derived["consecutive_count"],
-            "winners_6": _to_int(row[winners_6_idx]) if winners_6_idx is not None and winners_6_idx < len(row) else 0,
-            "winners_5": _to_int(row[winners_5_idx]) if winners_5_idx is not None and winners_5_idx < len(row) else 0,
-            "winners_4": _to_int(row[winners_4_idx]) if winners_4_idx is not None and winners_4_idx < len(row) else 0,
-            "prize_cents": _money_to_cents(row[prize_idx]) if prize_idx is not None and prize_idx < len(row) else 0,
-            "accumulated_cents": _money_to_cents(row[accumulated_idx]) if accumulated_idx is not None and accumulated_idx < len(row) else 0,
-            "quina_rateio_cents": _money_to_cents(row[quina_rateio_idx]) if quina_rateio_idx is not None and quina_rateio_idx < len(row) else 0,
-            "quadra_rateio_cents": _money_to_cents(row[quadra_rateio_idx]) if quadra_rateio_idx is not None and quadra_rateio_idx < len(row) else 0,
-        }
-        payload = {key: (0 if value is None and key.startswith("winners_") else value) for key, value in payload.items()}
-        draw = existing_draws.get(contest)
-        if draw:
-            if all(getattr(draw, key) == value for key, value in payload.items()):
-                ignored += 1
+        imported = updated = ignored = 0
+        existing_draws = {draw.contest: draw for draw in Draw.query.all()}
+        seen_contests: set[int] = set()
+        try:
+            for row_number, row in enumerate(rows, start=1):
+                if row_number > MAX_IMPORT_ROWS:
+                    raise RuntimeError(f"A planilha ultrapassa o limite de {MAX_IMPORT_ROWS} linhas de dados.")
+                contest = _to_int(row[contest_idx] if contest_idx < len(row) else None)
+                numbers = [_to_int(row[i] if i < len(row) else None) for i in number_indexes[:6]]
+                if not contest or any(n is None or n < 1 or n > 60 for n in numbers) or len(set(numbers)) != 6:
+                    ignored += 1
+                    continue
+                if contest in seen_contests:
+                    ignored += 1
+                    continue
+                numbers = sorted(numbers)  # type: ignore[arg-type]
+                derived = draw_parameters(numbers)
+                payload = {
+                    "draw_date": _parse_date(row[date_idx]) if date_idx is not None and date_idx < len(row) else None,
+                    "n1": numbers[0], "n2": numbers[1], "n3": numbers[2],
+                    "n4": numbers[3], "n5": numbers[4], "n6": numbers[5],
+                    "total_sum": derived["total_sum"],
+                    "even_count": derived["even_count"],
+                    "consecutive_count": derived["consecutive_count"],
+                    "winners_6": _to_int(row[winners_6_idx]) if winners_6_idx is not None and winners_6_idx < len(row) else 0,
+                    "winners_5": _to_int(row[winners_5_idx]) if winners_5_idx is not None and winners_5_idx < len(row) else 0,
+                    "winners_4": _to_int(row[winners_4_idx]) if winners_4_idx is not None and winners_4_idx < len(row) else 0,
+                    "prize_cents": _money_to_cents(row[prize_idx]) if prize_idx is not None and prize_idx < len(row) else 0,
+                    "accumulated_cents": _money_to_cents(row[accumulated_idx]) if accumulated_idx is not None and accumulated_idx < len(row) else 0,
+                    "quina_rateio_cents": _money_to_cents(row[quina_rateio_idx]) if quina_rateio_idx is not None and quina_rateio_idx < len(row) else 0,
+                    "quadra_rateio_cents": _money_to_cents(row[quadra_rateio_idx]) if quadra_rateio_idx is not None and quadra_rateio_idx < len(row) else 0,
+                }
+                payload = {key: (0 if value is None and key.startswith("winners_") else value) for key, value in payload.items()}
+                draw = existing_draws.get(contest)
+                if draw:
+                    if all(getattr(draw, key) == value for key, value in payload.items()):
+                        ignored += 1
+                        seen_contests.add(contest)
+                        continue
+                    for key, value in payload.items():
+                        setattr(draw, key, value)
+                    updated += 1
+                else:
+                    draw = Draw(contest=contest, **payload)
+                    db.session.add(draw)
+                    existing_draws[contest] = draw
+                    imported += 1
                 seen_contests.add(contest)
-                continue
-            for key, value in payload.items():
-                setattr(draw, key, value)
-            updated += 1
-        else:
-            draw = Draw(contest=contest, **payload)
-            db.session.add(draw)
-            existing_draws[contest] = draw
-            imported += 1
-        seen_contests.add(contest)
-    db.session.commit()
-    _log.info("Importação concluída: %d novos, %d atualizados, %d ignorados.", imported, updated, ignored)
-    return {"imported": imported, "updated": updated, "ignored": ignored}
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            raise
+        _log.info("Importação concluída: %d novos, %d atualizados, %d ignorados.", imported, updated, ignored)
+        return {"imported": imported, "updated": updated, "ignored": ignored}
+    finally:
+        workbook.close()
 
 
 def all_draw_numbers() -> list[list[int]]:
@@ -553,8 +588,8 @@ def count_possible_draw_combinations(
 
 
 def build_combination_report(quantity: int = 6, filters: dict | None = None) -> dict:
-    filters = filters or {}
-    quantity = max(6, min(int(quantity), 15))
+    filters = _coerce_generation_filters(filters)
+    quantity = max(6, min(_to_int(quantity) or 6, 15))
     total = math.comb(60, 6)
     remaining = total
     steps = []
@@ -824,8 +859,7 @@ def _passes_diversity_control(numbers: list[int], created_numbers: list[list[int
 
 
 def _secure_random_candidate(quantity: int) -> list[int]:
-    rng = secrets.SystemRandom()
-    return sorted(rng.sample(range(1, 61), quantity))
+    return sorted(_RNG.sample(range(1, 61), quantity))
 
 
 def generate_bets(
@@ -834,6 +868,9 @@ def generate_bets(
     persist: bool = True,
     filters: dict | None = None,
 ) -> list[GeneratedBet]:
+    quantity = _clamp_int(_to_int(quantity) or 6, 6, 15)
+    amount = _clamp_int(_to_int(amount) or 1, 1, 100)
+    filters = _coerce_generation_filters(filters)
     draws = all_draw_numbers()
     existing_draws = {tuple(d) for d in draws}
     created: list[GeneratedBet] = []
@@ -970,6 +1007,7 @@ def list_recent_generations_with_bets(limit: int = 12) -> list[dict]:
 
 
 def save_generated_bets(quantity: int, bets: Iterable[str]) -> tuple[int, int | None]:
+    quantity = _clamp_int(_to_int(quantity) or 6, 6, 15)
     valid_bets = []
     for numbers_csv in bets:
         nums = [_to_int(n) for n in numbers_csv.split(",")]

@@ -11,7 +11,7 @@
     <p><small>Com acertadores</small><b id="dash-with-winners">{{ stats.mega_sena_games_with_winners }}</b><em id="dash-with-winners-pct">{{ stats.mega_sena_games_with_winners_pct }}%</em></p>
     <p><small>Sem acertadores</small><b id="dash-without-winners">{{ stats.mega_sena_games_without_winners }}</b><em id="dash-without-winners-pct">{{ stats.mega_sena_games_without_winners_pct }}%</em></p>
   </div>
-  <div class="card metric-card winners-card" id="dash-acertadores-card">
+  <div class="card metric-card winners-card tint-gold" id="dash-acertadores-card">
     <span>Acertadores</span>
     <p><small>Mega Sena</small><b id="dash-winners-mega">{{ stats.prize_cards.mega_sena.winners }}</b></p>
     <p><small>Quina</small><b id="dash-winners-quina">{{ stats.prize_cards.quina.winners }}</b></p>
@@ -72,7 +72,7 @@
       </div>
     </div>
     <div class="dashboard-stacked-cards dashboard-frequency-stacked">
-      <div class="card grouped-frequency-card compact-half-card">
+      <div class="card grouped-frequency-card compact-half-card tint-positive">
         <h3>Mais frequentes</h3>
         <div id="most-frequent-list" class="frequency-sequence">
           {% for n, c in stats.most_frequent %}
@@ -80,7 +80,7 @@
           {% endfor %}
         </div>
       </div>
-      <div class="card grouped-frequency-card compact-half-card">
+      <div class="card grouped-frequency-card compact-half-card tint-warm">
         <h3>Menos frequentes</h3>
         <div id="least-frequent-list" class="frequency-sequence">
           {% for n, c in stats.least_frequent %}

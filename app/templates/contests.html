@@ -6,7 +6,8 @@
   </div>
   <p class="muted">Selecione uma planilha .xlsx. O arquivo será lido somente para a importação e não será armazenado no projeto.</p>
   <form method="post" action="{{ url_for('web.import_upload') }}" enctype="multipart/form-data" class="form import-form">
-    <label>Planilha<input type="file" name="file" accept=".xlsx,.xls" required></label>
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <label>Planilha<input type="file" name="file" accept=".xlsx" required></label>
     <button type="submit">Importar</button>
   </form>
 </section>
