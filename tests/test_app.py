@@ -306,6 +306,76 @@ def test_contests_filters_by_dashboard_history_parameters() -> None:
     assert "202" not in text
 
 
+def test_dashboard_history_filter_link_applies_filter_when_followed_from_other_tab() -> None:
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+        db.session.add_all(
+            [
+                Draw(contest=101, n1=1, n2=2, n3=3, n4=4, n5=5, n6=6, **draw_parameters([1, 2, 3, 4, 5, 6])),
+                Draw(contest=202, n1=1, n2=3, n3=5, n4=7, n5=9, n6=11, **draw_parameters([1, 3, 5, 7, 9, 11])),
+                Draw(contest=303, n1=10, n2=11, n3=20, n4=30, n5=40, n6=50, **draw_parameters([10, 11, 20, 30, 40, 50])),
+            ]
+        )
+        db.session.commit()
+
+    client = app.test_client()
+    dashboard_text = client.get("/dashboard").get_data(as_text=True)
+    href_marker = 'href="/contests?even_count=5"'
+    href_start = dashboard_text.index(href_marker) + len('href="')
+    href_end = dashboard_text.index('"', href_start)
+    filter_href = dashboard_text[href_start:href_end]
+
+    response = client.get(filter_href)
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert filter_href == "/contests?even_count=5"
+    assert "Filtro ativo:" in text
+    assert "pares = 5" in text
+    assert "303" in text
+    assert "101" not in text
+    assert "202" not in text
+
+
+def test_contests_menu_item_opens_unfiltered_list_after_filtered_tab() -> None:
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+        db.session.add_all(
+            [
+                Draw(contest=101, n1=1, n2=2, n3=3, n4=4, n5=5, n6=6, **draw_parameters([1, 2, 3, 4, 5, 6])),
+                Draw(contest=202, n1=1, n2=3, n3=5, n4=7, n5=9, n6=11, **draw_parameters([1, 3, 5, 7, 9, 11])),
+                Draw(contest=303, n1=10, n2=11, n3=20, n4=30, n5=40, n6=50, **draw_parameters([10, 11, 20, 30, 40, 50])),
+            ]
+        )
+        db.session.commit()
+
+    client = app.test_client()
+    filtered_text = client.get("/contests?even_count=5").get_data(as_text=True)
+    assert "Filtro ativo:" in filtered_text
+    assert "pares = 5" in filtered_text
+
+    dashboard_text = client.get("/dashboard").get_data(as_text=True)
+    nav_start = dashboard_text.index('id="primary-nav"')
+    contests_link_text = ">Concursos</a>"
+    contests_link_end = dashboard_text.index(contests_link_text, nav_start)
+    href_start = dashboard_text.rfind('href="', nav_start, contests_link_end) + len('href="')
+    href_end = dashboard_text.index('"', href_start)
+    contests_menu_href = dashboard_text[href_start:href_end]
+
+    response = client.get(contests_menu_href)
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert contests_menu_href == "/contests"
+    assert "Filtro ativo:" not in text
+    assert "3 concursos importados." in text
+    assert "101" in text
+    assert "202" in text
+    assert "303" in text
+
+
 def test_combinations_api_updates_from_generation_form_filters() -> None:
     app = make_app()
     with app.app_context():
