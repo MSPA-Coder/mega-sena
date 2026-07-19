@@ -6,13 +6,14 @@ import secrets
 import unicodedata
 from collections import Counter
 from datetime import date, datetime
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from functools import lru_cache
 from itertools import combinations
 from pathlib import Path
+from threading import Lock
 from typing import BinaryIO, Iterable
+from zipfile import BadZipFile, ZipFile
 
-import numpy as np
-from openpyxl import load_workbook
 from sqlalchemy import func
 
 from . import db
@@ -39,14 +40,22 @@ CONFIG_LIMITS = {
     "consecutive_count": (0, 6),
     "even_min": (0, 6),
     "even_max": (0, 6),
-    "sum_min": (0, None),
-    "sum_max": (0, None),
+    "sum_min": (0, 345),
+    "sum_max": (0, 345),
     "range_min_occupied": (1, 6),
     "range_max_per_band": (1, 6),
 }
 
 GENERATION_FILTER_KEYS = ("consecutive_count", "even_min", "even_max", "sum_min", "sum_max", "range_min_occupied", "range_max_per_band")
 MAX_IMPORT_ROWS = 10_000
+MAX_XLSX_ARCHIVE_FILES = 1_000
+MAX_XLSX_UNCOMPRESSED_BYTES = 100 * 1024 * 1024
+MAX_XLSX_COMPRESSION_RATIO = 200
+MAX_SAVED_BETS = math.comb(15, 6)
+_MAX_SQLITE_INTEGER = (1 << 63) - 1
+_DRAW_PARAMETERS_VERSION_KEY = "_draw_parameters_version"
+_DRAW_PARAMETERS_VERSION = "1"
+_GENERATION_SAVE_LOCK = Lock()
 _RNG = secrets.SystemRandom()
 
 
@@ -75,14 +84,22 @@ def _parse_date(value: object) -> date | None:
 
 
 def _to_int(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
     try:
         if value is None or value == "":
             return None
-        parsed = float(str(value).strip())
-        if not math.isfinite(parsed):
+        text = str(value).strip()
+        if not text or len(text) > 64:
             return None
-        return int(parsed)
-    except (OverflowError, TypeError, ValueError):
+        parsed = Decimal(text)
+        if not parsed.is_finite() or parsed != parsed.to_integral_value():
+            return None
+        result = int(parsed)
+        if not -_MAX_SQLITE_INTEGER <= result <= _MAX_SQLITE_INTEGER:
+            return None
+        return result
+    except (InvalidOperation, OverflowError, TypeError, ValueError):
         return None
 
 
@@ -190,21 +207,66 @@ def get_generation_defaults() -> dict[str, int | None]:
 def _money_to_cents(value: object) -> int:
     if value is None or value == "":
         return 0
-    if isinstance(value, (int, float)):
-        return int(round(float(value) * 100))
-    text = str(value).strip().replace("R$", "").replace(" ", "")
-    if not text:
+    if isinstance(value, bool):
         return 0
-    text = text.replace(".", "").replace(",", ".")
     try:
-        return int(round(float(text) * 100))
-    except ValueError:
+        if isinstance(value, (int, float, Decimal)):
+            amount = Decimal(str(value))
+        else:
+            text = str(value).strip().replace("R$", "").replace("\u00a0", "").replace(" ", "")
+            if not text or len(text) > 64:
+                return 0
+            if "," in text and "." in text:
+                text = text.replace(".", "").replace(",", ".") if text.rfind(",") > text.rfind(".") else text.replace(",", "")
+            elif "," in text:
+                text = text.replace(",", ".")
+            amount = Decimal(text)
+        if not amount.is_finite() or amount < 0:
+            return 0
+        cents = int((amount * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+        return cents if cents <= _MAX_SQLITE_INTEGER else 0
+    except (InvalidOperation, OverflowError, TypeError, ValueError):
         return 0
+
+
+def _validate_xlsx_archive(source: str | Path | BinaryIO) -> None:
+    """Rejeita arquivos XLSX corrompidos, criptografados ou desproporcionalmente expandidos."""
+    original_position = None
+    if hasattr(source, "tell") and hasattr(source, "seek"):
+        try:
+            original_position = source.tell()
+            source.seek(0)
+        except (OSError, ValueError):
+            original_position = None
+    try:
+        with ZipFile(source) as archive:
+            members = archive.infolist()
+            if len(members) > MAX_XLSX_ARCHIVE_FILES:
+                raise RuntimeError("A planilha contém arquivos internos demais.")
+            if any(member.flag_bits & 0x1 for member in members):
+                raise RuntimeError("Planilhas XLSX criptografadas não são suportadas.")
+            total_size = sum(member.file_size for member in members)
+            compressed_size = sum(member.compress_size for member in members)
+            if total_size > MAX_XLSX_UNCOMPRESSED_BYTES:
+                raise RuntimeError("A planilha é grande demais depois de descompactada.")
+            ratio = total_size / max(compressed_size, 1)
+            if ratio > MAX_XLSX_COMPRESSION_RATIO:
+                raise RuntimeError("A planilha possui uma taxa de compressão insegura.")
+    except BadZipFile as exc:
+        raise RuntimeError("Não foi possível ler o arquivo: planilha XLSX inválida.") from exc
+    finally:
+        if original_position is not None:
+            source.seek(original_position)
 
 
 def import_results_from_xlsx(source: str | Path | BinaryIO) -> dict[str, int]:
+    _validate_xlsx_archive(source)
     try:
-        workbook = load_workbook(source, read_only=True, data_only=True)
+        # openpyxl tem custo de importacao relevante; carregue-o apenas quando
+        # o usuario realmente importar uma planilha.
+        from openpyxl import load_workbook
+
+        workbook = load_workbook(source, read_only=True, data_only=True, keep_links=False)
     except Exception as exc:
         _log.error("Falha ao abrir planilha: %s", exc)
         raise RuntimeError(f"Não foi possível ler o arquivo: {exc}") from exc
@@ -260,7 +322,7 @@ def import_results_from_xlsx(source: str | Path | BinaryIO) -> dict[str, int]:
                     raise RuntimeError(f"A planilha ultrapassa o limite de {MAX_IMPORT_ROWS} linhas de dados.")
                 contest = _to_int(row[contest_idx] if contest_idx < len(row) else None)
                 numbers = [_to_int(row[i] if i < len(row) else None) for i in number_indexes[:6]]
-                if not contest or any(n is None or n < 1 or n > 60 for n in numbers) or len(set(numbers)) != 6:
+                if contest is None or contest <= 0 or any(n is None or n < 1 or n > 60 for n in numbers) or len(set(numbers)) != 6:
                     ignored += 1
                     continue
                 if contest in seen_contests:
@@ -275,15 +337,14 @@ def import_results_from_xlsx(source: str | Path | BinaryIO) -> dict[str, int]:
                     "total_sum": derived["total_sum"],
                     "even_count": derived["even_count"],
                     "consecutive_count": derived["consecutive_count"],
-                    "winners_6": _to_int(row[winners_6_idx]) if winners_6_idx is not None and winners_6_idx < len(row) else 0,
-                    "winners_5": _to_int(row[winners_5_idx]) if winners_5_idx is not None and winners_5_idx < len(row) else 0,
-                    "winners_4": _to_int(row[winners_4_idx]) if winners_4_idx is not None and winners_4_idx < len(row) else 0,
+                    "winners_6": max(_to_int(row[winners_6_idx]) or 0, 0) if winners_6_idx is not None and winners_6_idx < len(row) else 0,
+                    "winners_5": max(_to_int(row[winners_5_idx]) or 0, 0) if winners_5_idx is not None and winners_5_idx < len(row) else 0,
+                    "winners_4": max(_to_int(row[winners_4_idx]) or 0, 0) if winners_4_idx is not None and winners_4_idx < len(row) else 0,
                     "prize_cents": _money_to_cents(row[prize_idx]) if prize_idx is not None and prize_idx < len(row) else 0,
                     "accumulated_cents": _money_to_cents(row[accumulated_idx]) if accumulated_idx is not None and accumulated_idx < len(row) else 0,
                     "quina_rateio_cents": _money_to_cents(row[quina_rateio_idx]) if quina_rateio_idx is not None and quina_rateio_idx < len(row) else 0,
                     "quadra_rateio_cents": _money_to_cents(row[quadra_rateio_idx]) if quadra_rateio_idx is not None and quadra_rateio_idx < len(row) else 0,
                 }
-                payload = {key: (0 if value is None and key.startswith("winners_") else value) for key, value in payload.items()}
                 draw = existing_draws.get(contest)
                 if draw:
                     if all(getattr(draw, key) == value for key, value in payload.items()):
@@ -310,7 +371,8 @@ def import_results_from_xlsx(source: str | Path | BinaryIO) -> dict[str, int]:
 
 
 def all_draw_numbers() -> list[list[int]]:
-    return [d.numbers for d in Draw.query.order_by(Draw.contest).all()]
+    rows = db.session.query(Draw.n1, Draw.n2, Draw.n3, Draw.n4, Draw.n5, Draw.n6).order_by(Draw.contest).all()
+    return [list(row) for row in rows]
 
 
 def count_even_numbers(numbers: Iterable[int]) -> int:
@@ -443,8 +505,8 @@ def build_stats(count: int | None = None) -> dict:
         "top_trios": trio_counter.most_common(10),
         "delays": sorted(delays.items(), key=lambda kv: (-kv[1], kv[0]))[:15],
         "ranges": ranges,
-        "avg_sum": round(float(np.mean(sums)), 2) if sums else 0,
-        "avg_even": round(float(np.mean(even_counts)), 2) if even_counts else 0,
+        "avg_sum": round(sum(sums) / len(sums), 2) if sums else 0,
+        "avg_even": round(sum(even_counts) / len(even_counts), 2) if even_counts else 0,
         "sum_distribution": sum_distribution,
         "sum_histogram": sum_histogram,
         "even_distribution": even_distribution,
@@ -512,6 +574,20 @@ def refresh_draw_parameters() -> int:
     if updated:
         db.session.commit()
         _log.info("refresh_draw_parameters: %d/%d concursos recalculados.", updated, total_draws)
+    return updated
+
+
+def ensure_draw_parameters_current() -> int:
+    """Executa a atualização derivada uma vez por versão, em vez de a cada boot."""
+    marker = Config.query.filter_by(key=_DRAW_PARAMETERS_VERSION_KEY).one_or_none()
+    if marker and marker.value == _DRAW_PARAMETERS_VERSION:
+        return 0
+    updated = refresh_draw_parameters()
+    if marker is None:
+        db.session.add(Config(key=_DRAW_PARAMETERS_VERSION_KEY, value=_DRAW_PARAMETERS_VERSION))
+    else:
+        marker.value = _DRAW_PARAMETERS_VERSION
+    db.session.commit()
     return updated
 
 
@@ -816,6 +892,9 @@ def calculate_individual_filter_targets(target_percentage: float) -> dict:
 def _passes_generation_filters(numbers: list[int], filters: dict | None) -> bool:
     if not filters:
         return True
+    ordered = sorted(numbers)
+    quantity = len(ordered)
+    subset_size = min(6, quantity)
     consecutive_count = filters.get("consecutive_count")
     even_min = filters.get("even_min")
     even_max = filters.get("even_max")
@@ -823,21 +902,39 @@ def _passes_generation_filters(numbers: list[int], filters: dict | None) -> bool
     sum_max = filters.get("sum_max")
     range_min_occupied = filters.get("range_min_occupied")
     range_max_per_band = filters.get("range_max_per_band")
-    total_sum = sum(numbers)
-    even_count = count_even_numbers(numbers)
-    if even_min is not None and even_count < even_min:
+    even_count = count_even_numbers(ordered)
+    odd_count = quantity - even_count
+    min_subset_evens = max(0, subset_size - odd_count)
+    max_subset_evens = min(subset_size, even_count)
+    min_subset_sum = sum(ordered[:subset_size])
+    max_subset_sum = sum(ordered[-subset_size:])
+    band_counts = sorted(range_band_counts(ordered), reverse=True)
+    remaining = subset_size
+    min_occupied_bands = 0
+    for band_count in band_counts:
+        if remaining <= 0:
+            break
+        if band_count:
+            min_occupied_bands += 1
+            remaining -= min(band_count, remaining)
+    max_subset_band_count = min(subset_size, band_counts[0] if band_counts else 0)
+    max_subset_consecutive = min(subset_size, count_consecutive_numbers(ordered))
+
+    # Para apostas de 7 a 15 dezenas, todos os subconjuntos cobertos de 6
+    # precisam respeitar os filtros. Assim o racional C(n, 6) permanece correto.
+    if even_min is not None and min_subset_evens < even_min:
         return False
-    if even_max is not None and even_count > even_max:
+    if even_max is not None and max_subset_evens > even_max:
         return False
-    if sum_min is not None and total_sum < sum_min:
+    if sum_min is not None and min_subset_sum < sum_min:
         return False
-    if sum_max is not None and total_sum > sum_max:
+    if sum_max is not None and max_subset_sum > sum_max:
         return False
-    if consecutive_count is not None and count_consecutive_numbers(numbers) > consecutive_count:
+    if consecutive_count is not None and max_subset_consecutive > consecutive_count:
         return False
-    if range_min_occupied is not None and count_occupied_range_bands(numbers) < range_min_occupied:
+    if range_min_occupied is not None and min_occupied_bands < range_min_occupied:
         return False
-    if range_max_per_band is not None and max_range_band_count(numbers) > range_max_per_band:
+    if range_max_per_band is not None and max_subset_band_count > range_max_per_band:
         return False
     return True
 
@@ -860,6 +957,24 @@ def _passes_diversity_control(numbers: list[int], created_numbers: list[list[int
 
 def _secure_random_candidate(quantity: int) -> list[int]:
     return sorted(_RNG.sample(range(1, 61), quantity))
+
+
+def _persist_bet_batch(bets: list[GeneratedBet]) -> int | None:
+    """Persiste um lote com ID unico entre as threads do servidor local."""
+    if not bets:
+        return None
+    with _GENERATION_SAVE_LOCK:
+        try:
+            last_generation_id = db.session.query(func.max(GeneratedBet.generation_id)).scalar() or 0
+            generation_id = last_generation_id + 1
+            for bet in bets:
+                bet.generation_id = generation_id
+            db.session.add_all(bets)
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            raise
+    return generation_id
 
 
 def generate_bets(
@@ -894,8 +1009,6 @@ def generate_bets(
             numbers_csv=",".join(map(str, nums)),
             score=round(score, 4),
         )
-        if persist:
-            db.session.add(bet)
         created.append(bet)
         created_numbers.append(nums)
     if len(created) < amount:
@@ -904,7 +1017,7 @@ def generate_bets(
             len(created), amount, attempts, filters,
         )
     if persist:
-        db.session.commit()
+        _persist_bet_batch(created)
     return created
 
 
@@ -962,6 +1075,7 @@ def build_recent_frequency(count: int | None) -> dict:
 
 
 def list_recent_generations(limit: int = 12) -> list[dict]:
+    limit = _clamp_int(_to_int(limit) or 12, 1, 100)
     rows = (
         db.session.query(
             GeneratedBet.generation_id,
@@ -1009,24 +1123,27 @@ def list_recent_generations_with_bets(limit: int = 12) -> list[dict]:
 def save_generated_bets(quantity: int, bets: Iterable[str]) -> tuple[int, int | None]:
     quantity = _clamp_int(_to_int(quantity) or 6, 6, 15)
     valid_bets = []
-    for numbers_csv in bets:
+    seen_bets: set[str] = set()
+    for index, numbers_csv in enumerate(bets, start=1):
+        if index > MAX_SAVED_BETS:
+            raise RuntimeError(f"Uma geração pode conter no máximo {MAX_SAVED_BETS} apostas.")
         nums = [_to_int(n) for n in numbers_csv.split(",")]
         if len(nums) != quantity or any(n is None or n < 1 or n > 60 for n in nums) or len(set(nums)) != quantity:
             continue
         nums = sorted(nums)  # type: ignore[arg-type]
-        valid_bets.append(",".join(map(str, nums)))
+        normalized_bet = ",".join(map(str, nums))
+        if normalized_bet not in seen_bets:
+            seen_bets.add(normalized_bet)
+            valid_bets.append(normalized_bet)
 
     if not valid_bets:
         return 0, None
 
-    # Usa SELECT dentro da mesma transação para minimizar corrida no generation_id.
-    # Em SQLite com WAL e uso single-user isso é suficiente; não requer SERIALIZABLE.
-    last_generation_id = db.session.query(func.max(GeneratedBet.generation_id)).scalar() or 0
-    generation_id = last_generation_id + 1
-    for numbers_csv in valid_bets:
-        db.session.add(
-            GeneratedBet(generation_id=generation_id, quantity=quantity, numbers_csv=numbers_csv, score=0)
-        )
-    db.session.commit()
+    # O servidor local do Flask pode atender requisicoes em threads diferentes;
+    # a persistencia compartilhada serializa a alocacao do ID do lote.
+    models = [GeneratedBet(quantity=quantity, numbers_csv=numbers_csv, score=0) for numbers_csv in valid_bets]
+    generation_id = _persist_bet_batch(models)
+    if generation_id is None:  # protegido pelo teste de valid_bets acima
+        return 0, None
     _log.info("Apostas salvas: %d na geração #%d.", len(valid_bets), generation_id)
     return len(valid_bets), generation_id

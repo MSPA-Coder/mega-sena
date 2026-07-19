@@ -4,6 +4,7 @@ import logging
 import os
 import secrets
 from pathlib import Path
+from typing import Mapping
 
 from flask import Flask, flash, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
@@ -14,18 +15,32 @@ db = SQLAlchemy()
 _log = logging.getLogger(__name__)
 
 
-def create_app() -> Flask:
+def create_app(config: Mapping[str, object] | None = None) -> Flask:
     _configure_logging()
 
     app = Flask(__name__)
     base_dir = Path(__file__).resolve().parent.parent
     instance_dir = base_dir / "instance"
     instance_dir.mkdir(exist_ok=True)
+    database_path = instance_dir / "mega_sena.db"
+
+    app.config.from_mapping(
+        SQLALCHEMY_DATABASE_URI=f"sqlite:///{database_path.as_posix()}",
+        SQLALCHEMY_ENGINE_OPTIONS={"connect_args": {"timeout": 30}},
+        SQLALCHEMY_TRACK_MODIFICATIONS=False,
+        MAX_CONTENT_LENGTH=10 * 1024 * 1024,
+        SESSION_COOKIE_SAMESITE="Lax",
+        SESSION_COOKIE_HTTPONLY=True,
+        TRUSTED_HOSTS=["localhost", "127.0.0.1", "[::1]"],
+    )
+    if config:
+        app.config.update(config)
 
     # ------------------------------------------------------------------
     # Segurança: chave secreta via variável de ambiente
     # ------------------------------------------------------------------
-    secret_key = os.environ.get("SECRET_KEY", "").strip()
+    configured_secret = app.config.get("SECRET_KEY")
+    secret_key = str(configured_secret).strip() if configured_secret else os.environ.get("SECRET_KEY", "").strip()
     if not secret_key:
         _log.warning(
             "SECRET_KEY não definida no ambiente. "
@@ -35,14 +50,6 @@ def create_app() -> Flask:
         secret_key = secrets.token_urlsafe(32)
 
     app.config["SECRET_KEY"] = secret_key
-    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{instance_dir / 'mega_sena.db'}"
-    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"connect_args": {"timeout": 30}}
-    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-    # Limite de upload: 10 MB (planilhas históricas da Caixa ficam abaixo de 2 MB)
-    app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
-    # Proteção básica contra CSRF via cookie SameSite
-    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-    app.config["SESSION_COOKIE_HTTPONLY"] = True
 
     app.jinja_env.filters["brl"] = _format_brl
     app.jinja_env.filters["brl0"] = _format_brl_without_cents
@@ -75,12 +82,12 @@ def create_app() -> Flask:
 
     with app.app_context():
         from . import models  # noqa: F401
-        from .services import ensure_default_config, refresh_draw_parameters
+        from .services import ensure_default_config, ensure_draw_parameters_current
 
         _configure_sqlite_engine(app)
         db.create_all()
         ensure_default_config()
-        refresh_draw_parameters()
+        ensure_draw_parameters_current()
 
     return app
 

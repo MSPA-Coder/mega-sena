@@ -22,6 +22,7 @@ Fonte de verdade do comportamento:
 - `app/templates/`: telas renderizadas pelo servidor.
 - `app/static/style.css`: tema visual, responsividade e estados de UI.
 - `tests/test_app.py`: suite de regressao principal.
+- `pyproject.toml`: configuracao das ferramentas de teste e lint.
 
 ## Como Rodar
 
@@ -40,6 +41,12 @@ pip install -r requirements.txt
 python run.py
 ```
 
+Para desenvolver e executar todas as verificacoes locais:
+
+```powershell
+pip install -r requirements-dev.txt
+```
+
 URL padrao:
 
 ```text
@@ -48,6 +55,8 @@ http://127.0.0.1:5000
 
 Para ambiente fora de desenvolvimento, defina `SECRET_KEY` antes de iniciar. Sem
 essa variavel, a aplicacao gera uma chave temporaria a cada boot.
+Por padrao, apenas os hosts locais `localhost`, `127.0.0.1` e `[::1]` sao aceitos;
+uma implantacao com dominio proprio deve sobrescrever `TRUSTED_HOSTS` na factory.
 
 ## Banco e Dados Locais
 
@@ -62,7 +71,8 @@ app executa:
 
 - `db.create_all()`;
 - `ensure_default_config()`;
-- `refresh_draw_parameters()`.
+- atualizacao versionada dos campos derivados dos concursos, executada apenas
+  quando a versao do calculo muda.
 
 Nao ha sistema de migracoes. Alteracoes de schema precisam ser planejadas com
 cuidado.
@@ -121,20 +131,28 @@ Endpoints JSON usados pela UI:
 - O fechamento matematico nao sorteia candidatas; ele enumera todas as
   combinacoes de 6 dezenas dentro do conjunto-base informado.
 - Imports aceitam apenas `.xlsx` no upload e limitam a leitura a 10.000 linhas de
-  dados.
+  dados. O arquivo compactado tambem e validado antes da leitura para limitar
+  quantidade de partes, tamanho expandido e taxa de compressao.
 - Planilhas enviadas nao sao salvas no projeto.
+- Em apostas de 7 a 15 dezenas, todos os subconjuntos internos de 6 dezenas
+  precisam passar pelos filtros; isso mantem coerente a cobertura `C(n, 6)` do
+  racional.
+- Apostas salvas sao normalizadas, deduplicadas dentro do lote e limitadas ao
+  maior fechamento suportado, `C(15, 6) = 5.005`.
 - O app e local/single-user; nao ha autenticacao ou autorizacao de usuarios.
 
 ## Testes
 
-Comando recomendado:
+Comandos recomendados, depois de instalar `requirements-dev.txt`:
 
 ```powershell
-py -m pytest
+python -m pytest
+python -m ruff check app scripts tests run.py
+python scripts/audit_dependencies.py
 ```
 
-A suite cobre importacao, filtros, combinatoria, endpoints, CSRF, reset,
-dashboard, UI renderizada e salvamento de apostas.
+A suite cobre importacao e limites de XLSX, filtros, combinatoria, endpoints,
+CSRF/CSP, reset, factory, dashboard, UI renderizada e salvamento de apostas.
 
 ## Estrutura
 
@@ -156,8 +174,12 @@ dashboard, UI renderizada e salvamento de apostas.
 |       `-- settings.html
 |-- tests/
 |   `-- test_app.py
+|-- scripts/
+|   `-- audit_dependencies.py
 |-- context.md
+|-- pyproject.toml
 |-- requirements.txt
+|-- requirements-dev.txt
 |-- run.py
 `-- README.md
 ```

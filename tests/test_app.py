@@ -4,13 +4,14 @@ from io import BytesIO
 from pathlib import Path
 from zipfile import ZipFile, ZIP_DEFLATED
 
+import pytest
 from flask import Flask
 from openpyxl import Workbook
 
-from app import db
+from app import create_app, db
 from app.models import Config, Draw
 from app.routes import bp
-from app.services import build_combination_report, build_recent_frequency, build_stats, calculate_individual_filter_targets, count_consecutive_numbers, count_draws_matching_filters, count_even_numbers, count_occupied_range_bands, count_possible_draw_combinations, draw_parameters, generate_closure_bets, get_config_values, import_results_from_xlsx, list_recent_generations, list_recent_generations_with_bets, max_range_band_count, save_generated_bets
+from app.services import build_combination_report, build_recent_frequency, build_stats, calculate_individual_filter_targets, count_consecutive_numbers, count_draws_matching_filters, count_even_numbers, count_occupied_range_bands, count_possible_draw_combinations, draw_parameters, ensure_draw_parameters_current, generate_closure_bets, get_config_values, import_results_from_xlsx, list_recent_generations, list_recent_generations_with_bets, max_range_band_count, save_generated_bets
 
 
 def make_app() -> Flask:
@@ -99,6 +100,20 @@ def test_range_band_metrics_count_occupied_bands_and_max_concentration() -> None
     assert max_range_band_count([1, 12, 23, 34, 45, 56]) == 1
     assert count_occupied_range_bands([1, 2, 12, 22, 32, 42]) == 5
     assert max_range_band_count([1, 2, 12, 22, 32, 42]) == 2
+
+
+def test_filters_on_large_bets_cover_every_internal_six_number_draw() -> None:
+    from app.services import _passes_generation_filters
+
+    numbers = [1, 2, 3, 4, 5, 6, 17]
+
+    assert _passes_generation_filters(numbers, {"even_min": 2}) is True
+    assert _passes_generation_filters(numbers, {"even_min": 3}) is False
+    assert _passes_generation_filters(numbers, {"sum_min": 21, "sum_max": 37}) is True
+    assert _passes_generation_filters(numbers, {"sum_max": 36}) is False
+    assert _passes_generation_filters(numbers, {"consecutive_count": 5}) is False
+    assert _passes_generation_filters(numbers, {"range_min_occupied": 2}) is False
+    assert _passes_generation_filters(numbers, {"range_max_per_band": 5}) is False
 
 
 def test_combination_report_counts_remaining_combinations_and_chance() -> None:
@@ -543,8 +558,8 @@ def test_import_settings_save_default_generation_parameters() -> None:
     assert 'name="consecutive_count" min="0" max="6" placeholder="Opcional" value="3"' in text
     assert 'name="even_min" min="0" max="6" placeholder="Opcional" value="2"' in text
     assert 'name="even_max" min="0" max="6" placeholder="Opcional" value="4"' in text
-    assert 'name="sum_min" min="0" placeholder="Opcional" value="100"' in text
-    assert 'name="sum_max" min="0" placeholder="Opcional" value="220"' in text
+    assert 'name="sum_min" min="0" max="345" placeholder="Opcional" value="100"' in text
+    assert 'name="sum_max" min="0" max="345" placeholder="Opcional" value="220"' in text
     assert 'name="range_min_occupied" min="1" max="6" placeholder="Opcional" value="4"' in text
     assert 'name="range_max_per_band" min="1" max="6" placeholder="Opcional" value="2"' in text
 
@@ -587,6 +602,23 @@ def test_even_max_lower_than_even_min_is_equalized_to_minimum() -> None:
     assert "5 a 5" in text
 
 
+def test_generation_sum_and_integer_inputs_are_bounded() -> None:
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+
+    client = app.test_client()
+    response = client.get("/rationale?sum_min=999&sum_max=999")
+    assert response.status_code == 200
+    assert "sum_min=345" in response.get_data(as_text=True)
+    assert "sum_max=345" in response.get_data(as_text=True)
+
+    huge = "9" * 100
+    response = client.get(f"/api/draw-filter-preview?sum_min={huge}")
+    assert response.status_code == 200
+    assert response.get_json()["count"] == 0
+
+
 def test_clear_generation_filters_overrides_config_defaults() -> None:
     app = make_app()
     with app.app_context():
@@ -625,8 +657,8 @@ def test_clear_generation_filters_overrides_config_defaults() -> None:
     assert 'name="consecutive_count" min="0" max="6" placeholder="Opcional" value=""' in text
     assert 'name="even_min" min="0" max="6" placeholder="Opcional" value=""' in text
     assert 'name="even_max" min="0" max="6" placeholder="Opcional" value=""' in text
-    assert 'name="sum_min" min="0" placeholder="Opcional" value=""' in text
-    assert 'name="sum_max" min="0" placeholder="Opcional" value=""' in text
+    assert 'name="sum_min" min="0" max="345" placeholder="Opcional" value=""' in text
+    assert 'name="sum_max" min="0" max="345" placeholder="Opcional" value=""' in text
 
 
 def test_saved_bets_are_grouped_by_generation() -> None:
@@ -662,6 +694,37 @@ def test_saved_bets_are_grouped_by_generation() -> None:
     assert "12" in text
 
 
+def test_saved_bets_are_deduplicated_and_have_a_hard_batch_limit(monkeypatch) -> None:
+    import app.services as services
+
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+        saved, generation_id = save_generated_bets(6, ["1,2,3,4,5,6", "6,5,4,3,2,1"])
+        assert (saved, generation_id) == (1, 1)
+
+        monkeypatch.setattr(services, "MAX_SAVED_BETS", 2)
+        with pytest.raises(RuntimeError, match="no máximo 2"):
+            save_generated_bets(6, ["7,8,9,10,11,12"] * 3)
+
+
+def test_persisted_generation_is_visible_as_a_group(monkeypatch) -> None:
+    import app.services as services
+
+    candidates = iter([[1, 2, 3, 4, 5, 6], [7, 8, 9, 10, 11, 12]])
+    monkeypatch.setattr(services, "_secure_random_candidate", lambda _quantity: next(candidates))
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+        bets = services.generate_bets(6, 2, persist=True)
+        generations = list_recent_generations_with_bets()
+
+        assert {bet.generation_id for bet in bets} == {1}
+        assert len(generations) == 1
+        assert generations[0]["generation_id"] == 1
+        assert generations[0]["bet_count"] == 2
+
+
 def test_bets_can_generate_mathematical_closure_from_base_numbers() -> None:
     app = make_app()
     with app.app_context():
@@ -689,6 +752,34 @@ def test_bets_can_generate_mathematical_closure_from_base_numbers() -> None:
     assert "07" in text
     assert 'name="bet" value="1,2,3,4,5,6"' in text
     assert 'name="bet" value="2,3,4,5,6,7"' in text
+
+
+def test_closure_bets_can_be_saved_when_default_quantity_is_greater_than_six() -> None:
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+        db.session.add(Config(key="bet_quantity", value="7"))
+        db.session.commit()
+
+    client = app.test_client()
+    payload = csrf_form_data(
+        client,
+        "/bets",
+        {
+            "action": "save",
+            "quantity": "6",
+            "bet": ["1,2,3,4,5,6", "2,3,4,5,6,7"],
+        },
+    )
+    response = client.post("/bets", data=payload, follow_redirects=True)
+
+    assert response.status_code == 200
+    assert "2 apostas gravadas" in response.get_data(as_text=True)
+    with app.app_context():
+        from app.models import GeneratedBet
+
+        assert GeneratedBet.query.count() == 2
+        assert {bet.quantity for bet in GeneratedBet.query.all()} == {6}
 
 
 def test_bets_summary_uses_closure_labels_when_closure_numbers_are_present() -> None:
@@ -841,6 +932,44 @@ def test_import_service_raises_runtime_error_on_bad_workbook() -> None:
         assert "Não foi possível ler o arquivo" in str(exc)
 
 
+def test_import_rejects_xlsx_with_excessive_uncompressed_size(monkeypatch) -> None:
+    """Um XLSX pequeno e altamente expansível deve ser barrado antes do parser XML."""
+    import app.services as services
+
+    stream = workbook_bytes([])
+    with ZipFile(stream, "a", ZIP_DEFLATED) as archive:
+        archive.writestr("xl/padding.bin", b"x" * 4_096)
+    stream.seek(0)
+    monkeypatch.setattr(services, "MAX_XLSX_UNCOMPRESSED_BYTES", 1_024)
+
+    with pytest.raises(RuntimeError, match="grande demais"):
+        import_results_from_xlsx(stream)
+
+
+def test_import_rejects_fractional_or_negative_contests_and_normalizes_values() -> None:
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+        result = import_results_from_xlsx(
+            workbook_bytes(
+                [
+                    [1.5, "01/01/2026", 1, 2, 3, 4, 5, 6, 1, 1, 1, "1,00", "1,00", "1,00", "1,00"],
+                    [-2, "01/01/2026", 1, 2, 3, 4, 5, 6, 1, 1, 1, "1,00", "1,00", "1,00", "1,00"],
+                    [3, "01/01/2026", 1, 2, 3, 4, 5, 6, -1, -2, -3, "1234.56", "1.234,56", "NaN", "-1"],
+                ]
+            )
+        )
+        draw = Draw.query.one()
+
+        assert result == {"imported": 1, "updated": 0, "ignored": 2}
+        assert draw.contest == 3
+        assert (draw.winners_6, draw.winners_5, draw.winners_4) == (0, 0, 0)
+        assert draw.prize_cents == 123_456
+        assert draw.quina_rateio_cents == 123_456
+        assert draw.accumulated_cents == 0
+        assert draw.quadra_rateio_cents == 0
+
+
 def test_mutating_forms_include_csrf_tokens_and_clear_uses_post() -> None:
     """Formulários que alteram estado devem levar token CSRF; limpar filtros não deve usar GET."""
     app = make_app()
@@ -888,6 +1017,26 @@ def test_security_headers_are_applied() -> None:
     assert response.headers["Referrer-Policy"] == "same-origin"
     assert "form-action 'self'" in response.headers["Content-Security-Policy"]
     assert "frame-ancestors 'self'" in response.headers["Content-Security-Policy"]
+    assert "object-src 'none'" in response.headers["Content-Security-Policy"]
+    assert "script-src 'self' 'nonce-" in response.headers["Content-Security-Policy"]
+    assert "script-src 'self' 'unsafe-inline'" not in response.headers["Content-Security-Policy"]
+    assert response.headers["Cross-Origin-Opener-Policy"] == "same-origin"
+    assert response.headers["X-Permitted-Cross-Domain-Policies"] == "none"
+
+
+def test_inline_scripts_use_request_nonce_and_event_attributes_are_absent() -> None:
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+
+    response = app.test_client().get("/settings")
+    text = response.get_data(as_text=True)
+    csp = response.headers["Content-Security-Policy"]
+    nonce = csp.split("'nonce-", 1)[1].split("'", 1)[0]
+
+    assert f'<script nonce="{nonce}">' in text
+    assert "onclick=" not in text
+    assert "onchange=" not in text
 
 
 def test_format_int_and_format_percent_are_public() -> None:
@@ -928,6 +1077,47 @@ def test_refresh_draw_parameters_skips_empty_database() -> None:
         result = refresh_draw_parameters()
 
     assert result == 0
+
+
+def test_draw_parameters_refresh_runs_only_once_per_version() -> None:
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+        db.session.add(Draw(contest=1, n1=1, n2=2, n3=3, n4=4, n5=5, n6=6))
+        db.session.commit()
+
+        assert ensure_draw_parameters_current() == 1
+        assert ensure_draw_parameters_current() == 0
+        draw = Draw.query.one()
+        assert (draw.total_sum, draw.even_count, draw.consecutive_count) == (21, 3, 6)
+
+
+def test_create_app_accepts_configuration_overrides() -> None:
+    app = create_app(
+        {
+            "TESTING": True,
+            "SECRET_KEY": "factory-test",
+            "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
+        }
+    )
+
+    assert app.testing is True
+    assert app.config["SECRET_KEY"] == "factory-test"
+    assert app.config["SQLALCHEMY_DATABASE_URI"] == "sqlite:///:memory:"
+
+
+def test_factory_rejects_untrusted_host_headers() -> None:
+    app = create_app(
+        {
+            "TESTING": True,
+            "SECRET_KEY": "factory-test",
+            "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
+        }
+    )
+
+    client = app.test_client()
+    assert client.get("/dashboard", headers={"Host": "attacker.example"}).status_code == 400
+    assert client.get("/dashboard", headers={"Host": "[::1]"}).status_code == 200
 
 
 # ---------------------------------------------------------------------------
@@ -1298,7 +1488,8 @@ def test_destructive_reset_button_uses_danger_styling_not_secondary() -> None:
     button_tag = text[max(0, danger_button_start - 200):danger_button_start]
 
     assert "danger" in button_tag
-    assert 'confirm(' in button_tag
+    assert "data-confirm-message" in button_tag
+    assert "onclick=" not in button_tag
 
 
 def test_css_defines_distinct_secondary_and_danger_button_styles() -> None:
@@ -1602,10 +1793,8 @@ def test_generation_list_zebra_targets_correct_alternating_element() -> None:
     app = make_app()
     with app.app_context():
         db.create_all()
-        from app.services import draw_parameters, generate_bets, save_generated_bets
-        import random
+        from app.services import generate_bets, save_generated_bets
 
-        random.seed(7)
         for _ in range(3):
             bets = generate_bets(6, 2, persist=False)
             save_generated_bets(6, [b.numbers_csv for b in bets])

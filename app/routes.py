@@ -4,7 +4,7 @@ import logging
 import math
 import secrets
 
-from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, flash, g, jsonify, redirect, render_template, request, session, url_for
 from werkzeug.datastructures import MultiDict
 
 from . import db
@@ -33,6 +33,7 @@ GENERATION_PARAM_KEYS = (*GENERATION_FILTER_KEYS, "amount")
 GENERATION_SESSION_KEY = "generation_params"
 CSRF_SESSION_KEY = "_csrf_token"
 _MUTATING_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+_MAX_REQUEST_INTEGER = (1 << 63) - 1
 _CONTENT_SECURITY_POLICY = (
     "default-src 'self'; "
     "base-uri 'self'; "
@@ -41,8 +42,8 @@ _CONTENT_SECURITY_POLICY = (
     "img-src 'self' data:; "
     "font-src 'self' https://fonts.gstatic.com data:; "
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-    "script-src 'self' 'unsafe-inline'; "
-    "connect-src 'self'"
+    "connect-src 'self'; "
+    "object-src 'none'"
 )
 
 _log = logging.getLogger(__name__)
@@ -63,30 +64,42 @@ def _csrf_token() -> str:
     return token
 
 
+def _csp_nonce() -> str:
+    nonce = getattr(g, "_csp_nonce", None)
+    if nonce is None:
+        nonce = secrets.token_urlsafe(24)
+        g._csp_nonce = nonce
+    return nonce
+
+
 @bp.app_context_processor
 def _inject_security_helpers():
-    return {"csrf_token": _csrf_token}
+    return {"csrf_token": _csrf_token, "csp_nonce": _csp_nonce}
 
 
 @bp.before_app_request
 def _verify_csrf_token():
+    _csp_nonce()
     if request.method not in _MUTATING_METHODS:
         return None
     expected = session.get(CSRF_SESSION_KEY)
     supplied = request.form.get("_csrf_token") or request.headers.get("X-CSRF-Token")
     if not expected or not supplied or not secrets.compare_digest(str(expected), str(supplied)):
-        _log.warning("POST rejeitado por CSRF ausente ou invalido em %s.", request.path)
+        _log.warning("Requisicao mutante rejeitada por CSRF ausente ou invalido em %s.", request.path)
         abort(400)
     return None
 
 
 @bp.after_app_request
 def _set_security_headers(response):
-    response.headers.setdefault("Content-Security-Policy", _CONTENT_SECURITY_POLICY)
+    csp = f"{_CONTENT_SECURITY_POLICY}; script-src 'self' 'nonce-{_csp_nonce()}'"
+    response.headers.setdefault("Content-Security-Policy", csp)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
     response.headers.setdefault("Referrer-Policy", "same-origin")
     response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    response.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+    response.headers.setdefault("X-Permitted-Cross-Domain-Policies", "none")
     return response
 
 
@@ -216,7 +229,8 @@ def _optional_int(value: str | None) -> int | None:
     if value is None or value == "":
         return None
     try:
-        return int(value)
+        parsed = int(value)
+        return parsed if -_MAX_REQUEST_INTEGER <= parsed <= _MAX_REQUEST_INTEGER else None
     except ValueError:
         return None
 
@@ -331,9 +345,9 @@ def _read_generation_state(values: MultiDict) -> tuple[int, dict[str, int | None
     if even_min is not None and even_max is not None and even_min > even_max:
         even_max = even_min
     if sum_min is not None:
-        sum_min = max(0, sum_min)
+        sum_min = max(0, min(sum_min, 345))
     if sum_max is not None:
-        sum_max = max(0, sum_max)
+        sum_max = max(0, min(sum_max, 345))
     if sum_min is not None and sum_max is not None and sum_min > sum_max:
         sum_min, sum_max = sum_max, sum_min
     if range_min_occupied is not None:
@@ -419,10 +433,15 @@ def bet_generation():
         if closure_numbers.strip() and action == "generate":
             action = "closure"
         if action == "save":
-            saved, generation_id = save_generated_bets(quantity=quantity, bets=request.form.getlist("bet"))
+            save_quantity = _optional_int(request.form.get("quantity")) or quantity
+            try:
+                saved, generation_id = save_generated_bets(quantity=save_quantity, bets=request.form.getlist("bet"))
+            except RuntimeError as exc:
+                flash(str(exc))
+                return redirect(url_for("web.bet_generation", **_generation_params(quantity, selected_filters, selected_amount)))
             flash(f"{saved} {_plural(saved, 'aposta gravada', 'apostas gravadas')} no banco de dados.")
             if generation_id is not None:
-                return redirect(url_for("web.bet_generation", generation_id=generation_id, **_generation_params(quantity, selected_filters, selected_amount)))
+                return redirect(url_for("web.bet_generation", generation_id=generation_id, **_generation_params(save_quantity, selected_filters, selected_amount)))
             return redirect(url_for("web.bet_generation", **_generation_params(quantity, selected_filters, selected_amount)))
 
         try:
@@ -560,7 +579,7 @@ def dashboard_stats():
 
 @bp.route("/contests")
 def contests():
-    page = request.args.get("page", 1, type=int)
+    page = max(1, request.args.get("page", 1, type=int) or 1)
     winners_only = request.args.get("winners_only") == "1"
     consecutive_count = _optional_int(request.args.get("consecutive_count"))
     even_count = _optional_int(request.args.get("even_count"))

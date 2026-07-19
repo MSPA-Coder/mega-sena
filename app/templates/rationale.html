@@ -20,7 +20,7 @@
   <p class="formula">Quantidade de apostas = C({{ closure_base_count }}, 6) = {{ covered_by_amount_formatted }}</p>
   <p>Nesse modo, os filtros da aba de geração ficam opcionais e os cálculos desta página passam a usar apenas o fechamento informado.</p>
   {% else %}
-  <p>Uma aposta com {{ selected_quantity }} {{ 'número' if selected_quantity == 1 else 'números' }} cobre todas as combinações internas de 6 números que existem dentro dela:</p>
+  <p>Uma aposta com {{ selected_quantity }} {{ 'número' if selected_quantity == 1 else 'números' }} cobre todas as combinações internas de 6 números que existem dentro dela. Quando há filtros, a geração exige que cada uma dessas combinações internas passe pelos critérios:</p>
   <p class="formula">C({{ selected_quantity }}, 6) = {{ combination_report.covered_combinations_formatted }}</p>
   <p>Com {{ selected_amount }} {{ 'aposta' if selected_amount == 1 else 'apostas' }}, a cobertura teórica exibida no resumo usa C({{ selected_quantity }}, 6) x {{ selected_amount }}, limitada ao total restante após os filtros.</p>
   {% endif %}

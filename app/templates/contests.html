@@ -24,7 +24,7 @@
           {% if even_count is not none %}
             <input type="hidden" name="even_count" value="{{ even_count }}">
           {% endif %}
-          <label><input type="checkbox" name="winners_only" value="1" onchange="this.form.submit()" {% if winners_only %}checked{% endif %}> Mega Sena</label>
+          <label><input type="checkbox" name="winners_only" value="1" data-submit-on-change {% if winners_only %}checked{% endif %}> Mega Sena</label>
         </form>
       </div>
       {% if active_filters %}

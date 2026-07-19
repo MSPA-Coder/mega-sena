@@ -12,8 +12,8 @@
         <label>Maior sequência consecutiva permitida<input type="number" name="consecutive_count" min="0" max="6" placeholder="Opcional" value="{{ config_values.consecutive_count }}"></label>
         <label>Mínimo de números pares<input type="number" name="even_min" min="0" max="6" placeholder="Opcional" value="{{ config_values.even_min }}"></label>
         <label>Máximo de números pares<input type="number" name="even_max" min="0" max="6" placeholder="Opcional" value="{{ config_values.even_max }}"></label>
-        <label>Soma inicial<input type="number" name="sum_min" min="0" placeholder="Opcional" value="{{ config_values.sum_min }}"></label>
-        <label>Soma final<input type="number" name="sum_max" min="0" placeholder="Opcional" value="{{ config_values.sum_max }}"></label>
+        <label>Soma inicial<input type="number" name="sum_min" min="0" max="345" placeholder="Opcional" value="{{ config_values.sum_min }}"></label>
+        <label>Soma final<input type="number" name="sum_max" min="0" max="345" placeholder="Opcional" value="{{ config_values.sum_max }}"></label>
         <label>Mínimo de faixas ocupadas<input type="number" name="range_min_occupied" min="1" max="6" placeholder="Opcional" value="{{ config_values.range_min_occupied }}"></label>
         <label>Máximo de dezenas por faixa<input type="number" name="range_max_per_band" min="1" max="6" placeholder="Opcional" value="{{ config_values.range_max_per_band }}"></label>
         <div class="form-actions">
@@ -28,14 +28,14 @@
     <p class="muted">Apaga todos os concursos e apostas salvos. Use isso apenas para começar do zero.</p>
     <form method="post" action="{{ url_for('web.reset_database') }}">
         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="danger" onclick="return confirm('Apagar todos os concursos e apostas? Essa ação não pode ser desfeita.');">Apagar concursos e apostas</button>
+        <button type="submit" class="danger" data-confirm-message="Apagar todos os concursos e apostas? Essa ação não pode ser desfeita.">Apagar concursos e apostas</button>
     </form>
 </section>
 {% endblock %}
 
 {% block scripts %}
 {% if request.args.get('clear_generation_storage') == '1' %}
-<script>
+<script nonce="{{ csp_nonce() }}">
   localStorage.removeItem("megaSenaGenerationParams");
 </script>
 {% endif %}

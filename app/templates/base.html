@@ -43,7 +43,7 @@
   </nav>
 </header>
 {% endblock %}
-<script>
+<script nonce="{{ csp_nonce() }}">
   (function () {
     "use strict";
     var root = document.documentElement;
@@ -98,6 +98,18 @@
       }
     }
   }());
+  document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll("[data-submit-on-change]").forEach(function (field) {
+      field.addEventListener("change", function () {
+        if (field.form) field.form.submit();
+      });
+    });
+    document.querySelectorAll("[data-confirm-message]").forEach(function (button) {
+      button.addEventListener("click", function (event) {
+        if (!window.confirm(button.dataset.confirmMessage || "Confirmar ação?")) event.preventDefault();
+      });
+    });
+  });
 </script>
 <main class="container">
   {% with messages = get_flashed_messages() %}

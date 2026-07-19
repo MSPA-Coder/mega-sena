@@ -21,7 +21,9 @@ Aplicacao Flask com renderizacao server-side, SQLite local e SQLAlchemy.
 - Factory: `create_app()` em `app/__init__.py`.
 - Blueprint principal: `bp = Blueprint("web", __name__)` em `app/routes.py`.
 - Banco local: `instance/mega_sena.db`.
-- Dependencias: `Flask`, `Flask-SQLAlchemy`, `openpyxl`, `numpy`.
+- Dependencias de runtime: `Flask`, `Flask-SQLAlchemy`, `openpyxl` e
+  `defusedxml`.
+- Dependencias de desenvolvimento: `pytest`, `Ruff` e `pip-audit`.
 - Testes: `tests/test_app.py`.
 
 Na inicializacao, `create_app()`:
@@ -36,7 +38,13 @@ Na inicializacao, `create_app()`:
 - injeta versao de asset baseada no `mtime` de `style.css`;
 - cria tabelas com `db.create_all()`;
 - garante configuracoes padrao;
-- recalcula campos derivados dos concursos existentes.
+- recalcula campos derivados dos concursos existentes apenas quando a versao
+  interna desse calculo muda.
+
+`create_app(config=None)` aceita overrides de configuracao, inclusive banco em
+memoria para testes, sem alterar os defaults de execucao local.
+O default de `TRUSTED_HOSTS` aceita somente `localhost`, `127.0.0.1` e `[::1]` para
+reduzir risco de Host header/DNS rebinding no uso local.
 
 ## Modelos
 
@@ -113,7 +121,7 @@ Funcao principal: `import_results_from_xlsx(source)`.
 
 Comportamento:
 
-- usa `openpyxl.load_workbook(read_only=True, data_only=True)`;
+- usa `openpyxl.load_workbook(read_only=True, data_only=True, keep_links=False)`;
 - le a primeira planilha;
 - chama `reset_dimensions()` quando disponivel;
 - reconhece colunas por nomes normalizados;
@@ -124,6 +132,12 @@ Comportamento:
 - calcula `total_sum`, `even_count` e `consecutive_count`;
 - converte valores monetarios para centavos;
 - limita a 10.000 linhas de dados;
+- valida o ZIP antes do `openpyxl`, com limites para quantidade de partes,
+  tamanho descompactado e taxa de compressao;
+- usa `defusedxml`, recomendado pelo proprio `openpyxl` para endurecer o parser
+  contra ataques XML;
+- rejeita concursos fracionarios, nulos ou negativos e normaliza ganhadores e
+  valores monetarios nao finitos/negativos;
 - retorna `{"imported": int, "updated": int, "ignored": int}`.
 
 O upload web aceita somente extensao `.xlsx` e nao persiste o arquivo enviado.
@@ -160,10 +174,13 @@ Contratos:
 - usa `secrets.SystemRandom().sample(range(1, 61), quantity)`.
 - se `quantity == 6`, evita repetir concurso historico ja importado.
 - filtros sao opcionais; filtro ausente nao restringe.
+- se `quantity > 6`, cada subconjunto interno de 6 dezenas precisa passar pelos
+  filtros. Assim todas as `C(quantity, 6)` combinacoes contabilizadas no
+  racional pertencem ao universo filtrado.
 - diversidade evita apostas quase iguais no mesmo lote.
 - maximo de tentativas: `amount * 2000`.
 - com `persist=False`, retorna objetos em memoria sem gravar.
-- com `persist=True`, grava e comita.
+- com `persist=True`, aloca um `generation_id`, grava e comita o lote inteiro.
 
 Nao adicionar heuristicas silenciosas dentro de `generate_bets()`. Todo criterio
 deve passar por `filters` ou por uma nova regra explicitamente testada.
@@ -210,11 +227,14 @@ O universo inicial e `C(60, 6) = 50.063.860`. A cobertura de uma aposta com
 
 - CSRF por sessao em POST/PUT/PATCH/DELETE;
 - helper `csrf_token()` injetado nos templates;
-- `Content-Security-Policy`;
+- `Content-Security-Policy` com nonce aleatorio por requisicao para scripts
+  inline, sem `script-src 'unsafe-inline'`;
 - `X-Content-Type-Options: nosniff`;
 - `X-Frame-Options: SAMEORIGIN`;
 - `Referrer-Policy: same-origin`;
 - `Permissions-Policy` bloqueando camera, microfone e geolocalizacao.
+- `Cross-Origin-Opener-Policy: same-origin`;
+- `X-Permitted-Cross-Domain-Policies: none`.
 
 Qualquer formulario mutante novo precisa incluir `_csrf_token`.
 
@@ -251,10 +271,12 @@ Atualize, no minimo:
 
 ## Testes e Validacao
 
-Comando padrao:
+Comandos padrao:
 
 ```powershell
-py -m pytest
+python -m pytest
+python -m ruff check app scripts tests run.py
+python scripts/audit_dependencies.py
 ```
 
 Ao mexer em rotas, templates ou CSS, rode a suite completa porque muitos testes
