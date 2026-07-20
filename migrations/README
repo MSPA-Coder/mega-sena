@@ -1,0 +1,4 @@
+Migrações de banco do Mega Sena AI, gerenciadas por Flask-Migrate/Alembic.
+
+Use `flask --app run.py db migrate -m "descrição"` para gerar uma revisão,
+revise o arquivo produzido e valide com `flask --app run.py db upgrade`.

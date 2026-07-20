@@ -7,10 +7,12 @@ from pathlib import Path
 from typing import Mapping
 
 from flask import Flask, flash, redirect, url_for
+from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import event
 
 db = SQLAlchemy()
+migrate = Migrate()
 
 _log = logging.getLogger(__name__)
 
@@ -28,6 +30,7 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
         SQLALCHEMY_DATABASE_URI=f"sqlite:///{database_path.as_posix()}",
         SQLALCHEMY_ENGINE_OPTIONS={"connect_args": {"timeout": 30}},
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
+        AUTO_INITIALIZE_DATABASE=True,
         MAX_CONTENT_LENGTH=10 * 1024 * 1024,
         SESSION_COOKIE_SAMESITE="Lax",
         SESSION_COOKIE_HTTPONLY=True,
@@ -55,6 +58,7 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
     app.jinja_env.filters["brl0"] = _format_brl_without_cents
 
     db.init_app(app)
+    migrate.init_app(app, db, directory=str(base_dir / "migrations"), compare_type=True, render_as_batch=True)
 
     from .routes import bp
     app.register_blueprint(bp)
@@ -65,11 +69,15 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
     # ------------------------------------------------------------------
     @app.context_processor
     def _inject_asset_version():
-        css_path = Path(app.static_folder or "") / "style.css"
-        try:
-            version = int(css_path.stat().st_mtime)
-        except OSError:
-            version = 0
+        static_dir = Path(app.static_folder or "")
+        asset_paths = [static_dir / name for name in ("style.css", "base.js", "bets.js", "dashboard.js")]
+        mtimes = []
+        for asset_path in asset_paths:
+            try:
+                mtimes.append(asset_path.stat().st_mtime)
+            except OSError:
+                pass
+        version = int(max(mtimes, default=0))
         return {"asset_version": version}
 
     # ------------------------------------------------------------------
@@ -82,12 +90,14 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
 
     with app.app_context():
         from . import models  # noqa: F401
+        from .schema import ensure_database_schema
         from .services import ensure_default_config, ensure_draw_parameters_current
 
         _configure_sqlite_engine(app)
-        db.create_all()
-        ensure_default_config()
-        ensure_draw_parameters_current()
+        if app.config["AUTO_INITIALIZE_DATABASE"]:
+            ensure_database_schema(app)
+            ensure_default_config()
+            ensure_draw_parameters_current()
 
     return app
 

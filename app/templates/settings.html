@@ -32,11 +32,3 @@
     </form>
 </section>
 {% endblock %}
-
-{% block scripts %}
-{% if request.args.get('clear_generation_storage') == '1' %}
-<script nonce="{{ csp_nonce() }}">
-  localStorage.removeItem("megaSenaGenerationParams");
-</script>
-{% endif %}
-{% endblock %}

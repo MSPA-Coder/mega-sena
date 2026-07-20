@@ -15,13 +15,13 @@ Fonte de verdade do comportamento:
 - `app/__init__.py`: cria a aplicacao, configura SQLite, seguranca basica,
   filtros Jinja e inicializacao do banco.
 - `app/models.py`: modelos SQLAlchemy `Draw`, `GeneratedBet` e `Config`.
-- `app/services.py`: importacao XLSX, estatisticas, filtros, combinatoria,
-  geracao aleatoria e fechamento matematico.
-- `app/routes.py`: rotas Flask, estado de geracao em sessao, CSRF, headers de
-  seguranca e endpoints JSON.
+- `app/services.py`: fachada publica compativel para os servicos de negocio.
+- `app/service_modules/`: implementacoes separadas por dominio.
+- `app/generation_params.py`: fonte unica dos parametros e limites de geracao.
+- `app/routes.py`: rotas Flask, estado por URL/formulario, CSRF e endpoints JSON.
 - `app/templates/`: telas renderizadas pelo servidor.
-- `app/static/style.css`: tema visual, responsividade e estados de UI.
-- `tests/test_app.py`: suite de regressao principal.
+- `app/static/`: CSS e JavaScript modular de base, apostas e dashboard.
+- `tests/`: suite de regressao organizada por dominio, com fixtures comuns.
 - `pyproject.toml`: configuracao das ferramentas de teste e lint.
 
 ## Como Rodar
@@ -67,22 +67,20 @@ instance/mega_sena.db
 ```
 
 `instance/` e ignorado pelo Git porque contem dados locais. Na inicializacao, o
-app executa:
+app aplica as revisoes de `migrations/` com Flask-Migrate/Alembic. Banco novo e
+criado pela migracao inicial. Banco legado compativel e reconhecido somente
+depois de um backup consistente pela API do SQLite. Antes de upgrades futuros,
+outro backup e criado em `instance/backups/`.
 
-- `db.create_all()`;
-- `ensure_default_config()`;
-- atualizacao versionada dos campos derivados dos concursos, executada apenas
-  quando a versao do calculo muda.
-
-Nao ha sistema de migracoes. Alteracoes de schema precisam ser planejadas com
-cuidado.
+Depois do schema atualizado, o app garante as configuracoes padrao e atualiza
+campos derivados quando a versao interna do calculo muda.
 
 ## Rotas Principais
 
 - `/`: redireciona para `/dashboard`.
 - `/dashboard`: estatisticas dos concursos importados.
 - `/bets`: geracao, fechamento matematico, revisao e salvamento de apostas.
-- `/bets/clear`: limpa filtros de geracao da sessao.
+- `/bets/clear`: limpa filtros e redireciona para uma URL sem esses parametros.
 - `/rationale`: explica o racional combinatorio dos filtros ou fechamento.
 - `/contests`: lista concursos, filtros de historico e upload de `.xlsx`.
 - `/contests/import`: recebe a planilha de concursos.
@@ -123,11 +121,10 @@ Endpoints JSON usados pela UI:
   vazio, a geracao nao deve filtrar por pares, soma, sequencia ou faixas.
 - Os filtros de historico de `/contests` sao diferentes dos filtros de geracao
   de `/bets`.
-- A quantidade de dezenas por aposta vem de `Config.bet_quantity` em
-  `/settings`; o parametro `quantity` em URLs aparece para retorno de tela, mas
-  a leitura server-side atual usa a configuracao como fonte principal.
-- `localStorage` em `bets.html` apenas restaura campos visualmente; o servidor
-  so considera valores enviados por GET/POST ou salvos na sessao.
+- A quantidade padrao vem de `Config.bet_quantity`; quando a URL ou formulario
+  traz `quantity`, o valor informado faz parte do estado reproduzivel da tela.
+- URL e formularios sao a fonte de verdade. Filtros nao sao persistidos na
+  sessao nem em `localStorage`, permitindo abas independentes.
 - O fechamento matematico nao sorteia candidatas; ele enumera todas as
   combinacoes de 6 dezenas dentro do conjunto-base informado.
 - Imports aceitam apenas `.xlsx` no upload e limitam a leitura a 10.000 linhas de
@@ -147,12 +144,14 @@ Comandos recomendados, depois de instalar `requirements-dev.txt`:
 
 ```powershell
 python -m pytest
-python -m ruff check app scripts tests run.py
+python -m ruff check app migrations scripts tests run.py
 python scripts/audit_dependencies.py
 ```
 
-A suite cobre importacao e limites de XLSX, filtros, combinatoria, endpoints,
-CSRF/CSP, reset, factory, dashboard, UI renderizada e salvamento de apostas.
+A suite cobre migracoes e backups, importacao e limites de XLSX, filtros,
+combinatoria, endpoints, CSRF/CSP, reset, factory, dashboard, UI e apostas. O
+workflow `.github/workflows/ci.yml` executa pytest e Ruff em Python 3.11/3.13;
+a auditoria de dependencias e semanal ou manual.
 
 ## Estrutura
 
@@ -160,10 +159,16 @@ CSRF/CSP, reset, factory, dashboard, UI renderizada e salvamento de apostas.
 .
 |-- app/
 |   |-- __init__.py
+|   |-- generation_params.py
 |   |-- models.py
 |   |-- routes.py
+|   |-- schema.py
 |   |-- services.py
+|   |-- service_modules/
 |   |-- static/
+|   |   |-- base.js
+|   |   |-- bets.js
+|   |   |-- dashboard.js
 |   |   `-- style.css
 |   `-- templates/
 |       |-- base.html
@@ -172,8 +177,12 @@ CSRF/CSP, reset, factory, dashboard, UI renderizada e salvamento de apostas.
 |       |-- dashboard.html
 |       |-- rationale.html
 |       `-- settings.html
+|-- migrations/
 |-- tests/
-|   `-- test_app.py
+|   |-- conftest.py
+|   |-- support.py
+|   `-- test_*.py
+|-- .github/workflows/ci.yml
 |-- scripts/
 |   `-- audit_dependencies.py
 |-- context.md

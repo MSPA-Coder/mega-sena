@@ -10,7 +10,7 @@ Para entender uma tarefa rapidamente:
 
 1. Leia `README.md` para mapa operacional.
 2. Leia este arquivo para invariantes e pontos de extensao.
-3. Leia `tests/test_app.py` perto dos testes do comportamento que sera tocado.
+3. Leia o modulo `tests/test_*.py` correspondente ao dominio que sera tocado.
 4. Leia o modulo alvo em `app/`.
 
 ## Arquitetura Atual
@@ -21,10 +21,10 @@ Aplicacao Flask com renderizacao server-side, SQLite local e SQLAlchemy.
 - Factory: `create_app()` em `app/__init__.py`.
 - Blueprint principal: `bp = Blueprint("web", __name__)` em `app/routes.py`.
 - Banco local: `instance/mega_sena.db`.
-- Dependencias de runtime: `Flask`, `Flask-SQLAlchemy`, `openpyxl` e
-  `defusedxml`.
+- Dependencias de runtime: `Flask`, `Flask-SQLAlchemy`, `Flask-Migrate`,
+  `openpyxl` e `defusedxml`.
 - Dependencias de desenvolvimento: `pytest`, `Ruff` e `pip-audit`.
-- Testes: `tests/test_app.py`.
+- Testes: modulos por dominio em `tests/`, com fixtures em `conftest.py`.
 
 Na inicializacao, `create_app()`:
 
@@ -35,8 +35,9 @@ Na inicializacao, `create_app()`:
 - limita upload a 10 MB;
 - registra filtros Jinja `brl` e `brl0`;
 - registra o blueprint;
-- injeta versao de asset baseada no `mtime` de `style.css`;
-- cria tabelas com `db.create_all()`;
+- injeta versao baseada no maior `mtime` dos assets CSS/JavaScript;
+- aplica migracoes Alembic e cria backup antes de reconhecer banco legado ou
+  atualizar uma revisao existente;
 - garante configuracoes padrao;
 - recalcula campos derivados dos concursos existentes apenas quando a versao
   interna desse calculo muda.
@@ -95,25 +96,23 @@ Filtros de geracao em `GENERATION_FILTER_KEYS`:
   31-40, 41-50 e 51-60.
 - `range_max_per_band`: maximo de dezenas em uma mesma faixa.
 
-Limites sao centralizados em `CONFIG_LIMITS`. `even_min > even_max` e ajustado
-fazendo `even_max = even_min`; `sum_min > sum_max` troca os valores.
+Limites sao centralizados em `GENERATION_LIMITS` e aplicados por
+`GenerationParams`. `even_min > even_max` e ajustado fazendo
+`even_max = even_min`; `sum_min > sum_max` troca os valores.
 
 ## Estado da Geracao
 
-Fluxo em `app/routes.py`:
+Fluxo em `app/routes.py` e `app/generation_params.py`:
 
-- `get_generation_defaults()` le valores de `Config`.
-- `_read_generation_state()` combina defaults, sessao `generation_params` e
-  GET/POST.
+- `get_generation_defaults()` le valores de `Config` quando a URL nao traz
+  estado de geracao.
+- `GenerationParams` centraliza limites, normalizacao e regras entre campos.
+- `_read_generation_state()` usa GET/POST como fonte de verdade quando qualquer
+  parametro de geracao esta presente.
 - `_active_filters()` remove filtros `None`.
-- `_persist_generation_state()` salva filtros e `amount` na sessao quando uma
-  submissao contem parametros de geracao.
-- `/bets/clear` limpa apenas filtros da sessao e sinaliza a UI para limpar o
-  `localStorage`.
-
-Observacao importante: `quantity` aparece em alguns formularios/URLs, mas a
-leitura server-side atual define a quantidade a partir de `Config.bet_quantity`.
-Antes de mudar isso, revise testes que esperam esse comportamento.
+- `/bets/clear` preserva quantidade/numero de apostas e redireciona para uma URL
+  sem filtros.
+- a sessao Flask guarda somente dados de seguranca, como o token CSRF.
 
 ## Importacao XLSX
 
@@ -227,8 +226,8 @@ O universo inicial e `C(60, 6) = 50.063.860`. A cobertura de uma aposta com
 
 - CSRF por sessao em POST/PUT/PATCH/DELETE;
 - helper `csrf_token()` injetado nos templates;
-- `Content-Security-Policy` com nonce aleatorio por requisicao para scripts
-  inline, sem `script-src 'unsafe-inline'`;
+- `Content-Security-Policy` permite scripts apenas de `'self'`; nao ha scripts
+  inline nem `script-src 'unsafe-inline'`;
 - `X-Content-Type-Options: nosniff`;
 - `X-Frame-Options: SAMEORIGIN`;
 - `Referrer-Policy: same-origin`;
@@ -250,24 +249,25 @@ Templates atuais:
 - `rationale.html`: explicacao combinatoria.
 - `settings.html`: defaults de geracao e reset da base.
 
-`bets.html` usa `localStorage` com chave `megaSenaGenerationParams`. Isso e
-apenas conveniencia de UI; nao e fonte de verdade para o servidor.
+`base.js`, `bets.js` e `dashboard.js` ficam em `app/static/`. `bets.js`
+sincroniza o formulario com a URL, aplica debounce de 200 ms e cancela previews
+superados com `AbortController`. Nao ha persistencia em `localStorage`.
 
 ## Checklist Para Adicionar Novo Filtro de Geracao
 
 Atualize, no minimo:
 
-- `DEFAULT_CONFIG` e `CONFIG_LIMITS` em `app/services.py`;
-- `GENERATION_FILTER_KEYS` em `app/services.py` e `app/routes.py`;
-- `_normalize_config_values()`;
+- `GENERATION_FILTER_KEYS`, `GENERATION_LIMITS` e `GenerationParams` em
+  `app/generation_params.py`;
+- defaults persistidos e normalizacao em `app/service_modules/configuration.py`;
 - `_read_generation_state()`;
 - `_passes_generation_filters()`;
 - `count_possible_draw_combinations()` se afetar o racional combinatorio;
 - `build_combination_report()`;
 - `count_draws_matching_filters()` se precisar de preview historico;
 - `settings.html`;
-- `bets.html` e o JavaScript de preview;
-- testes em `tests/test_app.py`.
+- `bets.html` e `app/static/bets.js`;
+- testes de geracao e parametros em `tests/`.
 
 ## Testes e Validacao
 
@@ -275,7 +275,7 @@ Comandos padrao:
 
 ```powershell
 python -m pytest
-python -m ruff check app scripts tests run.py
+python -m ruff check app migrations scripts tests run.py
 python scripts/audit_dependencies.py
 ```
 

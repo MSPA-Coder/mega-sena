@@ -4,10 +4,11 @@ import logging
 import math
 import secrets
 
-from flask import Blueprint, abort, flash, g, jsonify, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, session, url_for
 from werkzeug.datastructures import MultiDict
 
 from . import db
+from .generation_params import GENERATION_FILTER_KEYS, GENERATION_PARAM_KEYS, GenerationParams
 from .models import Draw, GeneratedBet
 from .services import (
     build_combination_report,
@@ -28,9 +29,6 @@ from .services import (
 )
 
 bp = Blueprint("web", __name__)
-GENERATION_FILTER_KEYS = ("consecutive_count", "even_min", "even_max", "sum_min", "sum_max", "range_min_occupied", "range_max_per_band")
-GENERATION_PARAM_KEYS = (*GENERATION_FILTER_KEYS, "amount")
-GENERATION_SESSION_KEY = "generation_params"
 CSRF_SESSION_KEY = "_csrf_token"
 _MUTATING_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 _MAX_REQUEST_INTEGER = (1 << 63) - 1
@@ -64,22 +62,13 @@ def _csrf_token() -> str:
     return token
 
 
-def _csp_nonce() -> str:
-    nonce = getattr(g, "_csp_nonce", None)
-    if nonce is None:
-        nonce = secrets.token_urlsafe(24)
-        g._csp_nonce = nonce
-    return nonce
-
-
 @bp.app_context_processor
 def _inject_security_helpers():
-    return {"csrf_token": _csrf_token, "csp_nonce": _csp_nonce}
+    return {"csrf_token": _csrf_token}
 
 
 @bp.before_app_request
 def _verify_csrf_token():
-    _csp_nonce()
     if request.method not in _MUTATING_METHODS:
         return None
     expected = session.get(CSRF_SESSION_KEY)
@@ -92,7 +81,7 @@ def _verify_csrf_token():
 
 @bp.after_app_request
 def _set_security_headers(response):
-    csp = f"{_CONTENT_SECURITY_POLICY}; script-src 'self' 'nonce-{_csp_nonce()}'"
+    csp = f"{_CONTENT_SECURITY_POLICY}; script-src 'self'"
     response.headers.setdefault("Content-Security-Policy", csp)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
@@ -172,11 +161,9 @@ def import_upload():
 @bp.post("/settings")
 def save_settings():
     update_config_values(request.form)
-    session.pop(GENERATION_SESSION_KEY, None)
-    session.modified = True
     _log.info("Configurações de geração atualizadas.")
     flash("Configurações salvas.")
-    return redirect(url_for("web.settings_page", clear_generation_storage=1))
+    return redirect(url_for("web.settings_page"))
 
 
 @bp.post("/reset")
@@ -282,90 +269,36 @@ def _coverage_metrics(combination_report: dict, amount: int) -> tuple[int, float
     return covered_by_amount, chance_with_amount, chance_with_amount_one_in
 
 
-def _has_generation_params(values: MultiDict) -> bool:
-    return any(key in values for key in GENERATION_PARAM_KEYS)
-
-
-def _stored_generation_values() -> MultiDict:
-    return MultiDict(session.get(GENERATION_SESSION_KEY, {}))
-
-
-def _persist_generation_state(
-    selected_filters: dict[str, int | None],
-    amount: int,
-) -> None:
-    params: dict[str, str] = {
-        "amount": str(amount),
-    }
-    for key, value in selected_filters.items():
-        params[key] = "" if value is None else str(value)
-    session[GENERATION_SESSION_KEY] = params
-    session.modified = True
-
-
 def _read_generation_state(values: MultiDict) -> tuple[int, dict[str, int | None], int]:
-    should_persist = _has_generation_params(values)
     defaults = get_generation_defaults()
-    default_values = MultiDict(
-        {
-            "amount": str(defaults["generation_amount"]),
-        }
+    has_url_state = any(key in values for key in GENERATION_PARAM_KEYS)
+    if has_url_state:
+        source = MultiDict(
+            {
+                "quantity": values.get("quantity", str(defaults["bet_quantity"])),
+                "amount": values.get("amount", str(defaults["generation_amount"])),
+            }
+        )
+        for key in GENERATION_FILTER_KEYS:
+            source[key] = values.get(key, "")
+    else:
+        source = MultiDict(
+            {
+                "quantity": str(defaults["bet_quantity"]),
+                "amount": str(defaults["generation_amount"]),
+            }
+        )
+        for key in GENERATION_FILTER_KEYS:
+            value = defaults.get(key)
+            source[key] = "" if value is None else str(value)
+
+    params = GenerationParams.from_mapping(
+        source,
+        default_quantity=int(defaults["bet_quantity"] or 6),
+        default_amount=int(defaults["generation_amount"] or 5),
     )
-    for key in GENERATION_FILTER_KEYS:
-        value = defaults.get(key)
-        if value is not None:
-            default_values[key] = str(value)
-    source = default_values
-    stored_values = _stored_generation_values()
-    for key in GENERATION_PARAM_KEYS:
-        if key in stored_values:
-            source[key] = stored_values[key]
-    if should_persist:
-        for key in GENERATION_PARAM_KEYS:
-            if key in values:
-                source[key] = values[key]
-
-    quantity = int(defaults["bet_quantity"] or 6)
-
-    consecutive_count = _optional_int(source.get("consecutive_count"))
-    even_min = _optional_int(source.get("even_min"))
-    even_max = _optional_int(source.get("even_max"))
-    sum_min = _optional_int(source.get("sum_min"))
-    sum_max = _optional_int(source.get("sum_max"))
-    range_min_occupied = _optional_int(source.get("range_min_occupied"))
-    range_max_per_band = _optional_int(source.get("range_max_per_band"))
-    amount = _optional_int(source.get("amount"))
-    amount = max(1, min(amount if amount is not None else int(defaults["generation_amount"] or 5), 100))
-    if consecutive_count is not None:
-        consecutive_count = max(0, min(consecutive_count, 6))
-    if even_min is not None:
-        even_min = max(0, min(even_min, 6))
-    if even_max is not None:
-        even_max = max(0, min(even_max, 6))
-    if even_min is not None and even_max is not None and even_min > even_max:
-        even_max = even_min
-    if sum_min is not None:
-        sum_min = max(0, min(sum_min, 345))
-    if sum_max is not None:
-        sum_max = max(0, min(sum_max, 345))
-    if sum_min is not None and sum_max is not None and sum_min > sum_max:
-        sum_min, sum_max = sum_max, sum_min
-    if range_min_occupied is not None:
-        range_min_occupied = max(1, min(range_min_occupied, 6))
-    if range_max_per_band is not None:
-        range_max_per_band = max(1, min(range_max_per_band, 6))
-    selected_filters = {
-        "consecutive_count": consecutive_count,
-        "even_min": even_min,
-        "even_max": even_max,
-        "sum_min": sum_min,
-        "sum_max": sum_max,
-        "range_min_occupied": range_min_occupied,
-        "range_max_per_band": range_max_per_band,
-    }
-    if should_persist:
-        _persist_generation_state(selected_filters, amount)
-    return quantity, selected_filters, amount
+    selected_filters = params.filters(include_empty=True)
+    return params.quantity, selected_filters, params.amount
 
 
 def _active_filters(selected_filters: dict[str, int | None]) -> dict[str, int]:
@@ -377,11 +310,8 @@ def _generation_params(
     selected_filters: dict[str, int | None],
     amount: int,
 ) -> dict[str, int | str]:
-    return {
-        "quantity": quantity,
-        "amount": amount,
-        **_active_filters(selected_filters),
-    }
+    params = GenerationParams(quantity=quantity, amount=amount, **selected_filters)
+    return params.query_values()
 
 
 def _format_percentage(value: float) -> str:
@@ -402,13 +332,9 @@ def _draw_filter_preview_payload(selected_filters: dict[str, int | None]) -> dic
 
 @bp.post("/bets/clear")
 def clear_bet_generation():
-    stored = dict(session.get(GENERATION_SESSION_KEY, {}))
-    for key in GENERATION_FILTER_KEYS:
-        stored[key] = ""
-    session[GENERATION_SESSION_KEY] = stored
-    session.modified = True
+    quantity, _selected_filters, amount = _read_generation_state(request.form)
     flash("Filtros da geração limpos.")
-    return redirect(url_for("web.bet_generation", cleared=1))
+    return redirect(url_for("web.bet_generation", quantity=quantity, amount=amount))
 
 
 @bp.route("/bets", methods=["GET", "POST"])
