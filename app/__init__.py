@@ -7,12 +7,10 @@ from pathlib import Path
 from typing import Mapping
 
 from flask import Flask, flash, redirect, url_for
-from flask_migrate import Migrate
-from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import event
 
-db = SQLAlchemy()
-migrate = Migrate()
+from .core.formatting import format_brl, format_brl_without_cents
+from .extensions import db, migrate
 
 _log = logging.getLogger(__name__)
 
@@ -54,8 +52,8 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
 
     app.config["SECRET_KEY"] = secret_key
 
-    app.jinja_env.filters["brl"] = _format_brl
-    app.jinja_env.filters["brl0"] = _format_brl_without_cents
+    app.jinja_env.filters["brl"] = format_brl
+    app.jinja_env.filters["brl0"] = format_brl_without_cents
 
     db.init_app(app)
     migrate.init_app(app, db, directory=str(base_dir / "migrations"), compare_type=True, render_as_batch=True)
@@ -127,19 +125,3 @@ def _configure_sqlite_engine(app: Flask) -> None:
             cursor.execute("PRAGMA journal_mode=WAL")
         finally:
             cursor.close()
-
-
-def _format_brl(cents: int | None) -> str:
-    if not cents:
-        return ""
-    value = cents / 100
-    formatted = f"{value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-    return f"R$ {formatted}"
-
-
-def _format_brl_without_cents(cents: int | None) -> str:
-    if not cents:
-        return ""
-    value = round(cents / 100)
-    formatted = f"{value:,}".replace(",", ".")
-    return f"R$ {formatted}"

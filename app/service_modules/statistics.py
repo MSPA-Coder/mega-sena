@@ -5,7 +5,7 @@ import math
 from collections import Counter
 from itertools import combinations
 
-from .. import db
+from ..extensions import db
 from ..models import Config, Draw
 from .common import draw_parameters
 
@@ -207,4 +207,3 @@ def build_recent_frequency(count: int | None) -> dict:
         "most_frequent": freq.most_common(10),
         "least_frequent": sorted(freq.items(), key=lambda kv: (kv[1], kv[0]))[:10],
     }
-

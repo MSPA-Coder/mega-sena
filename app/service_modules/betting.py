@@ -9,7 +9,7 @@ from typing import Iterable
 
 from sqlalchemy import func
 
-from .. import db
+from ..extensions import db
 from ..models import GeneratedBet
 from .common import (
     _clamp_int,

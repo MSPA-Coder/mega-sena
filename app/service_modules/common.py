@@ -3,6 +3,7 @@ from __future__ import annotations
 from decimal import Decimal, InvalidOperation
 from typing import Iterable
 
+from ..core.formatting import format_int, format_percent
 from ..generation_params import GenerationParams
 
 _MAX_SQLITE_INTEGER = (1 << 63) - 1
@@ -61,22 +62,8 @@ def max_range_band_count(numbers: Iterable[int]) -> int:
     return max(range_band_counts(numbers), default=0)
 
 
-def _format_int(value: int) -> str:
-    return f"{value:,}".replace(",", ".")
-
-
-def format_int(value: int) -> str:
-    """Formata inteiro com separador de milhar brasileiro (ponto)."""
-    return _format_int(value)
-
-
-def _format_percent(value: float) -> str:
-    return f"{value:.8f}".rstrip("0").rstrip(".").replace(".", ",")
-
-
-def format_percent(value: float) -> str:
-    """Formata percentual com precisão de 8 casas, usando vírgula decimal."""
-    return _format_percent(value)
+_format_int = format_int
+_format_percent = format_percent
 
 
 def draw_parameters(numbers: Iterable[int]) -> dict[str, int]:

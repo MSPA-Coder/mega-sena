@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .. import db
+from ..extensions import db
 from ..generation_params import GENERATION_LIMITS
 from ..models import Config
 from .common import _clamp_int, _to_int
@@ -95,4 +95,3 @@ def get_generation_defaults() -> dict[str, int | None]:
         "range_min_occupied": _to_int(values["range_min_occupied"]),
         "range_max_per_band": _to_int(values["range_max_per_band"]),
     }
-

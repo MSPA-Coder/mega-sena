@@ -11,7 +11,7 @@ from flask import Flask
 from flask_migrate import stamp, upgrade
 from sqlalchemy import inspect, text
 
-from . import db
+from .extensions import db
 
 
 _log = logging.getLogger(__name__)
