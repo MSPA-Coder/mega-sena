@@ -4,7 +4,6 @@ from decimal import Decimal, InvalidOperation
 from typing import Iterable
 
 from .formatting import format_int, format_percent
-from ..generation_params import GenerationParams
 
 _MAX_SQLITE_INTEGER = (1 << 63) - 1
 
@@ -35,11 +34,6 @@ def _clamp_int(value: int, min_value: int | None = None, max_value: int | None =
     if max_value is not None:
         value = min(max_value, value)
     return value
-
-
-def _coerce_generation_filters(filters: dict | None) -> dict[str, int]:
-    params = GenerationParams.from_mapping(filters, default_amount=1)
-    return {key: value for key, value in params.filters().items() if value is not None}
 
 
 def count_even_numbers(numbers: Iterable[int]) -> int:

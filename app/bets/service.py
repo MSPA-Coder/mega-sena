@@ -11,15 +11,12 @@ from sqlalchemy import func
 
 from ..core.numbers import (
     _clamp_int,
-    _coerce_generation_filters,
     _to_int,
-    count_consecutive_numbers,
-    count_even_numbers,
-    range_band_counts,
 )
 from ..draws.statistics import all_draw_numbers
 from ..extensions import db
 from ..models import GeneratedBet
+from .criteria import GenerationCriteria, coerce_generation_filters
 
 _log = logging.getLogger(__name__)
 MAX_SAVED_BETS = math.comb(15, 6)
@@ -30,51 +27,7 @@ _RNG = secrets.SystemRandom()
 def _passes_generation_filters(numbers: list[int], filters: dict | None) -> bool:
     if not filters:
         return True
-    ordered = sorted(numbers)
-    quantity = len(ordered)
-    subset_size = min(6, quantity)
-    consecutive_count = filters.get("consecutive_count")
-    even_min = filters.get("even_min")
-    even_max = filters.get("even_max")
-    sum_min = filters.get("sum_min")
-    sum_max = filters.get("sum_max")
-    range_min_occupied = filters.get("range_min_occupied")
-    range_max_per_band = filters.get("range_max_per_band")
-    even_count = count_even_numbers(ordered)
-    odd_count = quantity - even_count
-    min_subset_evens = max(0, subset_size - odd_count)
-    max_subset_evens = min(subset_size, even_count)
-    min_subset_sum = sum(ordered[:subset_size])
-    max_subset_sum = sum(ordered[-subset_size:])
-    band_counts = sorted(range_band_counts(ordered), reverse=True)
-    remaining = subset_size
-    min_occupied_bands = 0
-    for band_count in band_counts:
-        if remaining <= 0:
-            break
-        if band_count:
-            min_occupied_bands += 1
-            remaining -= min(band_count, remaining)
-    max_subset_band_count = min(subset_size, band_counts[0] if band_counts else 0)
-    max_subset_consecutive = min(subset_size, count_consecutive_numbers(ordered))
-
-    # Para apostas de 7 a 15 dezenas, todos os subconjuntos cobertos de 6
-    # precisam respeitar os filtros. Assim o racional C(n, 6) permanece correto.
-    if even_min is not None and min_subset_evens < even_min:
-        return False
-    if even_max is not None and max_subset_evens > even_max:
-        return False
-    if sum_min is not None and min_subset_sum < sum_min:
-        return False
-    if sum_max is not None and max_subset_sum > sum_max:
-        return False
-    if consecutive_count is not None and max_subset_consecutive > consecutive_count:
-        return False
-    if range_min_occupied is not None and min_occupied_bands < range_min_occupied:
-        return False
-    if range_max_per_band is not None and max_subset_band_count > range_max_per_band:
-        return False
-    return True
+    return GenerationCriteria.from_mapping(filters, default_amount=1).matches_candidate(numbers)
 
 
 def _diversity_score(numbers: list[int], existing_candidates: list[list[int]]) -> float:
@@ -124,7 +77,7 @@ def generate_bets(
 ) -> list[GeneratedBet]:
     quantity = _clamp_int(_to_int(quantity) or 6, 6, 15)
     amount = _clamp_int(_to_int(amount) or 1, 1, 100)
-    filters = _coerce_generation_filters(filters)
+    filters = coerce_generation_filters(filters)
     draws = all_draw_numbers()
     existing_draws = {tuple(d) for d in draws}
     created: list[GeneratedBet] = []

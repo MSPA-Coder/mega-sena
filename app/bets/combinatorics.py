@@ -5,7 +5,6 @@ from functools import lru_cache
 from typing import Iterable
 
 from ..core.numbers import (
-    _coerce_generation_filters,
     _format_int,
     _format_percent,
     _to_int,
@@ -13,6 +12,7 @@ from ..core.numbers import (
     max_range_band_count,
 )
 from ..models import Draw
+from .criteria import GenerationCriteria, coerce_generation_filters
 
 
 @lru_cache(maxsize=1)
@@ -67,28 +67,31 @@ def count_possible_draw_combinations(
     range_min_occupied: int | None = None,
     range_max_per_band: int | None = None,
 ) -> int:
+    criteria = GenerationCriteria(
+        consecutive_count=consecutive_count,
+        even_min=even_min,
+        even_max=even_max,
+        sum_min=sum_min,
+        sum_max=sum_max,
+        range_min_occupied=range_min_occupied,
+        range_max_per_band=range_max_per_band,
+    )
     total = 0
     for (longest_run, even_numbers, total_sum, occupied_bands, max_band_count), count in _combination_distribution().items():
-        if consecutive_count is not None and longest_run > consecutive_count:
-            continue
-        if even_min is not None and even_numbers < even_min:
-            continue
-        if even_max is not None and even_numbers > even_max:
-            continue
-        if sum_min is not None and total_sum < sum_min:
-            continue
-        if sum_max is not None and total_sum > sum_max:
-            continue
-        if range_min_occupied is not None and occupied_bands < range_min_occupied:
-            continue
-        if range_max_per_band is not None and max_band_count > range_max_per_band:
+        if not criteria.matches_distribution(
+            longest_run=longest_run,
+            even_count_min=even_numbers,
+            total_sum_min=total_sum,
+            occupied_bands=occupied_bands,
+            max_band_count=max_band_count,
+        ):
             continue
         total += count
     return total
 
 
 def build_combination_report(quantity: int = 6, filters: dict | None = None) -> dict:
-    filters = _coerce_generation_filters(filters)
+    filters = coerce_generation_filters(filters)
     quantity = max(6, min(_to_int(quantity) or 6, 15))
     total = math.comb(60, 6)
     remaining = total

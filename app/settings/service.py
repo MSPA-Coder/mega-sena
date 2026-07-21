@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from ..core.numbers import _clamp_int, _to_int
+from ..bets.criteria import GENERATION_FILTER_KEYS, GENERATION_LIMITS, GenerationCriteria
+from ..core.numbers import _to_int
 from ..extensions import db
-from ..generation_params import GENERATION_LIMITS
 from ..models import Config
 
 DEFAULT_CONFIG = {
@@ -23,27 +23,26 @@ CONFIG_LIMITS = {
 }
 
 
-def _clean_config_value(key: str, value: object) -> str:
-    parsed = _to_int(value)
-    default_value = DEFAULT_CONFIG[key]
-    if parsed is None:
-        return default_value if key in {"bet_quantity", "generation_amount"} else ""
-    min_value, max_value = CONFIG_LIMITS[key]
-    return str(_clamp_int(parsed, min_value, max_value))
-
-
 def _normalize_config_values(values: dict[str, object]) -> dict[str, str]:
-    normalized = {key: _clean_config_value(key, values.get(key, DEFAULT_CONFIG[key])) for key in DEFAULT_CONFIG}
-    for key in ("consecutive_count", "even_min", "even_max"):
-        if normalized[key]:
-            normalized[key] = str(_clamp_int(int(normalized[key]), 0, 6))
-    for key in ("range_min_occupied", "range_max_per_band"):
-        if normalized[key]:
-            normalized[key] = str(_clamp_int(int(normalized[key]), 1, 6))
-    if normalized["even_min"] and normalized["even_max"] and int(normalized["even_min"]) > int(normalized["even_max"]):
-        normalized["even_max"] = normalized["even_min"]
-    if normalized["sum_min"] and normalized["sum_max"] and int(normalized["sum_min"]) > int(normalized["sum_max"]):
-        normalized["sum_min"], normalized["sum_max"] = normalized["sum_max"], normalized["sum_min"]
+    criteria = GenerationCriteria.from_mapping(
+        {
+            "quantity": values.get("bet_quantity", DEFAULT_CONFIG["bet_quantity"]),
+            "amount": values.get("generation_amount", DEFAULT_CONFIG["generation_amount"]),
+            **{key: values.get(key, DEFAULT_CONFIG[key]) for key in GENERATION_FILTER_KEYS},
+        },
+        default_quantity=int(DEFAULT_CONFIG["bet_quantity"]),
+        default_amount=int(DEFAULT_CONFIG["generation_amount"]),
+    )
+    normalized = {
+        "bet_quantity": str(criteria.quantity),
+        "generation_amount": str(criteria.amount),
+    }
+    normalized.update(
+        {
+            key: "" if value is None else str(value)
+            for key, value in criteria.filters(include_empty=True).items()
+        }
+    )
     return normalized
 
 
