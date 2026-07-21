@@ -46,6 +46,18 @@ def test_css_manifest_references_existing_modules() -> None:
     assert all((Path("app/static") / relative_path).is_file() for relative_path in imports)
 
 
+def test_generated_bets_use_two_column_grid() -> None:
+    css = css_source()
+    template = Path("app/templates/bets/index.html").read_text(encoding="utf-8")
+
+    assert template.count('class="generated-bets-grid"') == 2
+    assert ".generated-bets-grid" in css
+    assert "grid-template-columns: repeat(2, minmax(0, 1fr))" in css
+    ball_rule_start = css.index(".generated-bets-grid .bet-line .ball {")
+    ball_rule_end = css.index("}", ball_rule_start)
+    assert "color: #fff" in css[ball_rule_start:ball_rule_end]
+
+
 def test_theme_toggle_button_is_present_on_every_page() -> None:
     """O controle de tema deve existir e funcionar (cookie 'theme' já era lido, mas sem controle visível)."""
     app = make_app()

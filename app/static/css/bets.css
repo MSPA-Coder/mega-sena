@@ -95,3 +95,28 @@
   font-size: 14px;
 }
 
+.generated-bets-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.generated-bets-grid .bet-line {
+  min-width: 0;
+  margin: 0;
+  padding: 12px;
+  background: transparent;
+}
+
+.generated-bets-grid .bet-line:nth-child(odd) {
+  border-right: 1px solid var(--border);
+}
+
+.generated-bets-grid .bet-line:nth-child(4n+3),
+.generated-bets-grid .bet-line:nth-child(4n+4) {
+  background: var(--surface-subtle);
+}
+
+.generated-bets-grid .bet-line .ball {
+  min-width: 38px;
+  color: #fff;
+}

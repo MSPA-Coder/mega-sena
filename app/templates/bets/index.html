@@ -103,14 +103,16 @@
           </div>
           <div class="generation-bets-inline" data-generation-bets="{{ generation.generation_id }}" hidden>
             <h3>Apostas da geração #{{ generation.generation_id }}</h3>
-            {% for bet in generation.bets %}
-              <div class="bet-line">
-                {{ render_balls(bet.numbers) }}
-                <small>Diversidade {{ "%.2f"|format(bet.score) }}</small>
-              </div>
-            {% else %}
-              <p>Nenhuma aposta encontrada para esta geração.</p>
-            {% endfor %}
+            <div class="generated-bets-grid">
+              {% for bet in generation.bets %}
+                <div class="bet-line">
+                  {{ render_balls(bet.numbers) }}
+                  <small>Diversidade {{ "%.2f"|format(bet.score) }}</small>
+                </div>
+              {% else %}
+                <p>Nenhuma aposta encontrada para esta geração.</p>
+              {% endfor %}
+            </div>
           </div>
         </div>
       {% endfor %}
@@ -132,13 +134,15 @@
         <input type="hidden" name="{{ key }}" value="{{ value }}">
       {% endif %}
     {% endfor %}
-    {% for bet in bets %}
-      <div class="bet-line">
-        <input type="hidden" name="bet" value="{{ bet.numbers_csv }}">
-        {{ render_balls(bet.numbers) }}
-        <small>Diversidade {{ "%.2f"|format(bet.score) }}</small>
-      </div>
-    {% endfor %}
+    <div class="generated-bets-grid">
+      {% for bet in bets %}
+        <div class="bet-line">
+          <input type="hidden" name="bet" value="{{ bet.numbers_csv }}">
+          {{ render_balls(bet.numbers) }}
+          <small>Diversidade {{ "%.2f"|format(bet.score) }}</small>
+        </div>
+      {% endfor %}
+    </div>
     <div class="actions">
       <button type="submit">Gravar no banco</button>
       <a class="button secondary" href="{{ url_for('web.bet_generation', **generation_params) }}">Não gravar</a>
