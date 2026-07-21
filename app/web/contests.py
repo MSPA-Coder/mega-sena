@@ -6,8 +6,8 @@ import logging
 
 from flask import flash, redirect, render_template, request, url_for
 
+from ..draws.importing import import_results_from_xlsx
 from ..draws.service import search_contests
-from ..services import import_results_from_xlsx
 from . import bp
 from .helpers import optional_int, plural
 

@@ -9,31 +9,37 @@ import pytest  # noqa: F401
 
 from app import create_app, db  # noqa: F401
 from app.models import Config, Draw  # noqa: F401
-from app.services import (  # noqa: F401
+from app.bets.combinatorics import (  # noqa: F401
     build_combination_report,
-    build_recent_frequency,
-    build_stats,
     calculate_individual_filter_targets,
-    count_consecutive_numbers,
     count_draws_matching_filters,
-    count_even_numbers,
-    count_occupied_range_bands,
     count_possible_draw_combinations,
-    draw_parameters,
-    ensure_draw_parameters_current,
+)
+from app.bets.service import (  # noqa: F401
     generate_closure_bets,
-    get_config_values,
-    import_results_from_xlsx,
     list_recent_generations,
     list_recent_generations_with_bets,
-    max_range_band_count,
     save_generated_bets,
 )
+from app.core.numbers import (  # noqa: F401
+    count_consecutive_numbers,
+    count_even_numbers,
+    count_occupied_range_bands,
+    draw_parameters,
+    max_range_band_count,
+)
+from app.draws.importing import import_results_from_xlsx  # noqa: F401
+from app.draws.statistics import (  # noqa: F401
+    build_recent_frequency,
+    build_stats,
+    ensure_draw_parameters_current,
+)
+from app.settings.service import get_config_values  # noqa: F401
 from tests.support import csrf_form_data, make_app, workbook_bytes  # noqa: F401
 
 
 def test_filters_on_large_bets_cover_every_internal_six_number_draw() -> None:
-    from app.services import _passes_generation_filters
+    from app.bets.service import _passes_generation_filters
 
     numbers = [1, 2, 3, 4, 5, 6, 17]
 
@@ -405,7 +411,7 @@ def test_saved_bets_are_grouped_by_generation() -> None:
 
 
 def test_saved_bets_are_deduplicated_and_have_a_hard_batch_limit(monkeypatch) -> None:
-    import app.services as services
+    import app.bets.service as betting_service
 
     app = make_app()
     with app.app_context():
@@ -413,20 +419,20 @@ def test_saved_bets_are_deduplicated_and_have_a_hard_batch_limit(monkeypatch) ->
         saved, generation_id = save_generated_bets(6, ["1,2,3,4,5,6", "6,5,4,3,2,1"])
         assert (saved, generation_id) == (1, 1)
 
-        monkeypatch.setattr(services, "MAX_SAVED_BETS", 2)
+        monkeypatch.setattr(betting_service, "MAX_SAVED_BETS", 2)
         with pytest.raises(RuntimeError, match="no máximo 2"):
             save_generated_bets(6, ["7,8,9,10,11,12"] * 3)
 
 
 def test_persisted_generation_is_visible_as_a_group(monkeypatch) -> None:
-    import app.services as services
+    import app.bets.service as betting_service
 
     candidates = iter([[1, 2, 3, 4, 5, 6], [7, 8, 9, 10, 11, 12]])
-    monkeypatch.setattr(services, "_secure_random_candidate", lambda _quantity: next(candidates))
+    monkeypatch.setattr(betting_service, "_secure_random_candidate", lambda _quantity: next(candidates))
     app = make_app()
     with app.app_context():
         db.create_all()
-        bets = services.generate_bets(6, 2, persist=True)
+        bets = betting_service.generate_bets(6, 2, persist=True)
         generations = list_recent_generations_with_bets()
 
         assert {bet.generation_id for bet in bets} == {1}

@@ -7,7 +7,7 @@ from sqlalchemy import inspect, text
 
 from app import create_app, db
 from app.models import Config, Draw, GeneratedBet
-from app.services import draw_parameters
+from app.core.numbers import draw_parameters
 
 
 def _config(database_path: Path, backup_dir: Path, *, initialize: bool) -> dict[str, object]:

@@ -8,26 +8,32 @@ import pytest  # noqa: F401
 
 from app import create_app, db  # noqa: F401
 from app.models import Config, Draw  # noqa: F401
-from app.services import (  # noqa: F401
+from app.bets.combinatorics import (  # noqa: F401
     build_combination_report,
-    build_recent_frequency,
-    build_stats,
     calculate_individual_filter_targets,
-    count_consecutive_numbers,
     count_draws_matching_filters,
-    count_even_numbers,
-    count_occupied_range_bands,
     count_possible_draw_combinations,
-    draw_parameters,
-    ensure_draw_parameters_current,
+)
+from app.bets.service import (  # noqa: F401
     generate_closure_bets,
-    get_config_values,
-    import_results_from_xlsx,
     list_recent_generations,
     list_recent_generations_with_bets,
-    max_range_band_count,
     save_generated_bets,
 )
+from app.core.numbers import (  # noqa: F401
+    count_consecutive_numbers,
+    count_even_numbers,
+    count_occupied_range_bands,
+    draw_parameters,
+    max_range_band_count,
+)
+from app.draws.importing import import_results_from_xlsx  # noqa: F401
+from app.draws.statistics import (  # noqa: F401
+    build_recent_frequency,
+    build_stats,
+    ensure_draw_parameters_current,
+)
+from app.settings.service import get_config_values  # noqa: F401
 from tests.support import csrf_form_data, make_app, workbook_bytes  # noqa: F401
 
 
@@ -49,18 +55,18 @@ def test_contests_filters_by_dashboard_history_parameters() -> None:
 
     assert response.status_code == 200
     assert "Filtro ativo: maior sequência de números consecutivos = 6" in text
-    assert "101" in text
-    assert "202" not in text
-    assert "303" not in text
+    assert "<td>101</td>" in text
+    assert "<td>202</td>" not in text
+    assert "<td>303</td>" not in text
 
     response = app.test_client().get("/contests?consecutive_count=0")
     text = response.get_data(as_text=True)
 
     assert response.status_code == 200
     assert "Filtro ativo: maior sequência de números consecutivos = 0" in text
-    assert "202" in text
-    assert "101" not in text
-    assert "303" not in text
+    assert "<td>202</td>" in text
+    assert "<td>101</td>" not in text
+    assert "<td>303</td>" not in text
 
     response = app.test_client().get("/contests?even_count=5")
     text = response.get_data(as_text=True)
@@ -764,7 +770,7 @@ def test_generation_list_zebra_targets_correct_alternating_element() -> None:
     app = make_app()
     with app.app_context():
         db.create_all()
-        from app.services import generate_bets, save_generated_bets
+        from app.bets.service import generate_bets, save_generated_bets
 
         for _ in range(3):
             bets = generate_bets(6, 2, persist=False)

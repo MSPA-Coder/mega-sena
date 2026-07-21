@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from flask import jsonify, redirect, render_template, request, url_for
 
-from ..services import build_recent_frequency, build_stats
+from ..draws.statistics import build_recent_frequency, build_stats
 from . import bp
 from .helpers import optional_int
 

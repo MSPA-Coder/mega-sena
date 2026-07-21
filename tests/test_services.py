@@ -8,26 +8,32 @@ import pytest  # noqa: F401
 
 from app import create_app, db  # noqa: F401
 from app.models import Config, Draw  # noqa: F401
-from app.services import (  # noqa: F401
+from app.bets.combinatorics import (  # noqa: F401
     build_combination_report,
-    build_recent_frequency,
-    build_stats,
     calculate_individual_filter_targets,
-    count_consecutive_numbers,
     count_draws_matching_filters,
-    count_even_numbers,
-    count_occupied_range_bands,
     count_possible_draw_combinations,
-    draw_parameters,
-    ensure_draw_parameters_current,
+)
+from app.bets.service import (  # noqa: F401
     generate_closure_bets,
-    get_config_values,
-    import_results_from_xlsx,
     list_recent_generations,
     list_recent_generations_with_bets,
-    max_range_band_count,
     save_generated_bets,
 )
+from app.core.numbers import (  # noqa: F401
+    count_consecutive_numbers,
+    count_even_numbers,
+    count_occupied_range_bands,
+    draw_parameters,
+    max_range_band_count,
+)
+from app.draws.importing import import_results_from_xlsx  # noqa: F401
+from app.draws.statistics import (  # noqa: F401
+    build_recent_frequency,
+    build_stats,
+    ensure_draw_parameters_current,
+)
+from app.settings.service import get_config_values  # noqa: F401
 from tests.support import csrf_form_data, make_app, workbook_bytes  # noqa: F401
 
 
@@ -83,8 +89,8 @@ def test_scripts_are_external_and_event_attributes_are_absent() -> None:
 
 
 def test_format_int_and_format_percent_are_public() -> None:
-    """format_int e format_percent devem ser exportadas pelo módulo services."""
-    from app.services import format_int, format_percent
+    """Formatadores publicos devem permanecer estaveis no modulo proprietario."""
+    from app.core.formatting import format_int, format_percent
 
     assert format_int(1_000_000) == "1.000.000"
     assert format_int(0) == "0"

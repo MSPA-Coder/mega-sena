@@ -89,7 +89,8 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
     with app.app_context():
         from . import models  # noqa: F401
         from .schema import ensure_database_schema
-        from .services import ensure_default_config, ensure_draw_parameters_current
+        from .draws.statistics import ensure_draw_parameters_current
+        from .settings.service import ensure_default_config
 
         _configure_sqlite_engine(app)
         if app.config["AUTO_INITIALIZE_DATABASE"]:

@@ -6,8 +6,7 @@ import logging
 
 from flask import flash, redirect, render_template, request, url_for
 
-from ..settings.service import reset_all_data
-from ..services import get_config_values, update_config_values
+from ..settings.service import get_config_values, reset_all_data, update_config_values
 from . import bp
 
 

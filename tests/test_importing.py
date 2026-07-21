@@ -8,26 +8,32 @@ import pytest  # noqa: F401
 
 from app import create_app, db  # noqa: F401
 from app.models import Config, Draw  # noqa: F401
-from app.services import (  # noqa: F401
+from app.bets.combinatorics import (  # noqa: F401
     build_combination_report,
-    build_recent_frequency,
-    build_stats,
     calculate_individual_filter_targets,
-    count_consecutive_numbers,
     count_draws_matching_filters,
-    count_even_numbers,
-    count_occupied_range_bands,
     count_possible_draw_combinations,
-    draw_parameters,
-    ensure_draw_parameters_current,
+)
+from app.bets.service import (  # noqa: F401
     generate_closure_bets,
-    get_config_values,
-    import_results_from_xlsx,
     list_recent_generations,
     list_recent_generations_with_bets,
-    max_range_band_count,
     save_generated_bets,
 )
+from app.core.numbers import (  # noqa: F401
+    count_consecutive_numbers,
+    count_even_numbers,
+    count_occupied_range_bands,
+    draw_parameters,
+    max_range_band_count,
+)
+from app.draws.importing import import_results_from_xlsx  # noqa: F401
+from app.draws.statistics import (  # noqa: F401
+    build_recent_frequency,
+    build_stats,
+    ensure_draw_parameters_current,
+)
+from app.settings.service import get_config_values  # noqa: F401
 from tests.support import csrf_form_data, make_app, workbook_bytes  # noqa: F401
 
 
@@ -212,13 +218,13 @@ def test_import_service_raises_runtime_error_on_bad_workbook() -> None:
 
 def test_import_rejects_xlsx_with_excessive_uncompressed_size(monkeypatch) -> None:
     """Um XLSX pequeno e altamente expansível deve ser barrado antes do parser XML."""
-    import app.services as services
+    import app.draws.importing as importing_service
 
     stream = workbook_bytes([])
     with ZipFile(stream, "a", ZIP_DEFLATED) as archive:
         archive.writestr("xl/padding.bin", b"x" * 4_096)
     stream.seek(0)
-    monkeypatch.setattr(services, "MAX_XLSX_UNCOMPRESSED_BYTES", 1_024)
+    monkeypatch.setattr(importing_service, "MAX_XLSX_UNCOMPRESSED_BYTES", 1_024)
 
     with pytest.raises(RuntimeError, match="grande demais"):
         import_results_from_xlsx(stream)
@@ -250,7 +256,7 @@ def test_import_rejects_fractional_or_negative_contests_and_normalizes_values() 
 
 def test_refresh_draw_parameters_skips_empty_database() -> None:
     """refresh_draw_parameters deve retornar 0 imediatamente quando não há concursos."""
-    from app.services import refresh_draw_parameters
+    from app.draws.statistics import refresh_draw_parameters
 
     app = make_app()
     with app.app_context():
@@ -299,4 +305,3 @@ def test_old_import_path_redirects_to_contests() -> None:
 
     assert response.status_code == 302
     assert response.headers["Location"] == "/contests"
-

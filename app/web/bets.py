@@ -7,21 +7,22 @@ import math
 from flask import flash, jsonify, redirect, render_template, request, url_for
 from werkzeug.datastructures import MultiDict
 
-from ..generation_params import GENERATION_FILTER_KEYS, GENERATION_PARAM_KEYS, GenerationParams
-from ..bets.service import get_generation_bets
-from ..draws.service import count_draws
-from ..services import (
+from ..bets.combinatorics import (
     build_combination_report,
     calculate_individual_filter_targets,
     count_draws_matching_filters,
-    format_int,
-    format_percent,
+)
+from ..bets.service import (
     generate_bets,
     generate_closure_bets,
-    get_generation_defaults,
+    get_generation_bets,
     list_recent_generations_with_bets,
     save_generated_bets,
 )
+from ..core.formatting import format_int, format_percent
+from ..draws.service import count_draws
+from ..generation_params import GENERATION_FILTER_KEYS, GENERATION_PARAM_KEYS, GenerationParams
+from ..settings.service import get_generation_defaults
 from . import bp
 from .helpers import optional_int, plural
 
