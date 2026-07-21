@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "components/balls.html" import render_balls %}
 {% block content %}
 {% macro render_filter_summary_step(step) %}
   <p><span>{{ step.label }} = {{ step.value }}</span><strong>{{ step.eliminated_formatted }}</strong><em>eliminadas</em><strong>{{ step.remaining_formatted }}</strong><em>restantes</em></p>
@@ -104,7 +105,7 @@
             <h3>Apostas da geração #{{ generation.generation_id }}</h3>
             {% for bet in generation.bets %}
               <div class="bet-line">
-                {% for n in bet.numbers %}<b class="ball">{{ '%02d'|format(n) }}</b>{% endfor %}
+                {{ render_balls(bet.numbers) }}
                 <small>Diversidade {{ "%.2f"|format(bet.score) }}</small>
               </div>
             {% else %}
@@ -134,7 +135,7 @@
     {% for bet in bets %}
       <div class="bet-line">
         <input type="hidden" name="bet" value="{{ bet.numbers_csv }}">
-        {% for n in bet.numbers %}<b class="ball">{{ '%02d'|format(n) }}</b>{% endfor %}
+        {{ render_balls(bet.numbers) }}
         <small>Diversidade {{ "%.2f"|format(bet.score) }}</small>
       </div>
     {% endfor %}

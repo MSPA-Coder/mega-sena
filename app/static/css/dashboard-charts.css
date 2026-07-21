@@ -1,0 +1,101 @@
+.muted {
+  color: var(--text-muted);
+  margin-top: -6px;
+}
+
+.info-box {
+  background: var(--info-bg);
+  border: 1px solid var(--info-border);
+  border-radius: var(--radius-md);
+  color: var(--info-text);
+  font-weight: 700;
+  margin: 14px 0;
+  padding: 12px 16px;
+}
+
+.sum-histogram-frame {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  grid-template-rows: 320px;
+  gap: 8px 10px;
+  margin-top: 8px;
+}
+
+.sum-y-axis-title {
+  align-self: center;
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 700;
+  justify-self: center;
+  line-height: 1;
+  transform: rotate(-90deg);
+  white-space: nowrap;
+}
+
+.sum-y-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: var(--text);
+  font-size: 14px;
+  padding: 0 0 18px;
+  text-align: right;
+}
+
+.sum-histogram {
+  position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(28px, 1fr);
+  align-items: end;
+  gap: 2px;
+  min-width: 0;
+  overflow-x: auto;
+  border-left: 2px solid var(--axis);
+  border-bottom: 2px solid var(--axis);
+  padding: 0 10px 18px 12px;
+}
+
+.sum-gridline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc((var(--tick) / var(--max-frequency)) * (100% - 18px) + 18px);
+  border-top: 1px solid var(--gridline);
+  pointer-events: none;
+}
+
+.sum-histogram-bar {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: 1fr 18px;
+  align-items: end;
+  min-width: 28px;
+  height: 100%;
+}
+
+.sum-histogram-bar span {
+  display: block;
+  height: calc((var(--count) / var(--max-frequency)) * 100%);
+  min-height: 1px;
+  background: var(--chart-secondary);
+  border: 1px solid var(--axis);
+  opacity: .95;
+}
+
+.sum-histogram-bar small {
+  align-self: end;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 18px;
+  text-align: center;
+}
+
+.sum-x-axis-title {
+  grid-column: 2;
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 700;
+  text-align: center;
+}

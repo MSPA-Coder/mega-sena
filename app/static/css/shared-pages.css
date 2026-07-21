@@ -1,0 +1,142 @@
+.filter-explanation-box,
+.closure-generator-box {
+  grid-column: 1 / -1;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px;
+}
+
+.filter-explanation-box h3,
+.closure-generator-box h3 {
+  font-size: 15px;
+  margin: 0 0 6px;
+}
+
+.filter-explanation-box p,
+.closure-generator-box p {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.closure-generator-box {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.1fr) minmax(260px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.closure-generator-box button {
+  white-space: nowrap;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  margin: -22px -22px 20px;
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--border);
+}
+
+.panel-header h2,
+.panel-header h3 {
+  margin: 0;
+}
+
+.panel-header-title-line {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.panel-header-badge {
+  font-weight: 700;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.panel-header-badge.active {
+  color: var(--primary);
+}
+
+.panel-header-caption {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.page-title-row {
+  margin-bottom: 22px;
+}
+
+.page-title-row h2 {
+  margin: 0 0 4px;
+}
+
+.page-title-row p {
+  margin: 0;
+}
+
+.import-card {
+  margin-bottom: 24px;
+}
+
+/* Tons semânticos: cada card herda uma cor ligada ao que ele representa,
+   em vez de todo card ser branco neutro — o mesmo princípio das linhas
+   zebradas da tabela de Concursos, aplicado a blocos inteiros. */
+.tint-positive {
+  background: var(--surface-tint-positive);
+}
+
+.tint-warm {
+  background: var(--surface-tint-warm);
+}
+
+.tint-gold {
+  background: var(--surface-tint-gold);
+}
+
+.import-form {
+  display: flex;
+  align-items: end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.import-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-weight: 700;
+  flex: 1;
+  min-width: 220px;
+}
+
+.formula {
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--primary);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  padding: 12px 14px;
+}
+
+.rationale-step {
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+  margin-top: 14px;
+}
+
+.rationale-step h3 {
+  font-size: 16px;
+  margin: 0 0 8px;
+}
+

@@ -1,0 +1,97 @@
+.generator-form {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px 14px;
+  padding: 16px calc(18px + var(--form-scrollbar-space)) 16px 18px;
+}
+
+.generator-form input,
+.generator-form select {
+  padding: 8px 10px;
+}
+
+.target-row-separator {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--border);
+  margin-top: 2px;
+}
+
+.target-action-row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: 14px;
+  align-items: end;
+}
+
+.target-action-row .form-actions {
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+}
+
+.target-action-row .form-actions button,
+.target-action-row .form-actions .button {
+  white-space: nowrap;
+}
+
+.combination-summary {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.combination-summary div {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px;
+}
+
+.combination-summary div:nth-child(2) {
+  background: var(--surface-tint-warm);
+  border-color: transparent;
+}
+
+.combination-summary div:last-child {
+  background: var(--surface-tint-gold);
+  border-color: var(--accent-gold);
+}
+
+.combination-summary span,
+.combination-summary small {
+  color: var(--text-muted);
+  display: block;
+  font-size: 12px;
+}
+
+.combination-summary strong {
+  display: block;
+  font-size: 22px;
+  margin: 6px 0 4px;
+}
+
+.combination-filter-list {
+  margin-top: 14px;
+}
+
+.combination-filter-list p {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto auto;
+  align-items: baseline;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+  margin: 0 -8px;
+  padding: 8px;
+}
+
+.combination-filter-list p:nth-child(even) {
+  background: var(--surface-subtle);
+}
+
+.combination-filter-list p span {
+  color: var(--text);
+}
+
+.combination-filter-list p strong {
+  font-size: 14px;
+}
+

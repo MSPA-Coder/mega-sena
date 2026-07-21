@@ -1,0 +1,5 @@
+{% macro render_balls(numbers, classes='ball') -%}
+  {%- for number in numbers -%}
+    <span class="{{ classes }}">{{ '%02d'|format(number) }}</span>
+  {%- endfor -%}
+{%- endmacro %}

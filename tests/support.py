@@ -1,12 +1,20 @@
 from __future__ import annotations
 
 from io import BytesIO
+from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from flask import Flask
 from openpyxl import Workbook
 
 from app import create_app
+
+
+def css_source() -> str:
+    """Carrega a folha agregadora e todos os modulos CSS da aplicacao."""
+    static_dir = Path("app/static")
+    files = [static_dir / "style.css", *sorted((static_dir / "css").glob("*.css"))]
+    return "\n".join(path.read_text(encoding="utf-8") for path in files)
 
 
 def make_app() -> Flask:

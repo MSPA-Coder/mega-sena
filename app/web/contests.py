@@ -70,7 +70,7 @@ def contests():
         even_count=even_count,
     )
     return render_template(
-        "contests.html",
+        "contests/index.html",
         pagination=result.pagination,
         winners_only=result.winners_only,
         consecutive_count=result.consecutive_count,

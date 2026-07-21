@@ -17,7 +17,7 @@ def home():
 @bp.get("/dashboard")
 def dashboard():
     stats = build_stats()
-    return render_template("dashboard.html", stats=stats)
+    return render_template("dashboard/index.html", stats=stats)
 
 
 def _bounded_period() -> int | None:

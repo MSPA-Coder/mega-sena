@@ -69,6 +69,7 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
     def _inject_asset_version():
         static_dir = Path(app.static_folder or "")
         asset_paths = [static_dir / name for name in ("style.css", "base.js", "bets.js", "dashboard.js")]
+        asset_paths.extend(sorted((static_dir / "css").glob("*.css")))
         mtimes = []
         for asset_path in asset_paths:
             try:

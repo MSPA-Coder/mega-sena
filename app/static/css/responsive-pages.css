@@ -1,0 +1,124 @@
+@media (max-width: 1050px) {
+  .generator-form {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .combination-summary {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .closure-generator-box {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .closure-generator-box button {
+    justify-self: start;
+  }
+
+  .frequency-lists {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-top-grid,
+  .cards {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .dashboard-frequency-stacked {
+    grid-column: 1 / -1;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: none;
+  }
+
+  .contests-header {
+    display: block;
+  }
+
+  .contests-filter {
+    justify-content: flex-start;
+  }
+
+  .pagination-compact {
+    margin-top: 8px;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 850px) {
+  .dashboard-card-row,
+  .dashboard-top-grid,
+  .dashboard-frequency-stacked,
+  .dashboard-split-cards,
+  .dashboard-stacked-cards,
+  .history-cards,
+  .cards {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-stacked-cards {
+    grid-template-rows: none;
+  }
+
+  .sum-histogram-frame {
+    grid-template-columns: 36px minmax(0, 1fr);
+    grid-template-rows: 260px;
+  }
+
+  .sum-y-axis-title,
+  .sum-x-axis-title {
+    font-size: 16px;
+  }
+
+  .sum-y-axis {
+    font-size: 12px;
+  }
+
+  .frequency-chart-frame {
+    grid-template-columns: 32px minmax(0, 1fr);
+    grid-template-rows: 240px;
+  }
+
+  .frequency-y-axis-title,
+  .frequency-x-axis-title {
+    font-size: 16px;
+  }
+
+  .frequency-y-axis {
+    font-size: 12px;
+  }
+
+  .sum-histogram {
+    grid-auto-columns: 24px;
+  }
+
+  .combination-summary,
+  .combination-filter-list p,
+  .generation-line {
+    grid-template-columns: 1fr;
+  }
+
+  .range-card-copy p,
+  .range-band-list,
+  .closure-generator-box {
+    grid-template-columns: 1fr;
+  }
+
+  .panel-header {
+    display: block;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: .001ms !important;
+    animation-duration: .001ms !important;
+  }
+
+  button:active,
+  .button:active {
+    transform: none;
+  }
+}
+

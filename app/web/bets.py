@@ -154,7 +154,7 @@ def rationale():
     if closure_numbers:
         return_params["closure_numbers"] = closure_numbers
     return render_template(
-        "rationale.html",
+        "bets/rationale.html",
         combination_report=combination_report,
         selected_amount=selected_amount,
         covered_by_amount=covered_by_amount,
@@ -270,7 +270,7 @@ def bet_generation():
         combination_report, selected_amount
     )
     return render_template(
-        "bets.html",
+        "bets/index.html",
         bets=bets,
         recent_generations=recent_generations,
         selected_generation_bets=selected_generation_bets,

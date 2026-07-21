@@ -35,7 +35,7 @@ from app.draws.statistics import (  # noqa: F401
     ensure_draw_parameters_current,
 )
 from app.settings.service import get_config_values  # noqa: F401
-from tests.support import csrf_form_data, make_app, workbook_bytes  # noqa: F401
+from tests.support import csrf_form_data, css_source, make_app, workbook_bytes  # noqa: F401
 
 
 def test_filters_on_large_bets_cover_every_internal_six_number_draw() -> None:
@@ -529,8 +529,7 @@ def test_rationale_uses_closure_numbers_and_preserves_field_on_return() -> None:
 
 def test_combination_summary_highlights_eliminated_and_chance_cards() -> None:
     """'Eliminadas pelos filtros' e 'Chance com N apostas' devem ter destaque visual (não cards neutros)."""
-    with open("app/static/style.css", encoding="utf-8") as f:
-        css = f.read()
+    css = css_source()
 
     assert ".combination-summary div:nth-child(2)" in css
     assert ".combination-summary div:last-child" in css

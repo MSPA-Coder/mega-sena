@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "components/balls.html" import render_balls %}
 {% block content %}
 <section class="card import-card">
   <div class="panel-header">
@@ -67,7 +68,7 @@
           <tr>
             <td>{{ d.contest }}</td>
             <td>{{ d.draw_date or '-' }}</td>
-            <td>{% for n in d.numbers %}<span class="ball small">{{ '%02d'|format(n) }}</span>{% endfor %}</td>
+            <td>{{ render_balls(d.numbers, 'ball small') }}</td>
             <td>{{ d.consecutive_count }}</td>
             <td>{{ d.even_count }}</td>
             <td>{{ d.prize_cents|brl0 }}</td>

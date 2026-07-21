@@ -1,0 +1,89 @@
+:root {
+  color-scheme: light;
+  --font-display: "Space Grotesk", Inter, "Segoe UI", Arial, sans-serif;
+  --font-body: Inter, "Segoe UI", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", Consolas, Monaco, monospace;
+  font-family: var(--font-body);
+  --sticky-header-reserve: 118px;
+  --form-scrollbar-space: 14px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-pill: 999px;
+  /* Paleta "Volante": verde-tinta da Mega Sena sobre papel de ticket,
+     com dourado de carimbo como único acento de destaque. */
+  --page-bg: #f3f6f1;
+  --surface: #ffffff;
+  --surface-subtle: #eaf0e7;
+  --surface-info: #eff6ff;
+  --text: #16221a;
+  --text-muted: #5c6b60;
+  --text-inverted: #ffffff;
+  --border: #dce6d8;
+  --border-strong: #bfcab9;
+  --shadow: 0 10px 30px rgba(12, 36, 24, .10);
+  --shadow-sm: 0 2px 8px rgba(12, 36, 24, .08);
+  --topbar-bg: #0b1f16;
+  --topbar-active-bg: rgba(255, 255, 255, .14);
+  --topbar-active-border: rgba(255, 255, 255, .20);
+  --primary: #0c6e49;
+  --primary-strong: #084a32;
+  --accent-gold: #96650f;
+  --warning: #b5451e;
+  --chart-secondary: #4f9c7c;
+  --axis: #5c6b60;
+  --gridline: rgba(92, 107, 96, .25);
+  --button-bg: var(--primary);
+  --button-text: var(--text-inverted);
+  --button-border: var(--primary);
+  --button-hover-bg: var(--primary-strong);
+  --flash-bg: #e3f3e8;
+  --flash-border: #9cc7ab;
+  --row-hover: #dcebe1;
+  --surface-tint-positive: #e3f1e8;
+  --surface-tint-warm: #f7e8e1;
+  --surface-tint-gold: #f6ecd6;
+  --info-bg: #eff6ff;
+  --info-border: #bfdbfe;
+  --info-text: #1e3a8a;
+  --focus-ring: 0 0 0 3px rgba(12, 110, 73, .28);
+  color: var(--text);
+  background: var(--page-bg);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page-bg: #0e1a14;
+  --surface: #15251d;
+  --surface-subtle: #1b2e23;
+  --surface-info: #172554;
+  --text: #e8f1e9;
+  --text-muted: #93a99c;
+  --text-inverted: #ffffff;
+  --border: #2b4536;
+  --border-strong: #3d5c49;
+  --shadow: 0 10px 30px rgba(0, 0, 0, .35);
+  --shadow-sm: 0 2px 10px rgba(0, 0, 0, .3);
+  --topbar-bg: #060f0a;
+  --topbar-active-bg: rgba(255, 255, 255, .10);
+  --topbar-active-border: rgba(255, 255, 255, .18);
+  --primary: #28a06a;
+  --primary-strong: #1f7e54;
+  --accent-gold: #e0a93b;
+  --warning: #e0703d;
+  --chart-secondary: #5fd9a4;
+  --axis: #93a99c;
+  --gridline: rgba(148, 163, 184, .22);
+  --button-text: #06120c;
+  --flash-bg: #14321f;
+  --flash-border: #2f6b46;
+  --row-hover: #1f3a2c;
+  --surface-tint-positive: #1d3a2a;
+  --surface-tint-warm: #3a2620;
+  --surface-tint-gold: #3a2f18;
+  --info-bg: #172554;
+  --info-border: #2563eb;
+  --info-text: #bfdbfe;
+  --focus-ring: 0 0 0 3px rgba(40, 160, 106, .35);
+}
+

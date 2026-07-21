@@ -15,7 +15,7 @@ _log = logging.getLogger(__name__)
 
 @bp.get("/settings")
 def settings_page():
-    return render_template("settings.html", config_values=get_config_values())
+    return render_template("settings/index.html", config_values=get_config_values())
 
 
 @bp.post("/settings")
