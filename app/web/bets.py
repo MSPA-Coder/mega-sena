@@ -8,7 +8,8 @@ from flask import flash, jsonify, redirect, render_template, request, url_for
 from werkzeug.datastructures import MultiDict
 
 from ..generation_params import GENERATION_FILTER_KEYS, GENERATION_PARAM_KEYS, GenerationParams
-from ..models import Draw, GeneratedBet
+from ..bets.service import get_generation_bets
+from ..draws.service import count_draws
 from ..services import (
     build_combination_report,
     calculate_individual_filter_targets,
@@ -121,7 +122,7 @@ def _generation_params(
 
 def _draw_filter_preview_payload(selected_filters: dict[str, int | None]) -> dict[str, int | float | str]:
     count = count_draws_matching_filters(**_active_filters(selected_filters))
-    total = Draw.query.count()
+    total = count_draws()
     percentage = (count / total) * 100 if total else 0
     return {
         "count": count,
@@ -185,11 +186,7 @@ def bet_generation():
     recent_generations = list_recent_generations_with_bets()
     selected_generation_bets = []
     if selected_generation_id is not None:
-        selected_generation_bets = (
-            GeneratedBet.query.filter(GeneratedBet.generation_id == selected_generation_id)
-            .order_by(GeneratedBet.id)
-            .all()
-        )
+        selected_generation_bets = get_generation_bets(selected_generation_id)
     if request.method == "POST":
         action = request.form.get("action", "generate")
         quantity, selected_filters, selected_amount = _read_generation_state(request.form)

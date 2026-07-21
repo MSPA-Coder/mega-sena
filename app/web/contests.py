@@ -6,7 +6,7 @@ import logging
 
 from flask import flash, redirect, render_template, request, url_for
 
-from ..models import Draw
+from ..draws.service import search_contests
 from ..services import import_results_from_xlsx
 from . import bp
 from .helpers import optional_int, plural
@@ -63,44 +63,19 @@ def contests():
     winners_only = request.args.get("winners_only") == "1"
     consecutive_count = optional_int(request.args.get("consecutive_count"))
     even_count = optional_int(request.args.get("even_count"))
-    query = Draw.query
-    active_filters = []
-    if winners_only:
-        query = query.filter(Draw.winners_6 > 0)
-    if consecutive_count is not None:
-        consecutive_count = max(0, min(consecutive_count, 6))
-        query = query.filter(Draw.consecutive_count == consecutive_count)
-        active_filters.append(f"maior sequência de números consecutivos = {consecutive_count}")
-    if even_count is not None:
-        even_count = max(0, min(even_count, 6))
-        query = query.filter(Draw.even_count == even_count)
-        active_filters.append(f"quantidade de números pares = {even_count}")
-    pagination = query.order_by(Draw.contest.desc()).paginate(page=page, per_page=50, error_out=False)
-    if winners_only:
-        contests_summary = (
-            f"{pagination.total} concurso com acertadores na Mega Sena encontrado."
-            if pagination.total == 1
-            else f"{pagination.total} concursos com acertadores na Mega Sena encontrados."
-        )
-    elif active_filters:
-        contests_summary = (
-            f"{pagination.total} concurso encontrado."
-            if pagination.total == 1
-            else f"{pagination.total} concursos encontrados."
-        )
-    else:
-        contests_summary = (
-            f"{pagination.total} concurso importado."
-            if pagination.total == 1
-            else f"{pagination.total} concursos importados."
-        )
-    return render_template(
-        "contests.html",
-        pagination=pagination,
+    result = search_contests(
+        page=page,
         winners_only=winners_only,
         consecutive_count=consecutive_count,
         even_count=even_count,
-        active_filters=active_filters,
-        contests_summary=contests_summary,
+    )
+    return render_template(
+        "contests.html",
+        pagination=result.pagination,
+        winners_only=result.winners_only,
+        consecutive_count=result.consecutive_count,
+        even_count=result.even_count,
+        active_filters=result.active_filters,
+        contests_summary=result.summary,
         pagination_args={key: value for key, value in request.args.items() if key != "page"},
     )

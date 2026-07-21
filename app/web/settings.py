@@ -6,8 +6,7 @@ import logging
 
 from flask import flash, redirect, render_template, request, url_for
 
-from ..extensions import db
-from ..models import Draw, GeneratedBet
+from ..settings.service import reset_all_data
 from ..services import get_config_values, update_config_values
 from . import bp
 
@@ -30,11 +29,7 @@ def save_settings():
 
 @bp.post("/reset")
 def reset_database():
-    bet_count = GeneratedBet.query.count()
-    draw_count = Draw.query.count()
-    GeneratedBet.query.delete()
-    Draw.query.delete()
-    db.session.commit()
+    draw_count, bet_count = reset_all_data()
     _log.warning("Base reiniciada: %d concursos e %d apostas apagados.", draw_count, bet_count)
     flash("Base reiniciada: concursos e apostas apagados.")
     return redirect(url_for("web.settings_page"))

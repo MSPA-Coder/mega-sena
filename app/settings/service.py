@@ -3,7 +3,7 @@ from __future__ import annotations
 from ..bets.criteria import GENERATION_FILTER_KEYS, GENERATION_LIMITS, GenerationCriteria
 from ..core.numbers import _to_int
 from ..extensions import db
-from ..models import Config
+from ..models import Config, Draw, GeneratedBet
 
 DEFAULT_CONFIG = {
     "bet_quantity": "6",
@@ -94,3 +94,13 @@ def get_generation_defaults() -> dict[str, int | None]:
         "range_min_occupied": _to_int(values["range_min_occupied"]),
         "range_max_per_band": _to_int(values["range_max_per_band"]),
     }
+
+
+def reset_all_data() -> tuple[int, int]:
+    """Remove concursos e apostas, devolvendo suas quantidades anteriores."""
+    bet_count = GeneratedBet.query.count()
+    draw_count = Draw.query.count()
+    GeneratedBet.query.delete()
+    Draw.query.delete()
+    db.session.commit()
+    return draw_count, bet_count

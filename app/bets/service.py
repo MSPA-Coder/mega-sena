@@ -178,6 +178,15 @@ def list_recent_generations_with_bets(limit: int = 12) -> list[dict]:
     return generations
 
 
+def get_generation_bets(generation_id: int) -> list[GeneratedBet]:
+    """Lista as apostas de uma geracao em ordem de criacao."""
+    return (
+        GeneratedBet.query.filter(GeneratedBet.generation_id == generation_id)
+        .order_by(GeneratedBet.id)
+        .all()
+    )
+
+
 def save_generated_bets(quantity: int, bets: Iterable[str]) -> tuple[int, int | None]:
     quantity = _clamp_int(_to_int(quantity) or 6, 6, 15)
     valid_bets = []
