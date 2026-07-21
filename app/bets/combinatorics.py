@@ -4,8 +4,7 @@ import math
 from functools import lru_cache
 from typing import Iterable
 
-from ..models import Draw
-from .common import (
+from ..core.numbers import (
     _coerce_generation_filters,
     _format_int,
     _format_percent,
@@ -13,6 +12,7 @@ from .common import (
     count_occupied_range_bands,
     max_range_band_count,
 )
+from ..models import Draw
 
 
 @lru_cache(maxsize=1)

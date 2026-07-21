@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+from ..core.numbers import _clamp_int, _to_int
 from ..extensions import db
 from ..generation_params import GENERATION_LIMITS
 from ..models import Config
-from .common import _clamp_int, _to_int
 
 DEFAULT_CONFIG = {
     "bet_quantity": "6",

@@ -3,7 +3,7 @@ from __future__ import annotations
 from decimal import Decimal, InvalidOperation
 from typing import Iterable
 
-from ..core.formatting import format_int, format_percent
+from .formatting import format_int, format_percent
 from ..generation_params import GenerationParams
 
 _MAX_SQLITE_INTEGER = (1 << 63) - 1

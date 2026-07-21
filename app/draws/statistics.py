@@ -5,9 +5,9 @@ import math
 from collections import Counter
 from itertools import combinations
 
+from ..core.numbers import draw_parameters
 from ..extensions import db
 from ..models import Config, Draw
-from .common import draw_parameters
 
 _log = logging.getLogger(__name__)
 _DRAW_PARAMETERS_VERSION_KEY = "_draw_parameters_version"

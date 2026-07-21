@@ -8,9 +8,9 @@ from pathlib import Path
 from typing import BinaryIO, Iterable
 from zipfile import BadZipFile, ZipFile
 
+from ..core.numbers import _MAX_SQLITE_INTEGER, _to_int, draw_parameters
 from ..extensions import db
 from ..models import Draw
-from .common import _MAX_SQLITE_INTEGER, _to_int, draw_parameters
 
 _log = logging.getLogger(__name__)
 MAX_IMPORT_ROWS = 10_000

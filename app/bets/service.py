@@ -9,9 +9,7 @@ from typing import Iterable
 
 from sqlalchemy import func
 
-from ..extensions import db
-from ..models import GeneratedBet
-from .common import (
+from ..core.numbers import (
     _clamp_int,
     _coerce_generation_filters,
     _to_int,
@@ -19,7 +17,9 @@ from .common import (
     count_even_numbers,
     range_band_counts,
 )
-from .statistics import all_draw_numbers
+from ..draws.statistics import all_draw_numbers
+from ..extensions import db
+from ..models import GeneratedBet
 
 _log = logging.getLogger(__name__)
 MAX_SAVED_BETS = math.comb(15, 6)

@@ -4,21 +4,20 @@ from typing import BinaryIO, Iterable
 from pathlib import Path
 
 from .generation_params import GENERATION_FILTER_KEYS
-from .service_modules import betting as _betting
-from .service_modules import importing as _importing
-from .service_modules.betting import (
-    _passes_generation_filters,
-    generate_closure_bets,
-    list_recent_generations,
-    list_recent_generations_with_bets,
-)
-from .service_modules.combinatorics import (
+from .bets import service as _betting
+from .bets.combinatorics import (
     build_combination_report,
     calculate_individual_filter_targets,
     count_draws_matching_filters,
     count_possible_draw_combinations,
 )
-from .service_modules.common import (
+from .bets.service import (
+    _passes_generation_filters,
+    generate_closure_bets,
+    list_recent_generations,
+    list_recent_generations_with_bets,
+)
+from .core.numbers import (
     count_consecutive_numbers,
     count_even_numbers,
     count_occupied_range_bands,
@@ -28,21 +27,22 @@ from .service_modules.common import (
     max_range_band_count,
     range_band_counts,
 )
-from .service_modules.configuration import (
+from .draws import importing as _importing
+from .draws.importing import MAX_IMPORT_ROWS, MAX_XLSX_ARCHIVE_FILES, MAX_XLSX_COMPRESSION_RATIO
+from .draws.statistics import (
+    all_draw_numbers,
+    build_recent_frequency,
+    build_stats,
+    ensure_draw_parameters_current,
+    refresh_draw_parameters,
+)
+from .settings.service import (
     CONFIG_LIMITS,
     DEFAULT_CONFIG,
     ensure_default_config,
     get_config_values,
     get_generation_defaults,
     update_config_values,
-)
-from .service_modules.importing import MAX_IMPORT_ROWS, MAX_XLSX_ARCHIVE_FILES, MAX_XLSX_COMPRESSION_RATIO
-from .service_modules.statistics import (
-    all_draw_numbers,
-    build_recent_frequency,
-    build_stats,
-    ensure_draw_parameters_current,
-    refresh_draw_parameters,
 )
 
 __all__ = (
