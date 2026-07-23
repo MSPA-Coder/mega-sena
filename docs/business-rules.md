@@ -1,70 +1,79 @@
-# Regras de negocio
+# Regras funcionais
 
-## Estado da geracao
+Este documento descreve o comportamento atual que é relevante para quem usa o
+sistema. Detalhes de implementação, decisões temporárias de refatoração e
+contratos entre arquivos pertencem à documentação de arquitetura ou ao código.
 
-- URL e formularios sao a fonte de verdade dos parametros da tela de apostas.
-- Filtros nao sao persistidos em sessao ou `localStorage`.
-- Quando nenhum estado e informado na URL, os defaults vem da tabela `Config`.
-- `quantity` aceita valores de 6 a 15 e `amount` de 1 a 100.
-- `GenerationCriteria` e a fonte canonica de limites e regras cruzadas.
+## Concursos e importação
 
-## Filtros
+- A importação recebe uma planilha `.xlsx` e lê a primeira aba.
+- Cada linha válida precisa identificar o concurso e seis dezenas distintas
+  entre 1 e 60.
+- Linhas inválidas ou repetidas no mesmo arquivo são ignoradas.
+- Um concurso ainda inexistente é incluído; um concurso existente é atualizado
+  quando os dados da planilha mudam.
+- Datas, ganhadores e premiações são importados quando as colunas correspondentes
+  estão disponíveis.
+- Uma falha durante a gravação não deixa a importação parcialmente aplicada.
 
-Filtros vazios nao eliminam jogos. Os criterios disponiveis sao:
+O upload e o conteúdo descompactado têm limites defensivos para evitar consumo
+excessivo de memória ou arquivos XLSX malformados. Esses valores são proteções
+operacionais, não regras da loteria.
 
-- maior sequencia consecutiva;
-- quantidade minima e maxima de pares;
-- soma minima e maxima;
-- quantidade minima de faixas ocupadas;
-- quantidade maxima de dezenas na mesma faixa.
+## Estatísticas
 
-Para apostas com 7 a 15 dezenas, todos os subconjuntos cobertos de seis dezenas
-devem obedecer aos filtros. Essa regra preserva a coerencia da cobertura
-`C(n, 6)` apresentada ao usuario.
+O dashboard usa somente os concursos presentes no banco. O período pode abranger
+todo o histórico importado ou os concursos mais recentes. Frequência, atraso,
+paridade, soma, sequências e premiações descrevem essa amostra; não são previsão
+do próximo resultado.
 
-Filtros da lista de concursos sao independentes dos filtros de geracao.
+## Geração de apostas
 
-## Geracao e fechamento
+- A aplicação aceita atualmente de 6 a 15 dezenas por aposta e de 1 a 100
+  apostas por geração.
+- Critérios em branco ficam desativados.
+- Os critérios disponíveis controlam sequência consecutiva, quantidade de pares,
+  intervalo da soma, faixas ocupadas e concentração por faixa de dezenas.
+- Uma aposta de mais de seis dezenas só é aceita quando todas as combinações de
+  seis dezenas que ela cobre atendem aos critérios informados.
+- Na geração de seis dezenas, uma combinação igual a um resultado importado é
+  descartada.
+- O gerador procura diversidade dentro do mesmo lote. Com critérios muito
+  restritivos, pode devolver menos apostas do que a quantidade solicitada.
 
-- A geracao aleatoria usa `secrets.SystemRandom`.
-- Resultados historicos identicos sao evitados em apostas de seis dezenas.
-- Existe controle de diversidade entre apostas do mesmo lote.
-- Filtros restritivos podem produzir menos apostas que o solicitado.
-- Fechamento matematico nao sorteia candidatos: enumera todas as combinacoes de
-  seis dezenas dentro do conjunto-base.
-- O conjunto-base deve conter entre 6 e 15 dezenas distintas, todas entre 1 e 60.
+Os parâmetros exibidos na URL representam o estado atual da tela e permitem
+compartilhar ou reabrir a seleção. Quando a URL não informa parâmetros, a tela
+usa os valores definidos em **Configurações**.
 
-## Persistencia das apostas
+## Fechamento
 
-- Apostas sao normalizadas e deduplicadas dentro de cada lote.
-- Um lote aceita no maximo `C(15, 6) = 5.005` apostas.
-- Cada lote recebe um `generation_id` compartilhado.
-- A alocacao do identificador e serializada para o servidor Flask local.
+O fechamento recebe atualmente entre 6 e 15 dezenas distintas, todas entre 1 e
+60. Ele gera todas as combinações de seis dezenas contidas no conjunto, ou seja,
+`C(n, 6)` apostas. Nesse modo, os filtros da geração aleatória não são aplicados.
 
-## Importacao XLSX
+Como o número de combinações cresce rapidamente, 15 é um limite operacional do
+aplicativo. Ele não deve ser interpretado como o máximo oficial permitido pela
+Mega-Sena.
 
-- O upload aceita apenas `.xlsx`.
-- Planilhas enviadas nao sao gravadas no projeto.
-- A leitura e limitada a 10.000 linhas de dados.
-- O arquivo ZIP interno e validado por quantidade de partes, tamanho expandido
-  e taxa de compressao.
-- Concursos existentes sao atualizados quando algum campo importado muda.
-- Valores monetarios sao persistidos em centavos inteiros.
-- Falhas de persistencia executam rollback da transacao.
+## Relatório combinatório
 
-## Banco e migracoes
+O universo de referência contém `C(60, 6) = 50.063.860` resultados possíveis.
+O relatório mostra quantas combinações permanecem após cada filtro e quantas são
+cobertas pelas apostas selecionadas. A chance exibida é uma relação matemática
+dentro desse universo filtrado; filtros baseados no histórico não tornam um
+resultado futuro mais provável.
 
-- O banco local fica em `instance/mega_sena.db`.
-- Banco novo e criado exclusivamente pelas migracoes Alembic.
-- Banco legado so e marcado como migrado depois de validacao e backup integro.
-- Upgrades futuros criam backup antes da alteracao do schema.
-- Campos derivados dos concursos sao recalculados uma vez por versao do
-  algoritmo.
+## Apostas gravadas
 
-## Seguranca e escopo
+As apostas só são persistidas depois da confirmação do usuário. Ao gravar:
 
-- Metodos mutantes exigem token CSRF.
-- Hosts nao confiaveis sao rejeitados.
-- A aplicacao aplica CSP e outros headers defensivos.
-- O produto e local e single-user; nao existe autenticacao ou autorizacao de
-  usuarios.
+- dezenas são normalizadas e apostas repetidas no mesmo envio são removidas;
+- as apostas recebem um identificador comum de geração;
+- os lotes recentes podem ser consultados na tela de apostas.
+
+## Escopo de segurança
+
+Operações que alteram dados exigem token CSRF, e respostas recebem cabeçalhos
+HTTP defensivos. O produto não possui autenticação porque seu escopo atual é o
+uso local e individual. Expor o serviço em rede exige rever esse pressuposto,
+além da configuração e do servidor de execução.

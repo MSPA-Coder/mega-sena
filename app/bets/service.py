@@ -10,8 +10,8 @@ from typing import Iterable
 from sqlalchemy import func
 
 from ..core.numbers import (
-    _clamp_int,
-    _to_int,
+    clamp_int,
+    parse_int,
 )
 from ..draws.statistics import all_draw_numbers
 from ..extensions import db
@@ -27,24 +27,33 @@ _RNG = secrets.SystemRandom()
 def _passes_generation_filters(numbers: list[int], filters: dict | None) -> bool:
     if not filters:
         return True
-    return GenerationCriteria.from_mapping(filters, default_amount=1).matches_candidate(numbers)
+    return GenerationCriteria.from_mapping(filters, default_amount=1).matches_candidate(
+        numbers
+    )
 
 
 def _diversity_score(numbers: list[int], existing_candidates: list[list[int]]) -> float:
     if not existing_candidates:
         return 1.0
-    max_overlap = max(len(set(numbers) & set(candidate)) for candidate in existing_candidates)
+    max_overlap = max(
+        len(set(numbers) & set(candidate)) for candidate in existing_candidates
+    )
     return max(0.0, 1.0 - (max_overlap / max(len(numbers), 1)))
 
 
-def _passes_diversity_control(numbers: list[int], created_numbers: list[list[int]]) -> bool:
+def _passes_diversity_control(
+    numbers: list[int], created_numbers: list[list[int]]
+) -> bool:
     if not created_numbers:
         return True
     # Evita apostas praticamente iguais dentro da mesma geração.
     # Para apostas de 6 dezenas, no máximo 4 números podem se repetir entre duas apostas.
     max_allowed_overlap = max(0, len(numbers) - 2)
     current = set(numbers)
-    return all(len(current & set(candidate)) <= max_allowed_overlap for candidate in created_numbers)
+    return all(
+        len(current & set(candidate)) <= max_allowed_overlap
+        for candidate in created_numbers
+    )
 
 
 def _secure_random_candidate(quantity: int) -> list[int]:
@@ -57,7 +66,9 @@ def _persist_bet_batch(bets: list[GeneratedBet]) -> int | None:
         return None
     with _GENERATION_SAVE_LOCK:
         try:
-            last_generation_id = db.session.query(func.max(GeneratedBet.generation_id)).scalar() or 0
+            last_generation_id = (
+                db.session.query(func.max(GeneratedBet.generation_id)).scalar() or 0
+            )
             generation_id = last_generation_id + 1
             for bet in bets:
                 bet.generation_id = generation_id
@@ -75,8 +86,8 @@ def generate_bets(
     persist: bool = True,
     filters: dict | None = None,
 ) -> list[GeneratedBet]:
-    quantity = _clamp_int(_to_int(quantity) or 6, 6, 15)
-    amount = _clamp_int(_to_int(amount) or 1, 1, 100)
+    quantity = clamp_int(parse_int(quantity) or 6, 6, 15)
+    amount = clamp_int(parse_int(amount) or 1, 1, 100)
     filters = coerce_generation_filters(filters)
     draws = all_draw_numbers()
     existing_draws = {tuple(d) for d in draws}
@@ -106,7 +117,10 @@ def generate_bets(
     if len(created) < amount:
         _log.warning(
             "generate_bets: geradas %d/%d apostas após %d tentativas (filtros: %s).",
-            len(created), amount, attempts, filters,
+            len(created),
+            amount,
+            attempts,
+            filters,
         )
     if persist:
         _persist_bet_batch(created)
@@ -116,7 +130,9 @@ def generate_bets(
 def generate_closure_bets(numbers: Iterable[int]) -> list[GeneratedBet]:
     base_numbers = sorted(set(numbers))
     if len(base_numbers) < 6:
-        raise RuntimeError("Informe pelo menos 6 dezenas distintas para gerar um fechamento matemático.")
+        raise RuntimeError(
+            "Informe pelo menos 6 dezenas distintas para gerar um fechamento matemático."
+        )
     if len(base_numbers) > 15:
         raise RuntimeError("Use no máximo 15 dezenas no fechamento matemático.")
     if any(number < 1 or number > 60 for number in base_numbers):
@@ -133,7 +149,7 @@ def generate_closure_bets(numbers: Iterable[int]) -> list[GeneratedBet]:
 
 
 def list_recent_generations(limit: int = 12) -> list[dict]:
-    limit = _clamp_int(_to_int(limit) or 12, 1, 100)
+    limit = clamp_int(parse_int(limit) or 12, 1, 100)
     rows = (
         db.session.query(
             GeneratedBet.generation_id,
@@ -143,7 +159,9 @@ def list_recent_generations(limit: int = 12) -> list[dict]:
         )
         .filter(GeneratedBet.generation_id.isnot(None))
         .group_by(GeneratedBet.generation_id)
-        .order_by(func.max(GeneratedBet.created_at).desc(), GeneratedBet.generation_id.desc())
+        .order_by(
+            func.max(GeneratedBet.created_at).desc(), GeneratedBet.generation_id.desc()
+        )
         .limit(limit)
         .all()
     )
@@ -188,14 +206,20 @@ def get_generation_bets(generation_id: int) -> list[GeneratedBet]:
 
 
 def save_generated_bets(quantity: int, bets: Iterable[str]) -> tuple[int, int | None]:
-    quantity = _clamp_int(_to_int(quantity) or 6, 6, 15)
+    quantity = clamp_int(parse_int(quantity) or 6, 6, 15)
     valid_bets = []
     seen_bets: set[str] = set()
     for index, numbers_csv in enumerate(bets, start=1):
         if index > MAX_SAVED_BETS:
-            raise RuntimeError(f"Uma geração pode conter no máximo {MAX_SAVED_BETS} apostas.")
-        nums = [_to_int(n) for n in numbers_csv.split(",")]
-        if len(nums) != quantity or any(n is None or n < 1 or n > 60 for n in nums) or len(set(nums)) != quantity:
+            raise RuntimeError(
+                f"Uma geração pode conter no máximo {MAX_SAVED_BETS} apostas."
+            )
+        nums = [parse_int(n) for n in numbers_csv.split(",")]
+        if (
+            len(nums) != quantity
+            or any(n is None or n < 1 or n > 60 for n in nums)
+            or len(set(nums)) != quantity
+        ):
             continue
         nums = sorted(nums)  # type: ignore[arg-type]
         normalized_bet = ",".join(map(str, nums))
@@ -208,7 +232,10 @@ def save_generated_bets(quantity: int, bets: Iterable[str]) -> tuple[int, int | 
 
     # O servidor local do Flask pode atender requisicoes em threads diferentes;
     # a persistencia compartilhada serializa a alocacao do ID do lote.
-    models = [GeneratedBet(quantity=quantity, numbers_csv=numbers_csv, score=0) for numbers_csv in valid_bets]
+    models = [
+        GeneratedBet(quantity=quantity, numbers_csv=numbers_csv, score=0)
+        for numbers_csv in valid_bets
+    ]
     generation_id = _persist_bet_batch(models)
     if generation_id is None:  # protegido pelo teste de valid_bets acima
         return 0, None

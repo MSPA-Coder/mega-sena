@@ -1,40 +1,15 @@
 from __future__ import annotations
 
-from io import BytesIO  # noqa: F401
-from pathlib import Path  # noqa: F401
-from zipfile import ZIP_DEFLATED, ZipFile  # noqa: F401
+from io import BytesIO
+from zipfile import ZIP_DEFLATED, ZipFile
 
-import pytest  # noqa: F401
+import pytest
 
-from app import create_app, db  # noqa: F401
-from app.models import Config, Draw  # noqa: F401
-from app.bets.combinatorics import (  # noqa: F401
-    build_combination_report,
-    calculate_individual_filter_targets,
-    count_draws_matching_filters,
-    count_possible_draw_combinations,
-)
-from app.bets.service import (  # noqa: F401
-    generate_closure_bets,
-    list_recent_generations,
-    list_recent_generations_with_bets,
-    save_generated_bets,
-)
-from app.core.numbers import (  # noqa: F401
-    count_consecutive_numbers,
-    count_even_numbers,
-    count_occupied_range_bands,
-    draw_parameters,
-    max_range_band_count,
-)
-from app.draws.importing import import_results_from_xlsx  # noqa: F401
-from app.draws.statistics import (  # noqa: F401
-    build_recent_frequency,
-    build_stats,
-    ensure_draw_parameters_current,
-)
-from app.settings.service import get_config_values  # noqa: F401
-from tests.support import csrf_form_data, make_app, workbook_bytes  # noqa: F401
+from app import db
+from app.draws.importing import import_results_from_xlsx
+from app.models import Config, Draw
+from app.settings.service import get_config_values
+from tests.support import csrf_form_data, make_app, workbook_bytes
 
 
 def test_import_recalculates_bad_sheet_dimensions() -> None:
@@ -44,15 +19,63 @@ def test_import_recalculates_bad_sheet_dimensions() -> None:
         first = import_results_from_xlsx(
             workbook_bytes(
                 [
-                    [1, "01/01/2026", 1, 2, 3, 4, 5, 6, 0, 10, 100, "R$0,00", "R$1,00", "R$2,00", "R$3,00"],
+                    [
+                        1,
+                        "01/01/2026",
+                        1,
+                        2,
+                        3,
+                        4,
+                        5,
+                        6,
+                        0,
+                        10,
+                        100,
+                        "R$0,00",
+                        "R$1,00",
+                        "R$2,00",
+                        "R$3,00",
+                    ],
                 ]
             )
         )
         second = import_results_from_xlsx(
             workbook_bytes(
                 [
-                    [1, "01/01/2026", 1, 2, 3, 4, 5, 6, 0, 10, 100, "R$0,00", "R$1,00", "R$2,00", "R$3,00"],
-                    [2, "02/01/2026", 7, 8, 9, 10, 11, 12, 1, 20, 200, "R$4,00", "R$5,00", "R$6,00", "R$7,00"],
+                    [
+                        1,
+                        "01/01/2026",
+                        1,
+                        2,
+                        3,
+                        4,
+                        5,
+                        6,
+                        0,
+                        10,
+                        100,
+                        "R$0,00",
+                        "R$1,00",
+                        "R$2,00",
+                        "R$3,00",
+                    ],
+                    [
+                        2,
+                        "02/01/2026",
+                        7,
+                        8,
+                        9,
+                        10,
+                        11,
+                        12,
+                        1,
+                        20,
+                        200,
+                        "R$4,00",
+                        "R$5,00",
+                        "R$6,00",
+                        "R$7,00",
+                    ],
                 ],
                 bad_dimension=True,
             )
@@ -75,14 +98,46 @@ def test_import_updates_existing_contest_when_stored_fields_change() -> None:
         import_results_from_xlsx(
             workbook_bytes(
                 [
-                    [1, "01/01/2026", 1, 2, 3, 4, 5, 6, 0, 10, 100, "R$0,00", "R$1,00", "R$2,00", "R$3,00"],
+                    [
+                        1,
+                        "01/01/2026",
+                        1,
+                        2,
+                        3,
+                        4,
+                        5,
+                        6,
+                        0,
+                        10,
+                        100,
+                        "R$0,00",
+                        "R$1,00",
+                        "R$2,00",
+                        "R$3,00",
+                    ],
                 ]
             )
         )
         result = import_results_from_xlsx(
             workbook_bytes(
                 [
-                    [1, "01/01/2026", 1, 2, 3, 4, 5, 6, 1, 11, 101, "R$8,00", "R$9,00", "R$10,00", "R$11,00"],
+                    [
+                        1,
+                        "01/01/2026",
+                        1,
+                        2,
+                        3,
+                        4,
+                        5,
+                        6,
+                        1,
+                        11,
+                        101,
+                        "R$8,00",
+                        "R$9,00",
+                        "R$10,00",
+                        "R$11,00",
+                    ],
                 ]
             )
         )
@@ -146,13 +201,22 @@ def test_import_settings_save_default_generation_parameters() -> None:
 
     assert 'type="hidden" name="quantity" value="7"' in text
     assert 'name="amount" min="1" max="100" value="8"' in text
-    assert 'name="consecutive_count" min="0" max="6" placeholder="Opcional" value="3"' in text
+    assert (
+        'name="consecutive_count" min="0" max="6" placeholder="Opcional" value="3"'
+        in text
+    )
     assert 'name="even_min" min="0" max="6" placeholder="Opcional" value="2"' in text
     assert 'name="even_max" min="0" max="6" placeholder="Opcional" value="4"' in text
     assert 'name="sum_min" min="0" max="345" placeholder="Opcional" value="100"' in text
     assert 'name="sum_max" min="0" max="345" placeholder="Opcional" value="220"' in text
-    assert 'name="range_min_occupied" min="1" max="6" placeholder="Opcional" value="4"' in text
-    assert 'name="range_max_per_band" min="1" max="6" placeholder="Opcional" value="2"' in text
+    assert (
+        'name="range_min_occupied" min="1" max="6" placeholder="Opcional" value="4"'
+        in text
+    )
+    assert (
+        'name="range_max_per_band" min="1" max="6" placeholder="Opcional" value="2"'
+        in text
+    )
 
 
 def test_import_rejects_non_xlsx_files() -> None:
@@ -164,7 +228,9 @@ def test_import_rejects_non_xlsx_files() -> None:
     client = app.test_client()
     response = client.post(
         "/contests/import",
-        data=csrf_form_data(client, "/contests", {"file": (BytesIO(b"dummy content"), "resultados.csv")}),
+        data=csrf_form_data(
+            client, "/contests", {"file": (BytesIO(b"dummy content"), "resultados.csv")}
+        ),
         content_type="multipart/form-data",
         follow_redirects=True,
     )
@@ -181,7 +247,11 @@ def test_import_rejects_missing_file() -> None:
         db.create_all()
 
     client = app.test_client()
-    response = client.post("/contests/import", data=csrf_form_data(client, "/contests"), follow_redirects=True)
+    response = client.post(
+        "/contests/import",
+        data=csrf_form_data(client, "/contests"),
+        follow_redirects=True,
+    )
     text = response.get_data(as_text=True)
 
     assert response.status_code == 200
@@ -197,7 +267,11 @@ def test_import_handles_corrupted_xlsx_gracefully() -> None:
     client = app.test_client()
     response = client.post(
         "/contests/import",
-        data=csrf_form_data(client, "/contests", {"file": (BytesIO(b"not an xlsx file at all"), "resultados.xlsx")}),
+        data=csrf_form_data(
+            client,
+            "/contests",
+            {"file": (BytesIO(b"not an xlsx file at all"), "resultados.xlsx")},
+        ),
         content_type="multipart/form-data",
         follow_redirects=True,
     )
@@ -237,9 +311,57 @@ def test_import_rejects_fractional_or_negative_contests_and_normalizes_values() 
         result = import_results_from_xlsx(
             workbook_bytes(
                 [
-                    [1.5, "01/01/2026", 1, 2, 3, 4, 5, 6, 1, 1, 1, "1,00", "1,00", "1,00", "1,00"],
-                    [-2, "01/01/2026", 1, 2, 3, 4, 5, 6, 1, 1, 1, "1,00", "1,00", "1,00", "1,00"],
-                    [3, "01/01/2026", 1, 2, 3, 4, 5, 6, -1, -2, -3, "1234.56", "1.234,56", "NaN", "-1"],
+                    [
+                        1.5,
+                        "01/01/2026",
+                        1,
+                        2,
+                        3,
+                        4,
+                        5,
+                        6,
+                        1,
+                        1,
+                        1,
+                        "1,00",
+                        "1,00",
+                        "1,00",
+                        "1,00",
+                    ],
+                    [
+                        -2,
+                        "01/01/2026",
+                        1,
+                        2,
+                        3,
+                        4,
+                        5,
+                        6,
+                        1,
+                        1,
+                        1,
+                        "1,00",
+                        "1,00",
+                        "1,00",
+                        "1,00",
+                    ],
+                    [
+                        3,
+                        "01/01/2026",
+                        1,
+                        2,
+                        3,
+                        4,
+                        5,
+                        6,
+                        -1,
+                        -2,
+                        -3,
+                        "1234.56",
+                        "1.234,56",
+                        "NaN",
+                        "-1",
+                    ],
                 ]
             )
         )
@@ -266,8 +388,7 @@ def test_refresh_draw_parameters_skips_empty_database() -> None:
     assert result == 0
 
 
-def test_import_card_now_lives_on_contests_page() -> None:
-    """O card 'Importar resultados' deve aparecer na aba Concursos, postando para /contests/import."""
+def test_contests_page_exposes_xlsx_import_form() -> None:
     app = make_app()
     with app.app_context():
         db.create_all()
@@ -277,31 +398,3 @@ def test_import_card_now_lives_on_contests_page() -> None:
     assert "Importar resultados" in text
     assert 'action="/contests/import"' in text
     assert 'accept=".xlsx"' in text
-    # O card de importação deve vir antes da tabela de concursos na página.
-    assert text.index("Importar resultados") < text.index("<h2>Concursos</h2>")
-
-
-def test_settings_page_no_longer_has_import_card() -> None:
-    """A aba Configurações (antiga Importar) não deve mais ter o card de upload."""
-    app = make_app()
-    with app.app_context():
-        db.create_all()
-
-    text = app.test_client().get("/settings").get_data(as_text=True)
-
-    assert "Configurações" in text
-    assert "Reiniciar base" in text
-    assert "Importar resultados" not in text
-    assert 'name="file"' not in text
-
-
-def test_old_import_path_redirects_to_contests() -> None:
-    """GET /import (caminho antigo) deve redirecionar para /contests, onde o card vive agora."""
-    app = make_app()
-    with app.app_context():
-        db.create_all()
-
-    response = app.test_client().get("/import", follow_redirects=False)
-
-    assert response.status_code == 302
-    assert response.headers["Location"] == "/contests"

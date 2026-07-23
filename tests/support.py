@@ -1,20 +1,12 @@
 from __future__ import annotations
 
 from io import BytesIO
-from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from flask import Flask
 from openpyxl import Workbook
 
 from app import create_app
-
-
-def css_source() -> str:
-    """Carrega a folha agregadora e todos os modulos CSS da aplicacao."""
-    static_dir = Path("app/static")
-    files = [static_dir / "style.css", *sorted((static_dir / "css").glob("*.css"))]
-    return "\n".join(path.read_text(encoding="utf-8") for path in files)
 
 
 def make_app() -> Flask:
@@ -76,7 +68,9 @@ def workbook_bytes(rows: list[list[object]], bad_dimension: bool = False) -> Byt
         for info in source.infolist():
             content = source.read(info.filename)
             if info.filename == "xl/worksheets/sheet1.xml":
-                content = content.replace(b'<dimension ref="A1:O3"/>', b'<dimension ref="A1:O1"/>')
+                content = content.replace(
+                    b'<dimension ref="A1:O3"/>', b'<dimension ref="A1:O1"/>'
+                )
             target.writestr(info, content)
     patched.seek(0)
     return patched

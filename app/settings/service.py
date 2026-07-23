@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from ..bets.criteria import GENERATION_FILTER_KEYS, GENERATION_LIMITS, GenerationCriteria
-from ..core.numbers import _to_int
+from ..bets.criteria import GENERATION_FILTER_KEYS, GenerationCriteria
+from ..core.numbers import parse_int
 from ..extensions import db
 from ..models import Config, Draw, GeneratedBet
 
@@ -16,19 +16,19 @@ DEFAULT_CONFIG = {
     "range_min_occupied": "",
     "range_max_per_band": "",
 }
-CONFIG_LIMITS = {
-    "bet_quantity": GENERATION_LIMITS["quantity"],
-    "generation_amount": GENERATION_LIMITS["amount"],
-    **{key: GENERATION_LIMITS[key] for key in GENERATION_LIMITS if key not in {"quantity", "amount"}},
-}
 
 
 def _normalize_config_values(values: dict[str, object]) -> dict[str, str]:
     criteria = GenerationCriteria.from_mapping(
         {
             "quantity": values.get("bet_quantity", DEFAULT_CONFIG["bet_quantity"]),
-            "amount": values.get("generation_amount", DEFAULT_CONFIG["generation_amount"]),
-            **{key: values.get(key, DEFAULT_CONFIG[key]) for key in GENERATION_FILTER_KEYS},
+            "amount": values.get(
+                "generation_amount", DEFAULT_CONFIG["generation_amount"]
+            ),
+            **{
+                key: values.get(key, DEFAULT_CONFIG[key])
+                for key in GENERATION_FILTER_KEYS
+            },
         },
         default_quantity=int(DEFAULT_CONFIG["bet_quantity"]),
         default_amount=int(DEFAULT_CONFIG["generation_amount"]),
@@ -66,7 +66,9 @@ def get_config_values() -> dict[str, str]:
             db.session.add(Config(key=key, value=DEFAULT_CONFIG[key]))
         db.session.commit()
         rows = {row.key: row.value for row in Config.query.all()}
-    return _normalize_config_values({key: rows.get(key, DEFAULT_CONFIG[key]) for key in DEFAULT_CONFIG})
+    return _normalize_config_values(
+        {key: rows.get(key, DEFAULT_CONFIG[key]) for key in DEFAULT_CONFIG}
+    )
 
 
 def update_config_values(values: dict[str, object]) -> dict[str, str]:
@@ -86,13 +88,13 @@ def get_generation_defaults() -> dict[str, int | None]:
     return {
         "bet_quantity": int(values["bet_quantity"]),
         "generation_amount": int(values["generation_amount"]),
-        "consecutive_count": _to_int(values["consecutive_count"]),
-        "even_min": _to_int(values["even_min"]),
-        "even_max": _to_int(values["even_max"]),
-        "sum_min": _to_int(values["sum_min"]),
-        "sum_max": _to_int(values["sum_max"]),
-        "range_min_occupied": _to_int(values["range_min_occupied"]),
-        "range_max_per_band": _to_int(values["range_max_per_band"]),
+        "consecutive_count": parse_int(values["consecutive_count"]),
+        "even_min": parse_int(values["even_min"]),
+        "even_max": parse_int(values["even_max"]),
+        "sum_min": parse_int(values["sum_min"]),
+        "sum_max": parse_int(values["sum_max"]),
+        "range_min_occupied": parse_int(values["range_min_occupied"]),
+        "range_max_per_band": parse_int(values["range_max_per_band"]),
     }
 
 

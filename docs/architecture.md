@@ -1,98 +1,84 @@
 # Arquitetura
 
-## Visao geral
+## Visão geral
 
-O projeto e um monolito modular Flask organizado por funcionalidade. A direcao
-esperada das dependencias e:
+O projeto é uma aplicação Flask monolítica e modular. A separação por
+funcionalidade mantém o fluxo HTTP, as regras da aplicação e a persistência
+compreensíveis sem adicionar abstrações que o tamanho atual não exige.
 
 ```text
-web -> servicos da funcionalidade -> modelos/extensoes
-             |
-             `-> core
+navegador -> app/web -> serviços de bets, draws ou settings -> SQLAlchemy
+                         |                           |
+                         +-------- app/core --------+
 ```
 
-A camada web interpreta HTTP e renderiza respostas. Os pacotes funcionais
-implementam casos de uso e consultas. `core` contem apenas infraestrutura
-transversal e funcoes puras.
+Essa direção é uma orientação de projeto, não uma API imutável. Uma mudança
+pode atravessar camadas quando houver motivo claro, desde que as regras de
+negócio continuem testáveis fora das rotas e a transação permaneça explícita.
 
-## Pacotes
+## Inicialização
 
-### `app/__init__.py`
+`app.create_app()` compõe a aplicação, aplica a configuração, inicializa
+SQLAlchemy e Flask-Migrate, registra as rotas e prepara o banco. Configurações
+podem ser substituídas no factory, o que permite bancos temporários nos testes e
+outros ambientes de execução.
 
-Implementa o Application Factory Pattern. `create_app()` configura a aplicacao,
-inicializa extensoes, registra o blueprint, configura SQLite e executa o
-bootstrap controlado do banco.
+Na inicialização local, `app/schema.py` cria ou atualiza o schema com Alembic.
+Antes de adotar um banco SQLite sem metadados de migração ou aplicar um upgrade,
+o sistema valida o schema e cria um backup consistente quando necessário.
 
-### `app/extensions.py`
-
-Declara `db` e `migrate` sem instancia de aplicacao. `app.__init__` continua
-reexportando `db` para compatibilidade com consumidores existentes.
-
-### `app/core/`
-
-- `security.py`: token CSRF, validacao das requisicoes mutantes e headers.
-- `formatting.py`: formatacao numerica e monetaria para apresentacao.
-- `numbers.py`: parsing numerico e metricas puras das dezenas.
-
-O pacote nao acessa Flask-SQLAlchemy nem conhece rotas.
-
-### `app/bets/`
-
-- `criteria.py`: `GenerationCriteria`, Value Object imutavel e politica unica
-  para limites, normalizacao e avaliacao de filtros.
-- `service.py`: geracao, fechamento, persistencia e consulta de lotes.
-- `combinatorics.py`: distribuicao do universo de jogos, cobertura e alvos.
-
-`GenerationParams` permanece como alias temporario de `GenerationCriteria` em
-`app/generation_params.py`. Novos codigos devem importar `GenerationCriteria`
-do modulo proprietario.
-
-### `app/draws/`
-
-- `importing.py`: adaptador XLSX e persistencia transacional dos concursos.
-- `statistics.py`: agregacoes usadas pelo dashboard.
-- `service.py`: consultas e DTOs usados pela camada web.
-
-### `app/settings/`
-
-`service.py` gerencia defaults, configuracoes persistidas e manutencao local.
-A transacao de reset pertence a esse servico, nao a uma rota.
+## Módulos
 
 ### `app/web/`
 
-Todos os modulos compartilham o blueprint `web`, preservando endpoints e URLs:
+Converte requisições em chamadas da aplicação e respostas Flask. As rotas são
+agrupadas por tela: dashboard, concursos, apostas e configurações. Validação
+específica de HTTP, mensagens, redirects e renderização pertencem a essa camada.
 
-- `bets.py`
-- `contests.py`
-- `dashboard.py`
-- `settings.py`
+### `app/bets/`
 
-As rotas nao importam modelos nem a sessao SQLAlchemy. `app/routes.py` existe
-somente como compatibilidade para a antiga localizacao do blueprint.
+- `criteria.py` normaliza e avalia os critérios de geração;
+- `service.py` gera, valida, grava e consulta apostas;
+- `combinatorics.py` calcula universo, cobertura e parâmetros sugeridos.
 
-### Persistencia
+`GenerationCriteria` reúne os campos e as relações entre filtros para que a
+mesma interpretação seja usada na interface, na geração e nos relatórios.
 
-`models.py` centraliza os tres modelos SQLAlchemy porque o volume atual nao
-justifica repositories genericos ou modelos separados por pacote. `schema.py`
-coordena backup, validacao de bancos legados e Alembic. As revisoes permanecem
-em `migrations/`, conforme a convencao da ferramenta.
+### `app/draws/`
 
-## Interface
+- `importing.py` lê planilhas e atualiza os concursos de forma transacional;
+- `statistics.py` calcula as agregações do dashboard;
+- `service.py` fornece as consultas usadas pela interface.
 
-`templates/` agrupa paginas por funcionalidade e componentes reutilizaveis em
-`templates/components/`. `static/style.css` e um manifesto de CSS; as regras
-ficam em `static/css/`, separadas entre tokens, base, componentes, paginas e
-responsividade. JavaScript permanece separado por pagina.
+### `app/settings/`
 
-## Patterns usados
+Mantém os valores padrão da geração e as operações de manutenção solicitadas
+pela tela de configurações.
 
-- Application Factory para composicao da aplicacao.
-- Blueprint compartilhado para modularizacao HTTP com endpoints estaveis.
-- Service Layer para casos de uso e fronteira de transacao.
-- Value Object/Policy em `GenerationCriteria`.
-- Adapter na leitura de XLSX.
-- DTO em `ContestSearchResult` para impedir acesso ORM pela camada web.
+### `app/core/`
 
-Repository Pattern, Unit of Work customizado, microservicos e hierarquias de
-classes abstratas nao sao necessarios no porte atual. Devem ser introduzidos
-somente diante de uma necessidade concreta.
+Contém funções compartilhadas de números, formatação e segurança HTTP. Código
+específico de uma funcionalidade deve ficar no respectivo pacote, mesmo quando
+for reutilizado por mais de uma rota.
+
+### Persistência e interface
+
+`app/models.py` contém os três modelos atuais: concursos, apostas geradas e
+configurações. Separar cada modelo ou introduzir repositories só se justifica
+quando isso reduzir complexidade observável.
+
+Templates são agrupados por página em `app/templates/`. O CSS parte de tokens e
+componentes compartilhados em `app/static/css/`, com arquivos específicos para
+as páginas. Scripts ficam em arquivos estáticos e são carregados com `defer`.
+
+## Princípios de evolução
+
+- regras reutilizáveis ficam em funções ou serviços testáveis sem uma requisição;
+- rotas coordenam o caso de uso, mas não concentram consultas ou cálculos extensos;
+- alterações persistentes usam migrações versionadas;
+- limites operacionais ficam próximos da validação que os aplica e têm uma razão
+  de segurança, desempenho ou experiência do usuário;
+- compatibilidade é mantida quando existe consumidor conhecido, não apenas para
+  conservar a forma interna de versões anteriores;
+- abstrações e novos padrões são adotados quando simplificam uma necessidade
+  concreta do código atual.

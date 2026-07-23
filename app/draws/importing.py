@@ -3,12 +3,12 @@ from __future__ import annotations
 import logging
 import unicodedata
 from datetime import date, datetime
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from pathlib import Path
 from typing import BinaryIO, Iterable
 from zipfile import BadZipFile, ZipFile
 
-from ..core.numbers import _MAX_SQLITE_INTEGER, _to_int, draw_parameters
+from ..core.numbers import MAX_SQLITE_INTEGER, draw_parameters, parse_int
 from ..extensions import db
 from ..models import Draw
 
@@ -47,7 +47,9 @@ def _count_rows_with_limit(rows: Iterable[tuple[object, ...]]) -> int:
     count = 0
     for count, _row in enumerate(rows, start=1):
         if count > MAX_IMPORT_ROWS:
-            raise RuntimeError(f"A planilha ultrapassa o limite de {MAX_IMPORT_ROWS} linhas de dados.")
+            raise RuntimeError(
+                f"A planilha ultrapassa o limite de {MAX_IMPORT_ROWS} linhas de dados."
+            )
     return count
 
 
@@ -60,18 +62,28 @@ def _money_to_cents(value: object) -> int:
         if isinstance(value, (int, float, Decimal)):
             amount = Decimal(str(value))
         else:
-            text = str(value).strip().replace("R$", "").replace("\u00a0", "").replace(" ", "")
+            text = (
+                str(value)
+                .strip()
+                .replace("R$", "")
+                .replace("\u00a0", "")
+                .replace(" ", "")
+            )
             if not text or len(text) > 64:
                 return 0
             if "," in text and "." in text:
-                text = text.replace(".", "").replace(",", ".") if text.rfind(",") > text.rfind(".") else text.replace(",", "")
+                text = (
+                    text.replace(".", "").replace(",", ".")
+                    if text.rfind(",") > text.rfind(".")
+                    else text.replace(",", "")
+                )
             elif "," in text:
                 text = text.replace(",", ".")
             amount = Decimal(text)
         if not amount.is_finite() or amount < 0:
             return 0
         cents = int((amount * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
-        return cents if cents <= _MAX_SQLITE_INTEGER else 0
+        return cents if cents <= MAX_SQLITE_INTEGER else 0
     except (InvalidOperation, OverflowError, TypeError, ValueError):
         return 0
 
@@ -95,12 +107,16 @@ def _validate_xlsx_archive(source: str | Path | BinaryIO) -> None:
             total_size = sum(member.file_size for member in members)
             compressed_size = sum(member.compress_size for member in members)
             if total_size > MAX_XLSX_UNCOMPRESSED_BYTES:
-                raise RuntimeError("A planilha é grande demais depois de descompactada.")
+                raise RuntimeError(
+                    "A planilha é grande demais depois de descompactada."
+                )
             ratio = total_size / max(compressed_size, 1)
             if ratio > MAX_XLSX_COMPRESSION_RATIO:
                 raise RuntimeError("A planilha possui uma taxa de compressão insegura.")
     except BadZipFile as exc:
-        raise RuntimeError("Não foi possível ler o arquivo: planilha XLSX inválida.") from exc
+        raise RuntimeError(
+            "Não foi possível ler o arquivo: planilha XLSX inválida."
+        ) from exc
     finally:
         if original_position is not None:
             source.seek(original_position)
@@ -113,7 +129,9 @@ def import_results_from_xlsx(source: str | Path | BinaryIO) -> dict[str, int]:
         # o usuario realmente importar uma planilha.
         from openpyxl import load_workbook
 
-        workbook = load_workbook(source, read_only=True, data_only=True, keep_links=False)
+        workbook = load_workbook(
+            source, read_only=True, data_only=True, keep_links=False
+        )
     except Exception as exc:
         _log.error("Falha ao abrir planilha: %s", exc)
         raise RuntimeError(f"Não foi possível ler o arquivo: {exc}") from exc
@@ -143,14 +161,41 @@ def import_results_from_xlsx(source: str | Path | BinaryIO) -> dict[str, int]:
         date_idx = find_one(["data sorteio", "data", "draw date"])
         winners_6_idx = find_one(["ganhadores 6 acertos", "ganhadores sena", "sena"])
         winners_5_idx = find_one(["ganhadores 5 acertos", "ganhadores quina", "quina"])
-        winners_4_idx = find_one(["ganhadores 4 acertos", "ganhadores quadra", "quadra"])
+        winners_4_idx = find_one(
+            ["ganhadores 4 acertos", "ganhadores quadra", "quadra"]
+        )
         prize_idx = find_one(["rateio 6 acertos", "premio", "prêmio"])
         accumulated_idx = find_one(["acumulado 6 acertos", "acumulado"])
         quina_rateio_idx = find_one(["rateio 5 acertos", "rateio quina"])
         quadra_rateio_idx = find_one(["rateio 4 acertos", "rateio quadra"])
 
         number_indexes: list[int] = []
-        for token in ["bola 1", "bola1", "dezena 1", "n1", "bola 2", "bola2", "dezena 2", "n2", "bola 3", "bola3", "dezena 3", "n3", "bola 4", "bola4", "dezena 4", "n4", "bola 5", "bola5", "dezena 5", "n5", "bola 6", "bola6", "dezena 6", "n6"]:
+        for token in [
+            "bola 1",
+            "bola1",
+            "dezena 1",
+            "n1",
+            "bola 2",
+            "bola2",
+            "dezena 2",
+            "n2",
+            "bola 3",
+            "bola3",
+            "dezena 3",
+            "n3",
+            "bola 4",
+            "bola4",
+            "dezena 4",
+            "n4",
+            "bola 5",
+            "bola5",
+            "dezena 5",
+            "n5",
+            "bola 6",
+            "bola6",
+            "dezena 6",
+            "n6",
+        ]:
             idx = find_one([token])
             if idx is not None and idx not in number_indexes:
                 number_indexes.append(idx)
@@ -158,7 +203,11 @@ def import_results_from_xlsx(source: str | Path | BinaryIO) -> dict[str, int]:
                 break
 
         if contest_idx is None or len(number_indexes) < 6:
-            return {"imported": 0, "updated": 0, "ignored": _count_rows_with_limit(rows)}
+            return {
+                "imported": 0,
+                "updated": 0,
+                "ignored": _count_rows_with_limit(rows),
+            }
 
         imported = updated = ignored = 0
         existing_draws = {draw.contest: draw for draw in Draw.query.all()}
@@ -166,10 +215,22 @@ def import_results_from_xlsx(source: str | Path | BinaryIO) -> dict[str, int]:
         try:
             for row_number, row in enumerate(rows, start=1):
                 if row_number > MAX_IMPORT_ROWS:
-                    raise RuntimeError(f"A planilha ultrapassa o limite de {MAX_IMPORT_ROWS} linhas de dados.")
-                contest = _to_int(row[contest_idx] if contest_idx < len(row) else None)
-                numbers = [_to_int(row[i] if i < len(row) else None) for i in number_indexes[:6]]
-                if contest is None or contest <= 0 or any(n is None or n < 1 or n > 60 for n in numbers) or len(set(numbers)) != 6:
+                    raise RuntimeError(
+                        f"A planilha ultrapassa o limite de {MAX_IMPORT_ROWS} linhas de dados."
+                    )
+                contest = parse_int(
+                    row[contest_idx] if contest_idx < len(row) else None
+                )
+                numbers = [
+                    parse_int(row[i] if i < len(row) else None)
+                    for i in number_indexes[:6]
+                ]
+                if (
+                    contest is None
+                    or contest <= 0
+                    or any(n is None or n < 1 or n > 60 for n in numbers)
+                    or len(set(numbers)) != 6
+                ):
                     ignored += 1
                     continue
                 if contest in seen_contests:
@@ -178,23 +239,45 @@ def import_results_from_xlsx(source: str | Path | BinaryIO) -> dict[str, int]:
                 numbers = sorted(numbers)  # type: ignore[arg-type]
                 derived = draw_parameters(numbers)
                 payload = {
-                    "draw_date": _parse_date(row[date_idx]) if date_idx is not None and date_idx < len(row) else None,
-                    "n1": numbers[0], "n2": numbers[1], "n3": numbers[2],
-                    "n4": numbers[3], "n5": numbers[4], "n6": numbers[5],
+                    "draw_date": _parse_date(row[date_idx])
+                    if date_idx is not None and date_idx < len(row)
+                    else None,
+                    "n1": numbers[0],
+                    "n2": numbers[1],
+                    "n3": numbers[2],
+                    "n4": numbers[3],
+                    "n5": numbers[4],
+                    "n6": numbers[5],
                     "total_sum": derived["total_sum"],
                     "even_count": derived["even_count"],
                     "consecutive_count": derived["consecutive_count"],
-                    "winners_6": max(_to_int(row[winners_6_idx]) or 0, 0) if winners_6_idx is not None and winners_6_idx < len(row) else 0,
-                    "winners_5": max(_to_int(row[winners_5_idx]) or 0, 0) if winners_5_idx is not None and winners_5_idx < len(row) else 0,
-                    "winners_4": max(_to_int(row[winners_4_idx]) or 0, 0) if winners_4_idx is not None and winners_4_idx < len(row) else 0,
-                    "prize_cents": _money_to_cents(row[prize_idx]) if prize_idx is not None and prize_idx < len(row) else 0,
-                    "accumulated_cents": _money_to_cents(row[accumulated_idx]) if accumulated_idx is not None and accumulated_idx < len(row) else 0,
-                    "quina_rateio_cents": _money_to_cents(row[quina_rateio_idx]) if quina_rateio_idx is not None and quina_rateio_idx < len(row) else 0,
-                    "quadra_rateio_cents": _money_to_cents(row[quadra_rateio_idx]) if quadra_rateio_idx is not None and quadra_rateio_idx < len(row) else 0,
+                    "winners_6": max(parse_int(row[winners_6_idx]) or 0, 0)
+                    if winners_6_idx is not None and winners_6_idx < len(row)
+                    else 0,
+                    "winners_5": max(parse_int(row[winners_5_idx]) or 0, 0)
+                    if winners_5_idx is not None and winners_5_idx < len(row)
+                    else 0,
+                    "winners_4": max(parse_int(row[winners_4_idx]) or 0, 0)
+                    if winners_4_idx is not None and winners_4_idx < len(row)
+                    else 0,
+                    "prize_cents": _money_to_cents(row[prize_idx])
+                    if prize_idx is not None and prize_idx < len(row)
+                    else 0,
+                    "accumulated_cents": _money_to_cents(row[accumulated_idx])
+                    if accumulated_idx is not None and accumulated_idx < len(row)
+                    else 0,
+                    "quina_rateio_cents": _money_to_cents(row[quina_rateio_idx])
+                    if quina_rateio_idx is not None and quina_rateio_idx < len(row)
+                    else 0,
+                    "quadra_rateio_cents": _money_to_cents(row[quadra_rateio_idx])
+                    if quadra_rateio_idx is not None and quadra_rateio_idx < len(row)
+                    else 0,
                 }
                 draw = existing_draws.get(contest)
                 if draw:
-                    if all(getattr(draw, key) == value for key, value in payload.items()):
+                    if all(
+                        getattr(draw, key) == value for key, value in payload.items()
+                    ):
                         ignored += 1
                         seen_contests.add(contest)
                         continue
@@ -211,7 +294,12 @@ def import_results_from_xlsx(source: str | Path | BinaryIO) -> dict[str, int]:
         except Exception:
             db.session.rollback()
             raise
-        _log.info("Importação concluída: %d novos, %d atualizados, %d ignorados.", imported, updated, ignored)
+        _log.info(
+            "Importação concluída: %d novos, %d atualizados, %d ignorados.",
+            imported,
+            updated,
+            ignored,
+        )
         return {"imported": imported, "updated": updated, "ignored": ignored}
     finally:
         workbook.close()

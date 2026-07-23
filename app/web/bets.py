@@ -12,6 +12,11 @@ from ..bets.combinatorics import (
     calculate_individual_filter_targets,
     count_draws_matching_filters,
 )
+from ..bets.criteria import (
+    GENERATION_FILTER_KEYS,
+    GENERATION_PARAM_KEYS,
+    GenerationCriteria,
+)
 from ..bets.service import (
     generate_bets,
     generate_closure_bets,
@@ -21,7 +26,6 @@ from ..bets.service import (
 )
 from ..core.formatting import format_int, format_percent
 from ..draws.service import count_draws
-from ..generation_params import GENERATION_FILTER_KEYS, GENERATION_PARAM_KEYS, GenerationParams
 from ..settings.service import get_generation_defaults
 from . import bp
 from .helpers import optional_int, plural
@@ -58,7 +62,9 @@ def _apply_closure_mode(
             parsed_numbers = sorted(set(_parse_number_list(closure_numbers)))
         except RuntimeError:
             parsed_numbers = []
-        if 6 <= len(parsed_numbers) <= 15 and all(1 <= number <= 60 for number in parsed_numbers):
+        if 6 <= len(parsed_numbers) <= 15 and all(
+            1 <= number <= 60 for number in parsed_numbers
+        ):
             closure_mode = True
             closure_base_count = len(parsed_numbers)
             quantity = 6
@@ -67,12 +73,20 @@ def _apply_closure_mode(
     return quantity, selected_filters, selected_amount, closure_mode, closure_base_count
 
 
-def _coverage_metrics(combination_report: dict, amount: int) -> tuple[int, float, int | None]:
+def _coverage_metrics(
+    combination_report: dict, amount: int
+) -> tuple[int, float, int | None]:
     coverage_per_bet = combination_report["covered_combinations"]
     covered_by_amount = min(coverage_per_bet * amount, combination_report["remaining"])
-    chance_with_amount = (covered_by_amount / combination_report["remaining"]) if combination_report["remaining"] else 0
+    chance_with_amount = (
+        (covered_by_amount / combination_report["remaining"])
+        if combination_report["remaining"]
+        else 0
+    )
     chance_with_amount = min(chance_with_amount, 1.0)
-    chance_with_amount_one_in = math.ceil(1 / chance_with_amount) if chance_with_amount else None
+    chance_with_amount_one_in = (
+        math.ceil(1 / chance_with_amount) if chance_with_amount else None
+    )
     return covered_by_amount, chance_with_amount, chance_with_amount_one_in
 
 
@@ -99,7 +113,7 @@ def _read_generation_state(values: MultiDict) -> tuple[int, dict[str, int | None
             value = defaults.get(key)
             source[key] = "" if value is None else str(value)
 
-    params = GenerationParams.from_mapping(
+    params = GenerationCriteria.from_mapping(
         source,
         default_quantity=int(defaults["bet_quantity"] or 6),
         default_amount=int(defaults["generation_amount"] or 5),
@@ -117,11 +131,13 @@ def _generation_params(
     selected_filters: dict[str, int | None],
     amount: int,
 ) -> dict[str, int | str]:
-    params = GenerationParams(quantity=quantity, amount=amount, **selected_filters)
+    params = GenerationCriteria(quantity=quantity, amount=amount, **selected_filters)
     return params.query_values()
 
 
-def _draw_filter_preview_payload(selected_filters: dict[str, int | None]) -> dict[str, int | float | str]:
+def _draw_filter_preview_payload(
+    selected_filters: dict[str, int | None],
+) -> dict[str, int | float | str]:
     count = count_draws_matching_filters(**_active_filters(selected_filters))
     total = count_draws()
     percentage = (count / total) * 100 if total else 0
@@ -139,17 +155,25 @@ def rationale():
     quantity, selected_filters, selected_amount = _read_generation_state(request.args)
     return_quantity = quantity
     return_amount = selected_amount
-    quantity, selected_filters, selected_amount, closure_mode, closure_base_count = _apply_closure_mode(
-        closure_numbers,
-        quantity,
-        selected_filters,
-        selected_amount,
+    quantity, selected_filters, selected_amount, closure_mode, closure_base_count = (
+        _apply_closure_mode(
+            closure_numbers,
+            quantity,
+            selected_filters,
+            selected_amount,
+        )
     )
-    combination_report = build_combination_report(quantity=quantity, filters=selected_filters)
-    covered_by_amount, chance_with_amount, chance_with_amount_one_in = _coverage_metrics(
-        combination_report, selected_amount
+    combination_report = build_combination_report(
+        quantity=quantity, filters=selected_filters
     )
-    return_filters = selected_filters if not closure_mode else {key: None for key in GENERATION_FILTER_KEYS}
+    covered_by_amount, chance_with_amount, chance_with_amount_one_in = (
+        _coverage_metrics(combination_report, selected_amount)
+    )
+    return_filters = (
+        selected_filters
+        if not closure_mode
+        else {key: None for key in GENERATION_FILTER_KEYS}
+    )
     return_params = _generation_params(return_quantity, return_filters, return_amount)
     if closure_numbers:
         return_params["closure_numbers"] = closure_numbers
@@ -182,7 +206,9 @@ def clear_bet_generation():
 def bet_generation():
     bets = []
     closure_numbers = request.args.get("closure_numbers", "")
-    selected_quantity, selected_filters, selected_amount = _read_generation_state(request.args)
+    selected_quantity, selected_filters, selected_amount = _read_generation_state(
+        request.args
+    )
     selected_generation_id = optional_int(request.args.get("generation_id"))
     recent_generations = list_recent_generations_with_bets()
     selected_generation_bets = []
@@ -190,7 +216,9 @@ def bet_generation():
         selected_generation_bets = get_generation_bets(selected_generation_id)
     if request.method == "POST":
         action = request.form.get("action", "generate")
-        quantity, selected_filters, selected_amount = _read_generation_state(request.form)
+        quantity, selected_filters, selected_amount = _read_generation_state(
+            request.form
+        )
         closure_numbers = request.form.get("closure_numbers", "")
         selected_quantity = quantity
         if closure_numbers.strip() and action == "generate":
@@ -207,16 +235,22 @@ def bet_generation():
                 return redirect(
                     url_for(
                         "web.bet_generation",
-                        **_generation_params(quantity, selected_filters, selected_amount),
+                        **_generation_params(
+                            quantity, selected_filters, selected_amount
+                        ),
                     )
                 )
-            flash(f"{saved} {plural(saved, 'aposta gravada', 'apostas gravadas')} no banco de dados.")
+            flash(
+                f"{saved} {plural(saved, 'aposta gravada', 'apostas gravadas')} no banco de dados."
+            )
             if generation_id is not None:
                 return redirect(
                     url_for(
                         "web.bet_generation",
                         generation_id=generation_id,
-                        **_generation_params(save_quantity, selected_filters, selected_amount),
+                        **_generation_params(
+                            save_quantity, selected_filters, selected_amount
+                        ),
                     )
                 )
             return redirect(
@@ -259,15 +293,23 @@ def bet_generation():
             flash(str(exc))
 
     filter_preview = _draw_filter_preview_payload(selected_filters)
-    selected_quantity, selected_filters, selected_amount, closure_mode, closure_base_count = _apply_closure_mode(
+    (
+        selected_quantity,
+        selected_filters,
+        selected_amount,
+        closure_mode,
+        closure_base_count,
+    ) = _apply_closure_mode(
         closure_numbers,
         selected_quantity,
         selected_filters,
         selected_amount,
     )
-    combination_report = build_combination_report(quantity=selected_quantity, filters=selected_filters)
-    covered_by_amount, chance_with_amount, chance_with_amount_one_in = _coverage_metrics(
-        combination_report, selected_amount
+    combination_report = build_combination_report(
+        quantity=selected_quantity, filters=selected_filters
+    )
+    covered_by_amount, chance_with_amount, chance_with_amount_one_in = (
+        _coverage_metrics(combination_report, selected_amount)
     )
     return render_template(
         "bets/index.html",
@@ -288,7 +330,9 @@ def bet_generation():
         if chance_with_amount_one_in
         else "0",
         closure_numbers=closure_numbers,
-        generation_params=_generation_params(selected_quantity, selected_filters, selected_amount),
+        generation_params=_generation_params(
+            selected_quantity, selected_filters, selected_amount
+        ),
     )
 
 
@@ -308,14 +352,18 @@ def filter_targets():
 def combinations():
     quantity, selected_filters, selected_amount = _read_generation_state(request.args)
     closure_numbers = request.args.get("closure_numbers", "")
-    quantity, selected_filters, selected_amount, closure_mode, closure_base_count = _apply_closure_mode(
-        closure_numbers,
-        quantity,
-        selected_filters,
-        selected_amount,
+    quantity, selected_filters, selected_amount, closure_mode, closure_base_count = (
+        _apply_closure_mode(
+            closure_numbers,
+            quantity,
+            selected_filters,
+            selected_amount,
+        )
     )
     report = build_combination_report(quantity=quantity, filters=selected_filters)
-    covered_by_amount, chance_with_amount, chance_with_amount_one_in = _coverage_metrics(report, selected_amount)
+    covered_by_amount, chance_with_amount, chance_with_amount_one_in = (
+        _coverage_metrics(report, selected_amount)
+    )
     report.update(
         {
             "selected_amount": selected_amount,
@@ -324,7 +372,9 @@ def combinations():
             "covered_by_amount": covered_by_amount,
             "covered_by_amount_formatted": format_int(covered_by_amount),
             "chance_with_amount_percent": chance_with_amount * 100,
-            "chance_with_amount_percent_formatted": format_percent(chance_with_amount * 100),
+            "chance_with_amount_percent_formatted": format_percent(
+                chance_with_amount * 100
+            ),
             "chance_with_amount_one_in": chance_with_amount_one_in,
             "chance_with_amount_one_in_formatted": format_int(chance_with_amount_one_in)
             if chance_with_amount_one_in

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from app.generation_params import GENERATION_FILTER_KEYS, GenerationParams
+from app.bets.criteria import GENERATION_FILTER_KEYS, GenerationCriteria
 
 
-def test_generation_params_centralize_bounds_and_cross_field_rules() -> None:
-    params = GenerationParams.from_mapping(
+def test_generation_criteria_normalize_bounds_and_cross_field_rules() -> None:
+    params = GenerationCriteria.from_mapping(
         {
             "quantity": "99",
             "amount": "0",
@@ -26,8 +26,8 @@ def test_generation_params_centralize_bounds_and_cross_field_rules() -> None:
     assert params.range_max_per_band == 6
 
 
-def test_generation_params_expose_one_canonical_filter_mapping() -> None:
-    params = GenerationParams.from_mapping(
+def test_generation_criteria_expose_active_and_empty_filters() -> None:
+    params = GenerationCriteria.from_mapping(
         {"even_min": "2", "sum_max": "", "consecutive_count": "abc"},
         default_quantity=7,
         default_amount=9,

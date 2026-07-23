@@ -4,8 +4,11 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Iterable, Mapping
 
-from ..core.numbers import count_consecutive_numbers, count_even_numbers, range_band_counts
-
+from ..core.numbers import (
+    count_consecutive_numbers,
+    count_even_numbers,
+    range_band_counts,
+)
 
 GENERATION_FILTER_KEYS = (
     "consecutive_count",
@@ -75,8 +78,15 @@ class GenerationCriteria:
         default_amount: int = 5,
     ) -> "GenerationCriteria":
         source = values or {}
-        quantity = _bounded(_optional_int(source.get("quantity")), "quantity", default_quantity) or 6
-        amount = _bounded(_optional_int(source.get("amount")), "amount", default_amount) or 1
+        quantity = (
+            _bounded(
+                _optional_int(source.get("quantity")), "quantity", default_quantity
+            )
+            or 6
+        )
+        amount = (
+            _bounded(_optional_int(source.get("amount")), "amount", default_amount) or 1
+        )
         normalized = {
             key: _bounded(_optional_int(source.get(key)), key)
             for key in GENERATION_FILTER_KEYS
@@ -103,7 +113,11 @@ class GenerationCriteria:
 
     def filters(self, *, include_empty: bool = False) -> dict[str, int | None]:
         values = {key: getattr(self, key) for key in GENERATION_FILTER_KEYS}
-        return values if include_empty else {key: value for key, value in values.items() if value is not None}
+        return (
+            values
+            if include_empty
+            else {key: value for key, value in values.items() if value is not None}
+        )
 
     def matches_candidate(self, numbers: Iterable[int]) -> bool:
         """Verifica uma aposta, inclusive todos os subconjuntos cobertos de seis dezenas."""
@@ -161,14 +175,23 @@ class GenerationCriteria:
             return False
         if self.consecutive_count is not None and longest_run > self.consecutive_count:
             return False
-        if self.range_min_occupied is not None and occupied_bands < self.range_min_occupied:
+        if (
+            self.range_min_occupied is not None
+            and occupied_bands < self.range_min_occupied
+        ):
             return False
-        if self.range_max_per_band is not None and max_band_count > self.range_max_per_band:
+        if (
+            self.range_max_per_band is not None
+            and max_band_count > self.range_max_per_band
+        ):
             return False
         return True
 
     def query_values(self, *, include_empty: bool = False) -> dict[str, int | str]:
-        values: dict[str, int | str] = {"quantity": self.quantity, "amount": self.amount}
+        values: dict[str, int | str] = {
+            "quantity": self.quantity,
+            "amount": self.amount,
+        }
         for key, value in self.filters(include_empty=True).items():
             if value is not None:
                 values[key] = value
@@ -177,10 +200,8 @@ class GenerationCriteria:
         return values
 
 
-# Nome historico mantido enquanto consumidores externos migram para o conceito de criterio.
-GenerationParams = GenerationCriteria
-
-
 def coerce_generation_filters(filters: Mapping[str, object] | None) -> dict[str, int]:
     criteria = GenerationCriteria.from_mapping(filters, default_amount=1)
-    return {key: value for key, value in criteria.filters().items() if value is not None}
+    return {
+        key: value for key, value in criteria.filters().items() if value is not None
+    }

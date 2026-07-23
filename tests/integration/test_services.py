@@ -1,40 +1,19 @@
 from __future__ import annotations
 
-from io import BytesIO  # noqa: F401
-from pathlib import Path  # noqa: F401
-from zipfile import ZIP_DEFLATED, ZipFile  # noqa: F401
-
-import pytest  # noqa: F401
-
-from app import create_app, db  # noqa: F401
-from app.models import Config, Draw  # noqa: F401
-from app.bets.combinatorics import (  # noqa: F401
-    build_combination_report,
-    calculate_individual_filter_targets,
-    count_draws_matching_filters,
-    count_possible_draw_combinations,
-)
-from app.bets.service import (  # noqa: F401
-    generate_closure_bets,
-    list_recent_generations,
-    list_recent_generations_with_bets,
-    save_generated_bets,
-)
-from app.core.numbers import (  # noqa: F401
+from app import create_app, db
+from app.core.numbers import (
     count_consecutive_numbers,
     count_even_numbers,
     count_occupied_range_bands,
     draw_parameters,
     max_range_band_count,
 )
-from app.draws.importing import import_results_from_xlsx  # noqa: F401
-from app.draws.statistics import (  # noqa: F401
-    build_recent_frequency,
+from app.draws.statistics import (
     build_stats,
     ensure_draw_parameters_current,
 )
-from app.settings.service import get_config_values  # noqa: F401
-from tests.support import csrf_form_data, make_app, workbook_bytes  # noqa: F401
+from app.models import Draw
+from tests.support import make_app
 
 
 def test_count_even_numbers_counts_only_even_dozen_values() -> None:
@@ -88,8 +67,7 @@ def test_scripts_are_external_and_event_attributes_are_absent() -> None:
     assert "onchange=" not in text
 
 
-def test_format_int_and_format_percent_are_public() -> None:
-    """Formatadores publicos devem permanecer estaveis no modulo proprietario."""
+def test_formatters_use_brazilian_number_separators() -> None:
     from app.core.formatting import format_int, format_percent
 
     assert format_int(1_000_000) == "1.000.000"
@@ -126,13 +104,22 @@ def test_create_app_accepts_configuration_overrides() -> None:
 
 
 def test_build_stats_with_no_count_considers_full_history() -> None:
-    """build_stats() sem argumento deve manter o comportamento original (todo o histórico)."""
+    """Sem período informado, as estatísticas consideram todos os concursos."""
     app = make_app()
     with app.app_context():
         db.create_all()
         for contest in range(1, 11):
             db.session.add(
-                Draw(contest=contest, n1=1, n2=2, n3=3, n4=4, n5=5, n6=6, **draw_parameters([1, 2, 3, 4, 5, 6]))
+                Draw(
+                    contest=contest,
+                    n1=1,
+                    n2=2,
+                    n3=3,
+                    n4=4,
+                    n5=5,
+                    n6=6,
+                    **draw_parameters([1, 2, 3, 4, 5, 6]),
+                )
             )
         db.session.commit()
 
@@ -151,11 +138,29 @@ def test_build_stats_with_count_limits_to_recent_draws() -> None:
         # 5 concursos com números pares "1-6", 5 concursos mais recentes com números "10-15"
         for contest in range(1, 6):
             db.session.add(
-                Draw(contest=contest, n1=1, n2=2, n3=3, n4=4, n5=5, n6=6, **draw_parameters([1, 2, 3, 4, 5, 6]))
+                Draw(
+                    contest=contest,
+                    n1=1,
+                    n2=2,
+                    n3=3,
+                    n4=4,
+                    n5=5,
+                    n6=6,
+                    **draw_parameters([1, 2, 3, 4, 5, 6]),
+                )
             )
         for contest in range(6, 11):
             db.session.add(
-                Draw(contest=contest, n1=10, n2=11, n3=12, n4=13, n5=14, n6=15, **draw_parameters([10, 11, 12, 13, 14, 15]))
+                Draw(
+                    contest=contest,
+                    n1=10,
+                    n2=11,
+                    n3=12,
+                    n4=13,
+                    n5=14,
+                    n6=15,
+                    **draw_parameters([10, 11, 12, 13, 14, 15]),
+                )
             )
         db.session.commit()
 

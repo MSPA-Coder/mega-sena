@@ -4,12 +4,11 @@ import math
 from functools import lru_cache
 from typing import Iterable
 
+from ..core.formatting import format_int, format_percent
 from ..core.numbers import (
-    _format_int,
-    _format_percent,
-    _to_int,
     count_occupied_range_bands,
     max_range_band_count,
+    parse_int,
 )
 from ..models import Draw
 from .criteria import GenerationCriteria, coerce_generation_filters
@@ -17,25 +16,67 @@ from .criteria import GenerationCriteria, coerce_generation_filters
 
 @lru_cache(maxsize=1)
 def _combination_distribution() -> dict[tuple[int, int, int, int, int], int]:
-    states: dict[tuple[int, int, int, int, int, int, int, int], int] = {(0, 0, 0, 0, 0, 0, 0, 0): 1}
+    states: dict[tuple[int, int, int, int, int, int, int, int], int] = {
+        (0, 0, 0, 0, 0, 0, 0, 0): 1
+    }
     for number in range(1, 61):
         if number in {11, 21, 31, 41, 51}:
             reset_states: dict[tuple[int, int, int, int, int, int, int, int], int] = {}
-            for (quantity, total_sum, even_count, current_run, longest_run, occupied_bands, _current_band_count, max_band_count), count in states.items():
-                key = (quantity, total_sum, even_count, current_run, longest_run, occupied_bands, 0, max_band_count)
+            for (
+                quantity,
+                total_sum,
+                even_count,
+                current_run,
+                longest_run,
+                occupied_bands,
+                _current_band_count,
+                max_band_count,
+            ), count in states.items():
+                key = (
+                    quantity,
+                    total_sum,
+                    even_count,
+                    current_run,
+                    longest_run,
+                    occupied_bands,
+                    0,
+                    max_band_count,
+                )
                 reset_states[key] = reset_states.get(key, 0) + count
             states = reset_states
 
         next_states: dict[tuple[int, int, int, int, int, int, int, int], int] = {}
-        for (quantity, total_sum, even_count, current_run, longest_run, occupied_bands, current_band_count, max_band_count), count in states.items():
-            skip_key = (quantity, total_sum, even_count, 0, longest_run, occupied_bands, current_band_count, max_band_count)
+        for (
+            quantity,
+            total_sum,
+            even_count,
+            current_run,
+            longest_run,
+            occupied_bands,
+            current_band_count,
+            max_band_count,
+        ), count in states.items():
+            skip_key = (
+                quantity,
+                total_sum,
+                even_count,
+                0,
+                longest_run,
+                occupied_bands,
+                current_band_count,
+                max_band_count,
+            )
             next_states[skip_key] = next_states.get(skip_key, 0) + count
 
             if quantity < 6:
                 new_current_run = current_run + 1 if current_run else 1
-                new_longest_run = max(longest_run, new_current_run if new_current_run >= 2 else 0)
+                new_longest_run = max(
+                    longest_run, new_current_run if new_current_run >= 2 else 0
+                )
                 new_current_band_count = current_band_count + 1
-                new_occupied_bands = occupied_bands + (1 if current_band_count == 0 else 0)
+                new_occupied_bands = occupied_bands + (
+                    1 if current_band_count == 0 else 0
+                )
                 new_max_band_count = max(max_band_count, new_current_band_count)
                 take_key = (
                     quantity + 1,
@@ -51,7 +92,16 @@ def _combination_distribution() -> dict[tuple[int, int, int, int, int], int]:
         states = next_states
 
     distribution: dict[tuple[int, int, int, int, int], int] = {}
-    for (quantity, total_sum, even_count, _current_run, longest_run, occupied_bands, _current_band_count, max_band_count), count in states.items():
+    for (
+        quantity,
+        total_sum,
+        even_count,
+        _current_run,
+        longest_run,
+        occupied_bands,
+        _current_band_count,
+        max_band_count,
+    ), count in states.items():
         if quantity == 6:
             key = (longest_run, even_count, total_sum, occupied_bands, max_band_count)
             distribution[key] = distribution.get(key, 0) + count
@@ -77,7 +127,13 @@ def count_possible_draw_combinations(
         range_max_per_band=range_max_per_band,
     )
     total = 0
-    for (longest_run, even_numbers, total_sum, occupied_bands, max_band_count), count in _combination_distribution().items():
+    for (
+        longest_run,
+        even_numbers,
+        total_sum,
+        occupied_bands,
+        max_band_count,
+    ), count in _combination_distribution().items():
         if not criteria.matches_distribution(
             longest_run=longest_run,
             even_count_min=even_numbers,
@@ -92,16 +148,28 @@ def count_possible_draw_combinations(
 
 def build_combination_report(quantity: int = 6, filters: dict | None = None) -> dict:
     filters = coerce_generation_filters(filters)
-    quantity = max(6, min(_to_int(quantity) or 6, 15))
+    quantity = max(6, min(parse_int(quantity) or 6, 15))
     total = math.comb(60, 6)
     remaining = total
     steps = []
 
     filter_steps = [
-        ("even", "Quantidade de números pares", (filters.get("even_min"), filters.get("even_max"))),
+        (
+            "even",
+            "Quantidade de números pares",
+            (filters.get("even_min"), filters.get("even_max")),
+        ),
         ("sum", "Soma dos números", (filters.get("sum_min"), filters.get("sum_max"))),
-        ("range", "Distribuição por faixas", (filters.get("range_min_occupied"), filters.get("range_max_per_band"))),
-        ("consecutive_count", "Maior sequência de números consecutivos", filters.get("consecutive_count")),
+        (
+            "range",
+            "Distribuição por faixas",
+            (filters.get("range_min_occupied"), filters.get("range_max_per_band")),
+        ),
+        (
+            "consecutive_count",
+            "Maior sequência de números consecutivos",
+            filters.get("consecutive_count"),
+        ),
     ]
 
     active_filters: dict[str, int] = {}
@@ -169,11 +237,11 @@ def build_combination_report(quantity: int = 6, filters: dict | None = None) -> 
                 "formula": formula,
                 "explanation": explanation,
                 "previous_remaining": remaining,
-                "previous_remaining_formatted": _format_int(remaining),
+                "previous_remaining_formatted": format_int(remaining),
                 "eliminated": eliminated,
                 "remaining": new_remaining,
-                "eliminated_formatted": _format_int(eliminated),
-                "remaining_formatted": _format_int(new_remaining),
+                "eliminated_formatted": format_int(eliminated),
+                "remaining_formatted": format_int(new_remaining),
             }
         )
         remaining = new_remaining
@@ -182,17 +250,17 @@ def build_combination_report(quantity: int = 6, filters: dict | None = None) -> 
     chance = min(covered_combinations / remaining, 1.0) if remaining else 0
     return {
         "total": total,
-        "total_formatted": _format_int(total),
+        "total_formatted": format_int(total),
         "remaining": remaining,
-        "remaining_formatted": _format_int(remaining),
+        "remaining_formatted": format_int(remaining),
         "eliminated": total - remaining,
-        "eliminated_formatted": _format_int(total - remaining),
+        "eliminated_formatted": format_int(total - remaining),
         "covered_combinations": covered_combinations,
-        "covered_combinations_formatted": _format_int(covered_combinations),
+        "covered_combinations_formatted": format_int(covered_combinations),
         "chance_percent": chance * 100,
-        "chance_percent_formatted": _format_percent(chance * 100),
+        "chance_percent_formatted": format_percent(chance * 100),
         "chance_one_in": math.ceil(1 / chance) if chance else None,
-        "chance_one_in_formatted": _format_int(math.ceil(1 / chance)) if chance else "0",
+        "chance_one_in_formatted": format_int(math.ceil(1 / chance)) if chance else "0",
         "steps": steps,
     }
 
@@ -222,9 +290,15 @@ def count_draws_matching_filters(
     count = 0
     for draw in query.all():
         numbers = draw.numbers
-        if range_min_occupied is not None and count_occupied_range_bands(numbers) < range_min_occupied:
+        if (
+            range_min_occupied is not None
+            and count_occupied_range_bands(numbers) < range_min_occupied
+        ):
             continue
-        if range_max_per_band is not None and max_range_band_count(numbers) > range_max_per_band:
+        if (
+            range_max_per_band is not None
+            and max_range_band_count(numbers) > range_max_per_band
+        ):
             continue
         count += 1
     return count
@@ -271,13 +345,20 @@ def calculate_individual_filter_targets(target_percentage: float) -> dict:
             "range_min_occupied": metric(None),
             "range_max_per_band": metric(None),
         }
-        return {"target_percentage": target_percentage, "total": 0, "target_count": 0, "parameters": empty_parameters}
+        return {
+            "target_percentage": target_percentage,
+            "total": 0,
+            "target_count": 0,
+            "parameters": empty_parameters,
+        }
 
     consecutive_values = [row.consecutive_count for row in draws]
     even_values = [row.even_count for row in draws]
     sum_values = [row.total_sum for row in draws]
     draw_numbers = [[row.n1, row.n2, row.n3, row.n4, row.n5, row.n6] for row in draws]
-    occupied_range_values = [count_occupied_range_bands(numbers) for numbers in draw_numbers]
+    occupied_range_values = [
+        count_occupied_range_bands(numbers) for numbers in draw_numbers
+    ]
     max_range_values = [max_range_band_count(numbers) for numbers in draw_numbers]
 
     def first_at_or_above(candidates: Iterable[int], counter) -> dict:
@@ -300,13 +381,30 @@ def calculate_individual_filter_targets(target_percentage: float) -> dict:
 
     unique_sums = sorted(set(sum_values))
     parameters = {
-        "consecutive_count": first_at_or_above(range(0, 7), lambda value: sum(1 for item in consecutive_values if item <= value)),
-        "even_min": last_at_or_above(range(0, 7), lambda value: sum(1 for item in even_values if item >= value)),
-        "even_max": first_at_or_above(range(0, 7), lambda value: sum(1 for item in even_values if item <= value)),
-        "sum_min": last_at_or_above(unique_sums, lambda value: sum(1 for item in sum_values if item >= value)),
-        "sum_max": first_at_or_above(unique_sums, lambda value: sum(1 for item in sum_values if item <= value)),
-        "range_min_occupied": last_at_or_above(range(1, 7), lambda value: sum(1 for item in occupied_range_values if item >= value)),
-        "range_max_per_band": first_at_or_above(range(1, 7), lambda value: sum(1 for item in max_range_values if item <= value)),
+        "consecutive_count": first_at_or_above(
+            range(0, 7),
+            lambda value: sum(1 for item in consecutive_values if item <= value),
+        ),
+        "even_min": last_at_or_above(
+            range(0, 7), lambda value: sum(1 for item in even_values if item >= value)
+        ),
+        "even_max": first_at_or_above(
+            range(0, 7), lambda value: sum(1 for item in even_values if item <= value)
+        ),
+        "sum_min": last_at_or_above(
+            unique_sums, lambda value: sum(1 for item in sum_values if item >= value)
+        ),
+        "sum_max": first_at_or_above(
+            unique_sums, lambda value: sum(1 for item in sum_values if item <= value)
+        ),
+        "range_min_occupied": last_at_or_above(
+            range(1, 7),
+            lambda value: sum(1 for item in occupied_range_values if item >= value),
+        ),
+        "range_max_per_band": first_at_or_above(
+            range(1, 7),
+            lambda value: sum(1 for item in max_range_values if item <= value),
+        ),
     }
     return {
         "target_percentage": target_percentage,

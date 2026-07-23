@@ -11,15 +11,8 @@ from ..draws.service import search_contests
 from . import bp
 from .helpers import optional_int, plural
 
-
 _ALLOWED_UPLOAD_EXTENSIONS = frozenset({".xlsx"})
 _log = logging.getLogger(__name__)
-
-
-@bp.get("/import")
-def import_results():
-    """Mantem compatibilidade com a antiga pagina de importacao."""
-    return redirect(url_for("web.contests"))
 
 
 @bp.post("/contests/import")
@@ -29,7 +22,9 @@ def import_upload():
         flash("Selecione uma planilha .xlsx para importar.")
         return redirect(url_for("web.contests"))
 
-    extension = "." + file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+    extension = (
+        "." + file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+    )
     if extension not in _ALLOWED_UPLOAD_EXTENSIONS:
         flash("Formato inválido. Envie apenas planilhas no formato .xlsx.")
         return redirect(url_for("web.contests"))
@@ -42,7 +37,9 @@ def import_upload():
         return redirect(url_for("web.contests"))
     except Exception as exc:
         _log.exception("Erro inesperado na importação: %s", exc)
-        flash("Erro inesperado ao processar o arquivo. Verifique se é uma planilha válida.")
+        flash(
+            "Erro inesperado ao processar o arquivo. Verifique se é uma planilha válida."
+        )
         return redirect(url_for("web.contests"))
 
     imported = result["imported"]
@@ -77,5 +74,7 @@ def contests():
         even_count=result.even_count,
         active_filters=result.active_filters,
         contests_summary=result.summary,
-        pagination_args={key: value for key, value in request.args.items() if key != "page"},
+        pagination_args={
+            key: value for key, value in request.args.items() if key != "page"
+        },
     )

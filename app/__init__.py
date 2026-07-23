@@ -41,7 +41,11 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
     # Segurança: chave secreta via variável de ambiente
     # ------------------------------------------------------------------
     configured_secret = app.config.get("SECRET_KEY")
-    secret_key = str(configured_secret).strip() if configured_secret else os.environ.get("SECRET_KEY", "").strip()
+    secret_key = (
+        str(configured_secret).strip()
+        if configured_secret
+        else os.environ.get("SECRET_KEY", "").strip()
+    )
     if not secret_key:
         _log.warning(
             "SECRET_KEY não definida no ambiente. "
@@ -56,9 +60,16 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
     app.jinja_env.filters["brl0"] = format_brl_without_cents
 
     db.init_app(app)
-    migrate.init_app(app, db, directory=str(base_dir / "migrations"), compare_type=True, render_as_batch=True)
+    migrate.init_app(
+        app,
+        db,
+        directory=str(base_dir / "migrations"),
+        compare_type=True,
+        render_as_batch=True,
+    )
 
-    from .routes import bp
+    from .web import bp
+
     app.register_blueprint(bp)
 
     # ------------------------------------------------------------------
@@ -68,7 +79,10 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
     @app.context_processor
     def _inject_asset_version():
         static_dir = Path(app.static_folder or "")
-        asset_paths = [static_dir / name for name in ("style.css", "base.js", "bets.js", "dashboard.js")]
+        asset_paths = [
+            static_dir / name
+            for name in ("style.css", "base.js", "bets.js", "dashboard.js")
+        ]
         asset_paths.extend(sorted((static_dir / "css").glob("*.css")))
         mtimes = []
         for asset_path in asset_paths:
@@ -89,8 +103,8 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
 
     with app.app_context():
         from . import models  # noqa: F401
-        from .schema import ensure_database_schema
         from .draws.statistics import ensure_draw_parameters_current
+        from .schema import ensure_database_schema
         from .settings.service import ensure_default_config
 
         _configure_sqlite_engine(app)

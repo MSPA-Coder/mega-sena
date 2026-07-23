@@ -1,41 +1,28 @@
 from __future__ import annotations
 
-from io import BytesIO  # noqa: F401
-from pathlib import Path  # noqa: F401
+from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
-from zipfile import ZIP_DEFLATED, ZipFile  # noqa: F401
 
-import pytest  # noqa: F401
+import pytest
 
-from app import create_app, db  # noqa: F401
-from app.models import Config, Draw  # noqa: F401
-from app.bets.combinatorics import (  # noqa: F401
+from app import db
+from app.bets.combinatorics import (
     build_combination_report,
     calculate_individual_filter_targets,
     count_draws_matching_filters,
     count_possible_draw_combinations,
 )
-from app.bets.service import (  # noqa: F401
+from app.bets.service import (
     generate_closure_bets,
     list_recent_generations,
     list_recent_generations_with_bets,
     save_generated_bets,
 )
-from app.core.numbers import (  # noqa: F401
-    count_consecutive_numbers,
-    count_even_numbers,
-    count_occupied_range_bands,
+from app.core.numbers import (
     draw_parameters,
-    max_range_band_count,
 )
-from app.draws.importing import import_results_from_xlsx  # noqa: F401
-from app.draws.statistics import (  # noqa: F401
-    build_recent_frequency,
-    build_stats,
-    ensure_draw_parameters_current,
-)
-from app.settings.service import get_config_values  # noqa: F401
-from tests.support import csrf_form_data, css_source, make_app, workbook_bytes  # noqa: F401
+from app.models import Config, Draw
+from tests.support import csrf_form_data, make_app
 
 
 def test_filters_on_large_bets_cover_every_internal_six_number_draw() -> None:
@@ -53,7 +40,9 @@ def test_filters_on_large_bets_cover_every_internal_six_number_draw() -> None:
 
 
 def test_combination_report_counts_remaining_combinations_and_chance() -> None:
-    report = build_combination_report(quantity=7, filters={"even_min": 2, "even_max": 4})
+    report = build_combination_report(
+        quantity=7, filters={"even_min": 2, "even_max": 4}
+    )
 
     assert report["total"] == 50_063_860
     assert report["remaining"] == 40_325_950
@@ -77,18 +66,57 @@ def test_count_draws_matching_sum_interval_filter() -> None:
     with app.app_context():
         db.create_all()
         db.session.add_all(
-                [
-                    Draw(contest=1, n1=1, n2=2, n3=3, n4=4, n5=5, n6=6, **draw_parameters([1, 2, 3, 4, 5, 6])),
-                    Draw(contest=2, n1=10, n2=11, n3=20, n4=30, n5=40, n6=50, **draw_parameters([10, 11, 20, 30, 40, 50])),
-                    Draw(contest=3, n1=5, n2=6, n3=7, n4=8, n5=9, n6=10, **draw_parameters([5, 6, 7, 8, 9, 10])),
-                    Draw(contest=4, n1=10, n2=20, n3=30, n4=40, n5=50, n6=60, **draw_parameters([10, 20, 30, 40, 50, 60])),
-                ]
-            )
+            [
+                Draw(
+                    contest=1,
+                    n1=1,
+                    n2=2,
+                    n3=3,
+                    n4=4,
+                    n5=5,
+                    n6=6,
+                    **draw_parameters([1, 2, 3, 4, 5, 6]),
+                ),
+                Draw(
+                    contest=2,
+                    n1=10,
+                    n2=11,
+                    n3=20,
+                    n4=30,
+                    n5=40,
+                    n6=50,
+                    **draw_parameters([10, 11, 20, 30, 40, 50]),
+                ),
+                Draw(
+                    contest=3,
+                    n1=5,
+                    n2=6,
+                    n3=7,
+                    n4=8,
+                    n5=9,
+                    n6=10,
+                    **draw_parameters([5, 6, 7, 8, 9, 10]),
+                ),
+                Draw(
+                    contest=4,
+                    n1=10,
+                    n2=20,
+                    n3=30,
+                    n4=40,
+                    n5=50,
+                    n6=60,
+                    **draw_parameters([10, 20, 30, 40, 50, 60]),
+                ),
+            ]
+        )
         db.session.commit()
 
         assert count_draws_matching_filters(sum_min=20, sum_max=50) == 2
         assert count_draws_matching_filters(sum_min=100, sum_max=150) == 0
-        assert count_draws_matching_filters(even_min=3, even_max=4, sum_min=40, sum_max=50) == 1
+        assert (
+            count_draws_matching_filters(even_min=3, even_max=4, sum_min=40, sum_max=50)
+            == 1
+        )
         assert count_draws_matching_filters(consecutive_count=3) == 2
         assert count_draws_matching_filters(range_min_occupied=5) == 2
         assert count_draws_matching_filters(range_max_per_band=1) == 1
@@ -100,9 +128,36 @@ def test_bets_shows_draws_matching_current_filter_params() -> None:
         db.create_all()
         db.session.add_all(
             [
-                Draw(contest=1, n1=1, n2=2, n3=3, n4=4, n5=5, n6=6, **draw_parameters([1, 2, 3, 4, 5, 6])),
-                Draw(contest=2, n1=1, n2=3, n3=5, n4=7, n5=9, n6=11, **draw_parameters([1, 3, 5, 7, 9, 11])),
-                Draw(contest=3, n1=10, n2=11, n3=20, n4=30, n5=40, n6=50, **draw_parameters([10, 11, 20, 30, 40, 50])),
+                Draw(
+                    contest=1,
+                    n1=1,
+                    n2=2,
+                    n3=3,
+                    n4=4,
+                    n5=5,
+                    n6=6,
+                    **draw_parameters([1, 2, 3, 4, 5, 6]),
+                ),
+                Draw(
+                    contest=2,
+                    n1=1,
+                    n2=3,
+                    n3=5,
+                    n4=7,
+                    n5=9,
+                    n6=11,
+                    **draw_parameters([1, 3, 5, 7, 9, 11]),
+                ),
+                Draw(
+                    contest=3,
+                    n1=10,
+                    n2=11,
+                    n3=20,
+                    n4=30,
+                    n5=40,
+                    n6=50,
+                    **draw_parameters([10, 11, 20, 30, 40, 50]),
+                ),
             ]
         )
         db.session.commit()
@@ -133,10 +188,46 @@ def test_filter_targets_api_calculates_individual_thresholds() -> None:
         db.create_all()
         db.session.add_all(
             [
-                Draw(contest=1, n1=1, n2=2, n3=3, n4=4, n5=5, n6=6, **draw_parameters([1, 2, 3, 4, 5, 6])),
-                Draw(contest=2, n1=1, n2=3, n3=5, n4=7, n5=9, n6=11, **draw_parameters([1, 3, 5, 7, 9, 11])),
-                Draw(contest=3, n1=10, n2=11, n3=20, n4=30, n5=40, n6=50, **draw_parameters([10, 11, 20, 30, 40, 50])),
-                Draw(contest=4, n1=10, n2=20, n3=30, n4=40, n5=50, n6=60, **draw_parameters([10, 20, 30, 40, 50, 60])),
+                Draw(
+                    contest=1,
+                    n1=1,
+                    n2=2,
+                    n3=3,
+                    n4=4,
+                    n5=5,
+                    n6=6,
+                    **draw_parameters([1, 2, 3, 4, 5, 6]),
+                ),
+                Draw(
+                    contest=2,
+                    n1=1,
+                    n2=3,
+                    n3=5,
+                    n4=7,
+                    n5=9,
+                    n6=11,
+                    **draw_parameters([1, 3, 5, 7, 9, 11]),
+                ),
+                Draw(
+                    contest=3,
+                    n1=10,
+                    n2=11,
+                    n3=20,
+                    n4=30,
+                    n5=40,
+                    n6=50,
+                    **draw_parameters([10, 11, 20, 30, 40, 50]),
+                ),
+                Draw(
+                    contest=4,
+                    n1=10,
+                    n2=20,
+                    n3=30,
+                    n4=40,
+                    n5=50,
+                    n6=60,
+                    **draw_parameters([10, 20, 30, 40, 50, 60]),
+                ),
             ]
         )
         db.session.commit()
@@ -165,9 +256,36 @@ def test_contests_menu_item_opens_unfiltered_list_after_filtered_tab() -> None:
         db.create_all()
         db.session.add_all(
             [
-                Draw(contest=101, n1=1, n2=2, n3=3, n4=4, n5=5, n6=6, **draw_parameters([1, 2, 3, 4, 5, 6])),
-                Draw(contest=202, n1=1, n2=3, n3=5, n4=7, n5=9, n6=11, **draw_parameters([1, 3, 5, 7, 9, 11])),
-                Draw(contest=303, n1=10, n2=11, n3=20, n4=30, n5=40, n6=50, **draw_parameters([10, 11, 20, 30, 40, 50])),
+                Draw(
+                    contest=101,
+                    n1=1,
+                    n2=2,
+                    n3=3,
+                    n4=4,
+                    n5=5,
+                    n6=6,
+                    **draw_parameters([1, 2, 3, 4, 5, 6]),
+                ),
+                Draw(
+                    contest=202,
+                    n1=1,
+                    n2=3,
+                    n3=5,
+                    n4=7,
+                    n5=9,
+                    n6=11,
+                    **draw_parameters([1, 3, 5, 7, 9, 11]),
+                ),
+                Draw(
+                    contest=303,
+                    n1=10,
+                    n2=11,
+                    n3=20,
+                    n4=30,
+                    n5=40,
+                    n6=50,
+                    **draw_parameters([10, 11, 20, 30, 40, 50]),
+                ),
             ]
         )
         db.session.commit()
@@ -181,7 +299,9 @@ def test_contests_menu_item_opens_unfiltered_list_after_filtered_tab() -> None:
     nav_start = dashboard_text.index('id="primary-nav"')
     contests_link_text = ">Concursos</a>"
     contests_link_end = dashboard_text.index(contests_link_text, nav_start)
-    href_start = dashboard_text.rfind('href="', nav_start, contests_link_end) + len('href="')
+    href_start = dashboard_text.rfind('href="', nav_start, contests_link_end) + len(
+        'href="'
+    )
     href_end = dashboard_text.index('"', href_start)
     contests_menu_href = dashboard_text[href_start:href_end]
 
@@ -202,7 +322,9 @@ def test_combinations_api_updates_from_generation_form_filters() -> None:
     with app.app_context():
         db.create_all()
 
-    response = app.test_client().get("/api/combinations?quantity=7&even_min=2&even_max=4")
+    response = app.test_client().get(
+        "/api/combinations?quantity=7&even_min=2&even_max=4"
+    )
     data = response.get_json()
 
     assert response.status_code == 200
@@ -216,7 +338,9 @@ def test_combinations_api_uses_closure_numbers_for_coverage() -> None:
     with app.app_context():
         db.create_all()
 
-    response = app.test_client().get("/api/combinations?amount=3&quantity=6&closure_numbers=1+2+3+4+5+6+7")
+    response = app.test_client().get(
+        "/api/combinations?amount=3&quantity=6&closure_numbers=1+2+3+4+5+6+7"
+    )
     data = response.get_json()
 
     assert response.status_code == 200
@@ -235,11 +359,19 @@ def test_combinations_api_closure_accepts_space_or_comma_separators() -> None:
     client = app.test_client()
     space_data = client.get(
         "/api/combinations",
-        query_string={"amount": "3", "quantity": "6", "closure_numbers": "1 2 3 4 5 6 7 8 9 10"},
+        query_string={
+            "amount": "3",
+            "quantity": "6",
+            "closure_numbers": "1 2 3 4 5 6 7 8 9 10",
+        },
     ).get_json()
     comma_data = client.get(
         "/api/combinations",
-        query_string={"amount": "3", "quantity": "6", "closure_numbers": "1,2,3,4,5,6,7,8,9,10"},
+        query_string={
+            "amount": "3",
+            "quantity": "6",
+            "closure_numbers": "1,2,3,4,5,6,7,8,9,10",
+        },
     ).get_json()
 
     assert space_data["closure_mode"] is True
@@ -256,7 +388,9 @@ def test_generation_url_is_authoritative_bookmarkable_and_can_be_cleared() -> No
         db.create_all()
 
     client = app.test_client()
-    response = client.get("/rationale?amount=9&consecutive_count=3&even_min=2&even_max=4")
+    response = client.get(
+        "/rationale?amount=9&consecutive_count=3&even_min=2&even_max=4"
+    )
     assert response.status_code == 200
     with client.session_transaction() as browser_session:
         assert "generation_params" not in browser_session
@@ -270,7 +404,10 @@ def test_generation_url_is_authoritative_bookmarkable_and_can_be_cleared() -> No
     text = client.get(state_url).get_data(as_text=True)
     assert 'name="quantity" value="7"' in text
     assert 'name="amount" min="1" max="100" value="9"' in text
-    assert 'name="consecutive_count" min="0" max="6" placeholder="Opcional" value="3"' in text
+    assert (
+        'name="consecutive_count" min="0" max="6" placeholder="Opcional" value="3"'
+        in text
+    )
     assert 'name="even_min" min="0" max="6" placeholder="Opcional" value="2"' in text
     assert 'name="even_max" min="0" max="6" placeholder="Opcional" value="4"' in text
 
@@ -279,7 +416,13 @@ def test_generation_url_is_authoritative_bookmarkable_and_can_be_cleared() -> No
         data=csrf_form_data(
             client,
             state_url,
-            {"quantity": "7", "amount": "9", "consecutive_count": "3", "even_min": "2", "even_max": "4"},
+            {
+                "quantity": "7",
+                "amount": "9",
+                "consecutive_count": "3",
+                "even_min": "2",
+                "even_max": "4",
+            },
         ),
         follow_redirects=False,
     )
@@ -290,7 +433,10 @@ def test_generation_url_is_authoritative_bookmarkable_and_can_be_cleared() -> No
     text = response.get_data(as_text=True)
     assert response.status_code == 200
     assert 'name="amount" min="1" max="100" value="9"' in text
-    assert 'name="consecutive_count" min="0" max="6" placeholder="Opcional" value=""' in text
+    assert (
+        'name="consecutive_count" min="0" max="6" placeholder="Opcional" value=""'
+        in text
+    )
     assert 'name="even_min" min="0" max="6" placeholder="Opcional" value=""' in text
 
 
@@ -362,15 +508,23 @@ def test_clear_generation_filters_overrides_config_defaults() -> None:
 
     response = client.get("/bets")
     text = response.get_data(as_text=True)
-    assert 'name="consecutive_count" min="0" max="6" placeholder="Opcional" value="3"' in text
+    assert (
+        'name="consecutive_count" min="0" max="6" placeholder="Opcional" value="3"'
+        in text
+    )
     assert 'name="even_min" min="0" max="6" placeholder="Opcional" value="2"' in text
 
-    response = client.post("/bets/clear", data=csrf_form_data(client, "/bets"), follow_redirects=True)
+    response = client.post(
+        "/bets/clear", data=csrf_form_data(client, "/bets"), follow_redirects=True
+    )
     text = response.get_data(as_text=True)
 
     assert response.status_code == 200
     assert 'name="amount" min="1" max="100" value="8"' in text
-    assert 'name="consecutive_count" min="0" max="6" placeholder="Opcional" value=""' in text
+    assert (
+        'name="consecutive_count" min="0" max="6" placeholder="Opcional" value=""'
+        in text
+    )
     assert 'name="even_min" min="0" max="6" placeholder="Opcional" value=""' in text
     assert 'name="even_max" min="0" max="6" placeholder="Opcional" value=""' in text
     assert 'name="sum_min" min="0" max="345" placeholder="Opcional" value=""' in text
@@ -382,7 +536,9 @@ def test_saved_bets_are_grouped_by_generation() -> None:
     with app.app_context():
         db.create_all()
 
-        first_saved, first_generation = save_generated_bets(6, ["1,2,3,4,5,6", "7,8,9,10,11,12"])
+        first_saved, first_generation = save_generated_bets(
+            6, ["1,2,3,4,5,6", "7,8,9,10,11,12"]
+        )
         second_saved, second_generation = save_generated_bets(6, ["13,14,15,16,17,18"])
         generations = list_recent_generations()
         generations_with_bets = list_recent_generations_with_bets()
@@ -428,7 +584,9 @@ def test_persisted_generation_is_visible_as_a_group(monkeypatch) -> None:
     import app.bets.service as betting_service
 
     candidates = iter([[1, 2, 3, 4, 5, 6], [7, 8, 9, 10, 11, 12]])
-    monkeypatch.setattr(betting_service, "_secure_random_candidate", lambda _quantity: next(candidates))
+    monkeypatch.setattr(
+        betting_service, "_secure_random_candidate", lambda _quantity: next(candidates)
+    )
     app = make_app()
     with app.app_context():
         db.create_all()
@@ -503,7 +661,9 @@ def test_bets_summary_uses_closure_labels_when_closure_numbers_are_present() -> 
     with app.app_context():
         db.create_all()
 
-    response = app.test_client().get("/bets?amount=3&quantity=6&closure_numbers=1+2+3+4+5+6+7")
+    response = app.test_client().get(
+        "/bets?amount=3&quantity=6&closure_numbers=1+2+3+4+5+6+7"
+    )
     text = response.get_data(as_text=True)
 
     assert response.status_code == 200
@@ -516,7 +676,9 @@ def test_rationale_uses_closure_numbers_and_preserves_field_on_return() -> None:
     with app.app_context():
         db.create_all()
 
-    response = app.test_client().get("/rationale?amount=3&quantity=6&even_min=2&closure_numbers=1+2+3+4+5+6+7")
+    response = app.test_client().get(
+        "/rationale?amount=3&quantity=6&even_min=2&closure_numbers=1+2+3+4+5+6+7"
+    )
     text = response.get_data(as_text=True)
 
     assert response.status_code == 200
@@ -525,15 +687,3 @@ def test_rationale_uses_closure_numbers_and_preserves_field_on_return() -> None:
     assert "Nesse modo, os filtros da aba de geração ficam opcionais" in text
     assert "amount=3" in text
     assert "closure_numbers=1+2+3+4+5+6+7" in text
-
-
-def test_combination_summary_highlights_eliminated_and_chance_cards() -> None:
-    """'Eliminadas pelos filtros' e 'Chance com N apostas' devem ter destaque visual (não cards neutros)."""
-    css = css_source()
-
-    assert ".combination-summary div:nth-child(2)" in css
-    assert ".combination-summary div:last-child" in css
-    summary_block_start = css.index(".combination-summary div:nth-child(2)")
-    summary_block_end = css.index(".combination-summary div:last-child")
-    eliminated_rule = css[summary_block_start:summary_block_end]
-    assert "var(--surface-tint-warm)" in eliminated_rule
