@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import BinaryIO, Iterable
 from zipfile import BadZipFile, ZipFile
 
-from ..core.numbers import MAX_SQLITE_INTEGER, draw_parameters, parse_int
+from ..core.numbers import MAX_INT32, MAX_INT64, draw_parameters, parse_int
 from ..extensions import db
 from ..models import Draw
 
@@ -83,7 +83,7 @@ def _money_to_cents(value: object) -> int:
         if not amount.is_finite() or amount < 0:
             return 0
         cents = int((amount * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
-        return cents if cents <= MAX_SQLITE_INTEGER else 0
+        return cents if cents <= MAX_INT64 else 0
     except (InvalidOperation, OverflowError, TypeError, ValueError):
         return 0
 
@@ -219,7 +219,8 @@ def import_results_from_xlsx(source: str | Path | BinaryIO) -> dict[str, int]:
                         f"A planilha ultrapassa o limite de {MAX_IMPORT_ROWS} linhas de dados."
                     )
                 contest = parse_int(
-                    row[contest_idx] if contest_idx < len(row) else None
+                    row[contest_idx] if contest_idx < len(row) else None,
+                    max_abs=MAX_INT32,
                 )
                 numbers = [
                     parse_int(row[i] if i < len(row) else None)
@@ -251,13 +252,19 @@ def import_results_from_xlsx(source: str | Path | BinaryIO) -> dict[str, int]:
                     "total_sum": derived["total_sum"],
                     "even_count": derived["even_count"],
                     "consecutive_count": derived["consecutive_count"],
-                    "winners_6": max(parse_int(row[winners_6_idx]) or 0, 0)
+                    "winners_6": max(
+                        parse_int(row[winners_6_idx], max_abs=MAX_INT32) or 0, 0
+                    )
                     if winners_6_idx is not None and winners_6_idx < len(row)
                     else 0,
-                    "winners_5": max(parse_int(row[winners_5_idx]) or 0, 0)
+                    "winners_5": max(
+                        parse_int(row[winners_5_idx], max_abs=MAX_INT32) or 0, 0
+                    )
                     if winners_5_idx is not None and winners_5_idx < len(row)
                     else 0,
-                    "winners_4": max(parse_int(row[winners_4_idx]) or 0, 0)
+                    "winners_4": max(
+                        parse_int(row[winners_4_idx], max_abs=MAX_INT32) or 0, 0
+                    )
                     if winners_4_idx is not None and winners_4_idx < len(row)
                     else 0,
                     "prize_cents": _money_to_cents(row[prize_idx])

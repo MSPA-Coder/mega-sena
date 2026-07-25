@@ -6,6 +6,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 import pytest
 
 from app import db
+from app.core.numbers import MAX_INT32
 from app.draws.importing import import_results_from_xlsx
 from app.models import Config, Draw
 from app.settings.service import get_config_values
@@ -374,6 +375,63 @@ def test_import_rejects_fractional_or_negative_contests_and_normalizes_values() 
         assert draw.quina_rateio_cents == 123_456
         assert draw.accumulated_cents == 0
         assert draw.quadra_rateio_cents == 0
+
+
+def test_import_ignores_rows_beyond_postgres_integer_range() -> None:
+    """Draw.contest e Draw.winners_* são colunas db.Integer (int4 no
+    PostgreSQL). Um contest que caiba em um int64 mas estoure um int32 deve
+    descartar a linha, em vez de propagar até o INSERT e derrubar o lote
+    inteiro com "integer out of range". Um winners_* fora do intervalo segue a
+    mesma normalização já aplicada a outros valores inválidos desse campo
+    (negativo ou não numérico): vira 0, sem descartar a linha."""
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+        result = import_results_from_xlsx(
+            workbook_bytes(
+                [
+                    [
+                        MAX_INT32 + 1,
+                        "01/01/2026",
+                        1,
+                        2,
+                        3,
+                        4,
+                        5,
+                        6,
+                        1,
+                        1,
+                        1,
+                        "1,00",
+                        "1,00",
+                        "1,00",
+                        "1,00",
+                    ],
+                    [
+                        4,
+                        "01/01/2026",
+                        1,
+                        2,
+                        3,
+                        4,
+                        5,
+                        6,
+                        MAX_INT32 + 1,
+                        1,
+                        1,
+                        "1,00",
+                        "1,00",
+                        "1,00",
+                        "1,00",
+                    ],
+                ]
+            )
+        )
+
+        assert result == {"imported": 1, "updated": 0, "ignored": 1}
+        draw = Draw.query.one()
+        assert draw.contest == 4
+        assert draw.winners_6 == 0
 
 
 def test_refresh_draw_parameters_skips_empty_database() -> None:

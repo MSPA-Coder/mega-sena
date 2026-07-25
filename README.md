@@ -88,10 +88,13 @@ As ferramentas de teste e lint já são instaladas na imagem a partir de
 
 ## Escopo atual
 
-O sistema foi projetado para uso local e individual, com SQLite e sem cadastro
-de usuários. A interface aceita apostas e fechamentos de 6 a 15 dezenas; esse é
-um limite operacional do aplicativo, não uma descrição das regras oficiais da
-Mega-Sena. A importação aceita somente `.xlsx`.
+O sistema foi projetado para uso local e individual, sem cadastro de usuários.
+A persistência é PostgreSQL, executado em contêiner conforme descrito acima; o
+SQLite permanece apenas como banco efêmero da suíte de testes isolada
+(`-e DATABASE_URL=`), sem infraestrutura externa. A interface aceita apostas e
+fechamentos de 6 a 15 dezenas; esse é um limite operacional do aplicativo, não
+uma descrição das regras oficiais da Mega-Sena. A importação aceita somente
+`.xlsx`.
 
 Se a aplicação for exposta fora da máquina local, use um servidor WSGI adequado
 e defina uma `SECRET_KEY` estável e secreta. O servidor embutido de `run.py` é
@@ -115,7 +118,7 @@ app/
 |-- static/        # JavaScript e CSS
 |-- templates/     # páginas e componentes Jinja
 |-- models.py      # modelos persistidos
-`-- schema.py      # inicialização, migrações e backups do banco
+`-- schema.py      # aplica as migrações do Alembic na inicialização
 docs/
 migrations/
 scripts/

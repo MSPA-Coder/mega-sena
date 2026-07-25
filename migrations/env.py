@@ -24,7 +24,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
-        render_as_batch=True,
+        render_as_batch=_engine().dialect.name == "sqlite",
     )
     with context.begin_transaction():
         context.run_migrations()

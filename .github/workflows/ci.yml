@@ -42,6 +42,48 @@ jobs:
       - name: Test
         run: python -m pytest -q
 
+  postgres-smoke:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: mega_sena
+          POSTGRES_USER: mega_sena
+          POSTGRES_PASSWORD: mega_sena_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mega_sena -d mega_sena"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgresql+psycopg://mega_sena:mega_sena_ci@localhost:5432/mega_sena
+      SECRET_KEY: ci-postgres-smoke
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install development dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements-dev.txt
+
+      - name: Apply Alembic migrations to PostgreSQL
+        run: python -m flask --app run.py db upgrade
+
+      - name: Verify PostgreSQL connectivity and transactions
+        run: python scripts/verify_postgres.py
+
   dependency-audit:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest

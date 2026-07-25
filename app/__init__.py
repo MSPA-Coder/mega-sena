@@ -71,7 +71,11 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
         db,
         directory=str(base_dir / "migrations"),
         compare_type=True,
-        render_as_batch=True,
+        # O modo batch existe para contornar a falta de ALTER TABLE completo no
+        # SQLite (recria a tabela inteira). No PostgreSQL isso é desnecessário
+        # e mais custoso: forçar batch=True também ali faria `flask db migrate`
+        # autogerar migrações pesadas por padrão nesse dialeto.
+        render_as_batch=database_uri.startswith("sqlite:"),
     )
 
     from .web import bp

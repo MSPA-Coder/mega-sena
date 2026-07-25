@@ -3,10 +3,21 @@ from __future__ import annotations
 from decimal import Decimal, InvalidOperation
 from typing import Iterable
 
-MAX_SQLITE_INTEGER = (1 << 63) - 1
+# Maior inteiro de 64 bits com sinal: cabe tanto no SQLite (afinidade INTEGER
+# dinâmica) quanto nas colunas BigInteger do PostgreSQL (int8). É o limite
+# padrão de parse_int, usado quando o valor não é gravado em uma coluna
+# Integer comum.
+MAX_INT64 = (1 << 63) - 1
+
+# Maior inteiro de 32 bits com sinal: teto real das colunas db.Integer no
+# PostgreSQL (int4). Use este limite ao validar valores que serão gravados em
+# uma coluna Integer (não BigInteger) — por exemplo Draw.contest ou
+# Draw.winners_6 — para rejeitar o valor antes do INSERT em vez de deixar o
+# PostgreSQL derrubar a transação inteira com "integer out of range".
+MAX_INT32 = (1 << 31) - 1
 
 
-def parse_int(value: object) -> int | None:
+def parse_int(value: object, *, max_abs: int = MAX_INT64) -> int | None:
     if isinstance(value, bool):
         return None
     try:
@@ -19,7 +30,7 @@ def parse_int(value: object) -> int | None:
         if not parsed.is_finite() or parsed != parsed.to_integral_value():
             return None
         result = int(parsed)
-        if not -MAX_SQLITE_INTEGER <= result <= MAX_SQLITE_INTEGER:
+        if not -max_abs <= result <= max_abs:
             return None
         return result
     except (InvalidOperation, OverflowError, TypeError, ValueError):

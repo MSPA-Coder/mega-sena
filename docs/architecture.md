@@ -23,9 +23,13 @@ SQLAlchemy e Flask-Migrate, registra as rotas e prepara o banco. Configurações
 podem ser substituídas no factory, o que permite bancos temporários nos testes e
 outros ambientes de execução.
 
-Na inicialização local, `app/schema.py` cria ou atualiza o schema com Alembic.
-Antes de adotar um banco SQLite sem metadados de migração ou aplicar um upgrade,
-o sistema valida o schema e cria um backup consistente quando necessário.
+Na inicialização, `app/schema.py` aplica as migrações do Alembic até a
+revisão mais recente (`flask db upgrade`), tanto em um banco novo quanto em um
+já existente. O PostgreSQL é o único backend de execução suportado — a suíte
+de testes isolada usa SQLite em memória apenas por não exigir infraestrutura
+externa, e o job `postgres-smoke` do CI valida as migrações contra um
+PostgreSQL real. Backups de dados são feitos fora do processo de
+inicialização, com `pg_dump`/`scripts/backup_postgres.ps1`.
 
 ## Módulos
 
