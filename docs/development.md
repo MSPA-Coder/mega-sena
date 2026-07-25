@@ -2,28 +2,30 @@
 
 ## Ambiente
 
+O desenvolvimento padrão usa o Dev Container e os serviços definidos em
+`compose.yaml`. Não crie uma `.venv` no Windows.
+
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements-dev.txt
-python run.py
+Copy-Item .env.docker.example .env.docker
+docker compose --env-file .env.docker up --build -d
 ```
 
-O projeto requer Python 3.11 ou superior.
+Abra `http://127.0.0.1:5001` ou use **Dev Containers: Reopen in Container** no
+VS Code. O Python e todas as dependências são fornecidos pela imagem Docker.
 
 ## Verificações locais
 
 Antes de entregar uma alteração, execute:
 
 ```powershell
-python -m pytest -q
-python -m ruff check app migrations scripts tests run.py
+docker compose --env-file .env.docker run --rm --no-deps -e DATABASE_URL= app python -m pytest -q
+docker compose --env-file .env.docker run --rm --no-deps app python -m ruff check app migrations scripts tests run.py
 ```
 
 Para verificar vulnerabilidades conhecidas nas dependências de runtime:
 
 ```powershell
-python scripts/audit_dependencies.py
+docker compose --env-file .env.docker run --rm --no-deps app python scripts/audit_dependencies.py
 ```
 
 O CI repete lint e testes em Python 3.11 e 3.13. A auditoria também é executada
@@ -59,9 +61,9 @@ Fixtures e builders compartilhados ficam em `tests/conftest.py` e
 O schema é versionado com Flask-Migrate/Alembic. Depois de alterar um modelo:
 
 ```powershell
-flask --app run.py db migrate -m "descrição"
-flask --app run.py db upgrade
-python -m pytest -q tests/integration/test_migrations.py
+docker compose --env-file .env.docker exec app flask --app run.py db migrate -m "descrição"
+docker compose --env-file .env.docker exec app flask --app run.py db upgrade
+docker compose --env-file .env.docker run --rm --no-deps -e DATABASE_URL= app python -m pytest -q tests/integration/test_migrations.py
 ```
 
 Revise a migração gerada: nomes de tabelas e índices, nulabilidade, valores

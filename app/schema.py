@@ -96,8 +96,8 @@ def ensure_database_schema(app: Flask) -> dict[str, str | None]:
         raise RuntimeError(f"Diretório de migrações ausente: {directory}")
 
     if _sqlite_database_path() is None:
-        db.create_all()
-        return {"action": "create_all", "backup": None}
+        upgrade(directory=str(directory))
+        return {"action": "migrated", "backup": None}
 
     inspector = inspect(db.engine)
     tables = set(inspector.get_table_names())

@@ -27,10 +27,10 @@ class Draw(db.Model):
     winners_6 = db.Column(db.Integer, nullable=False, default=0)
     winners_5 = db.Column(db.Integer, nullable=False, default=0)
     winners_4 = db.Column(db.Integer, nullable=False, default=0)
-    prize_cents = db.Column(db.Integer, nullable=False, default=0)
-    accumulated_cents = db.Column(db.Integer, nullable=False, default=0)
-    quina_rateio_cents = db.Column(db.Integer, nullable=False, default=0)
-    quadra_rateio_cents = db.Column(db.Integer, nullable=False, default=0)
+    prize_cents = db.Column(db.BigInteger, nullable=False, default=0)
+    accumulated_cents = db.Column(db.BigInteger, nullable=False, default=0)
+    quina_rateio_cents = db.Column(db.BigInteger, nullable=False, default=0)
+    quadra_rateio_cents = db.Column(db.BigInteger, nullable=False, default=0)
     created_at = db.Column(db.DateTime, default=_utcnow, nullable=False)
 
     @property

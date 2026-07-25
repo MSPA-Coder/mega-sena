@@ -1,0 +1,82 @@
+name: mega-sena
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mega_sena}
+      POSTGRES_USER: ${POSTGRES_USER:-mega_sena}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mega_sena_dev_local}
+      TZ: America/Sao_Paulo
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mega_sena} -d ${POSTGRES_DB:-mega_sena}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    build:
+      context: .
+      secrets:
+        - local_ca
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-mega_sena}:${POSTGRES_PASSWORD:-mega_sena_dev_local}@postgres:5432/${POSTGRES_DB:-mega_sena}
+      SECRET_KEY: ${SECRET_KEY:-development-only-change-me}
+      MEGA_SENA_HOST: 0.0.0.0
+      MEGA_SENA_PORT: "5000"
+      TZ: America/Sao_Paulo
+    ports:
+      - "127.0.0.1:${APP_PORT:-5001}:5000"
+    volumes:
+      - .:/workspace
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["python", "run.py"]
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/', timeout=3)"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  migrate:
+    profiles: ["tools"]
+    build:
+      context: .
+      secrets:
+        - local_ca
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-mega_sena}:${POSTGRES_PASSWORD:-mega_sena_dev_local}@postgres:5432/${POSTGRES_DB:-mega_sena}
+      SECRET_KEY: ${SECRET_KEY:-development-only-change-me}
+      TZ: America/Sao_Paulo
+    volumes:
+      - .:/workspace
+      - ./instance:/sqlite:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command:
+      - sh
+      - -c
+      - >-
+        flask --app run.py db upgrade &&
+        python scripts/migrate_sqlite_to_postgres.py
+        --sqlite /sqlite/mega_sena.db
+        --confirm-reset-postgres
+        --report /workspace/migration_report.json
+
+volumes:
+  postgres_data:
+
+secrets:
+  local_ca:
+    file: .certs/local-root-ca.crt

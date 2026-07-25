@@ -1,0 +1,12 @@
+.git
+.idea
+.venv
+venv
+__pycache__
+.pytest_cache
+.ruff_cache
+*.pyc
+.env.docker
+.certs
+instance
+migration_report.json

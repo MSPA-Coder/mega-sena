@@ -7,5 +7,8 @@ __pycache__/
 dist/
 mega_sena.db
 instance/
+.env.docker
+.certs/
+migration_report.json
 *.xls
 *.xlsx

@@ -16,25 +16,67 @@ análise e organização das combinações.
 - gravação e consulta dos lotes gerados;
 - configuração de valores padrão pela própria interface.
 
-## Executar localmente
+## Desenvolvimento com VS Code, Docker e PostgreSQL
 
-Requisitos: Python 3.11 ou superior e `pip`.
+Este é o ambiente recomendado para executar e desenvolver o projeto. Ele não
+requer `.venv`, Python, Flask ou SQLAlchemy instalados diretamente no Windows:
+as dependências Python ficam dentro do contêiner `app`.
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-python run.py
-```
+O ambiente usa dois contêineres:
 
-Acesse `http://127.0.0.1:5000`. Na primeira execução, a aplicação cria e
-atualiza o banco SQLite em `instance/mega_sena.db` por meio das migrações.
+- `app`: aplicação Flask e ferramentas de desenvolvimento;
+- `postgres`: PostgreSQL 17 com volume persistente.
 
-Para desenvolver, instale também as ferramentas de teste e lint:
+As portas são publicadas somente no loopback do Windows. Para iniciar:
 
 ```powershell
-python -m pip install -r requirements-dev.txt
+Copy-Item .env.docker.example .env.docker
+.\scripts\export_local_ca.ps1
+docker compose --env-file .env.docker up --build -d
 ```
+
+A aplicação fica em `http://127.0.0.1:5001` e o PostgreSQL em
+`127.0.0.1:5433`. O VS Code também pode usar **Dev Containers: Reopen in
+Container**. Nesse modo, o interpretador selecionado é
+`/usr/local/bin/python`, fornecido pela imagem Docker.
+
+Para migrar os dados preservados em `instance/mega_sena.db`:
+
+```powershell
+docker compose --env-file .env.docker --profile tools run --rm migrate
+docker compose --env-file .env.docker exec app python -m scripts.verify_postgres
+```
+
+O migrador substitui apenas os dados das tabelas da aplicação no PostgreSQL,
+preserva os IDs, ajusta as sequências e grava a conferência em
+`migration_report.json`. O SQLite original permanece intacto como cópia de
+segurança.
+
+Para executar a suíte Linux isolada com SQLite temporário:
+
+```powershell
+docker compose --env-file .env.docker run --rm --no-deps -e DATABASE_URL= app python -m pytest -q
+```
+
+Para parar sem remover os dados:
+
+```powershell
+docker compose --env-file .env.docker down
+```
+
+Não use `down -v` sem intenção explícita, pois essa opção remove o volume do
+PostgreSQL.
+
+Para criar um backup em formato próprio do PostgreSQL:
+
+```powershell
+.\scripts\backup_postgres.ps1
+```
+
+Os arquivos `.dump` são gravados em `instance/backups`.
+
+As ferramentas de teste e lint já são instaladas na imagem a partir de
+`requirements-dev.txt`.
 
 ## Fluxo de uso
 
@@ -83,9 +125,9 @@ tests/
 ## Verificação
 
 ```powershell
-python -m pytest -q
-python -m ruff check app migrations scripts tests run.py
-python scripts/audit_dependencies.py
+docker compose --env-file .env.docker run --rm --no-deps -e DATABASE_URL= app python -m pytest -q
+docker compose --env-file .env.docker run --rm --no-deps app python -m ruff check app migrations scripts tests run.py
+docker compose --env-file .env.docker run --rm --no-deps app python scripts/audit_dependencies.py
 ```
 
 O CI executa Ruff e pytest com Python 3.11 e 3.13. A auditoria de dependências

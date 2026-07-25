@@ -30,7 +30,7 @@ def test_fresh_database_is_created_from_migrations(tmp_path: Path) -> None:
         tables = set(inspect(db.engine).get_table_names())
         revision = db.session.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
         assert {"alembic_version", "config", "draws", "generated_bets"} <= tables
-        assert revision == "0002_repair_indexes"
+        assert revision == "0003_expand_money"
     check = app.test_cli_runner().invoke(args=["db", "check"])
     assert check.exit_code == 0, check.output
     assert not backup_dir.exists()
@@ -67,7 +67,7 @@ def test_legacy_database_is_backed_up_stamped_and_preserved(tmp_path: Path) -> N
         assert Draw.query.filter_by(contest=123).count() == 1
         assert GeneratedBet.query.filter_by(generation_id=1).count() == 1
         assert Config.query.filter_by(key="bet_quantity").one().value == "8"
-        assert db.session.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0002_repair_indexes"
+        assert db.session.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0003_expand_money"
         indexes = {index["name"] for index in inspect(db.engine).get_indexes("generated_bets")}
         assert "ix_generated_bets_generation_id" in indexes
 

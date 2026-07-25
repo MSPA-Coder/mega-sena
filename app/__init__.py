@@ -23,10 +23,16 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
     instance_dir = base_dir / "instance"
     instance_dir.mkdir(exist_ok=True)
     database_path = instance_dir / "mega_sena.db"
+    database_uri = os.environ.get(
+        "DATABASE_URL", f"sqlite:///{database_path.as_posix()}"
+    ).strip()
+    engine_options: dict[str, object] = {"pool_pre_ping": True}
+    if database_uri.startswith("sqlite:"):
+        engine_options = {"connect_args": {"timeout": 30}}
 
     app.config.from_mapping(
-        SQLALCHEMY_DATABASE_URI=f"sqlite:///{database_path.as_posix()}",
-        SQLALCHEMY_ENGINE_OPTIONS={"connect_args": {"timeout": 30}},
+        SQLALCHEMY_DATABASE_URI=database_uri,
+        SQLALCHEMY_ENGINE_OPTIONS=engine_options,
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         AUTO_INITIALIZE_DATABASE=True,
         MAX_CONTENT_LENGTH=10 * 1024 * 1024,
