@@ -14,14 +14,19 @@ from ..bets.combinatorics import (
 )
 from ..bets.criteria import (
     GENERATION_FILTER_KEYS,
+    GENERATION_LIMITS,
     GENERATION_PARAM_KEYS,
+    MAX_BET_NUMBERS,
+    MIN_BET_NUMBERS,
     GenerationCriteria,
 )
 from ..bets.service import (
+    count_closure_bets,
     generate_bets,
     generate_closure_bets,
     get_generation_bets,
     list_recent_generations_with_bets,
+    save_closure_bets,
     save_generated_bets,
 )
 from ..core.formatting import format_int, format_percent
@@ -29,6 +34,8 @@ from ..draws.service import count_draws
 from ..settings.service import get_generation_defaults
 from . import bp
 from .helpers import optional_int, plural
+
+CLOSURE_PREVIEW_LIMIT = 200
 
 
 def _parse_number_list(value: str | None) -> list[int]:
@@ -62,7 +69,7 @@ def _apply_closure_mode(
             parsed_numbers = sorted(set(_parse_number_list(closure_numbers)))
         except RuntimeError:
             parsed_numbers = []
-        if 6 <= len(parsed_numbers) <= 15 and all(
+        if MIN_BET_NUMBERS <= len(parsed_numbers) <= MAX_BET_NUMBERS and all(
             1 <= number <= 60 for number in parsed_numbers
         ):
             closure_mode = True
@@ -205,6 +212,8 @@ def clear_bet_generation():
 @bp.route("/bets", methods=["GET", "POST"])
 def bet_generation():
     bets = []
+    closure_total = 0
+    closure_preview_truncated = False
     closure_numbers = request.args.get("closure_numbers", "")
     selected_quantity, selected_filters, selected_amount = _read_generation_state(
         request.args
@@ -223,13 +232,19 @@ def bet_generation():
         selected_quantity = quantity
         if closure_numbers.strip() and action == "generate":
             action = "closure"
-        if action == "save":
+        if action in {"save", "save_closure"}:
             save_quantity = optional_int(request.form.get("quantity")) or quantity
             try:
-                saved, generation_id = save_generated_bets(
-                    quantity=save_quantity,
-                    bets=request.form.getlist("bet"),
-                )
+                if action == "save_closure":
+                    save_quantity = MIN_BET_NUMBERS
+                    saved, generation_id = save_closure_bets(
+                        _parse_number_list(closure_numbers)
+                    )
+                else:
+                    saved, generation_id = save_generated_bets(
+                        quantity=save_quantity,
+                        bets=request.form.getlist("bet"),
+                    )
             except RuntimeError as exc:
                 flash(str(exc))
                 return redirect(
@@ -241,7 +256,8 @@ def bet_generation():
                     )
                 )
             flash(
-                f"{saved} {plural(saved, 'aposta gravada', 'apostas gravadas')} no banco de dados."
+                f"{format_int(saved)} "
+                f"{plural(saved, 'aposta gravada', 'apostas gravadas')} no banco de dados."
             )
             if generation_id is not None:
                 return redirect(
@@ -262,10 +278,17 @@ def bet_generation():
 
         try:
             if action == "closure":
-                bets = generate_closure_bets(_parse_number_list(closure_numbers))
-                generated = len(bets)
+                base_numbers = _parse_number_list(closure_numbers)
+                generated = count_closure_bets(base_numbers)
+                bets = generate_closure_bets(
+                    base_numbers,
+                    limit=CLOSURE_PREVIEW_LIMIT,
+                )
+                closure_total = generated
+                closure_preview_truncated = generated > len(bets)
                 flash(
-                    f"{generated} {plural(generated, 'aposta gerada', 'apostas geradas')} "
+                    f"{format_int(generated)} "
+                    f"{plural(generated, 'aposta gerada', 'apostas geradas')} "
                     "pelo fechamento matemático."
                 )
             else:
@@ -314,6 +337,8 @@ def bet_generation():
     return render_template(
         "bets/index.html",
         bets=bets,
+        closure_total_formatted=format_int(closure_total),
+        closure_preview_truncated=closure_preview_truncated,
         recent_generations=recent_generations,
         selected_generation_bets=selected_generation_bets,
         selected_generation_id=selected_generation_id,
@@ -330,6 +355,7 @@ def bet_generation():
         if chance_with_amount_one_in
         else "0",
         closure_numbers=closure_numbers,
+        generation_limits=GENERATION_LIMITS,
         generation_params=_generation_params(
             selected_quantity, selected_filters, selected_amount
         ),

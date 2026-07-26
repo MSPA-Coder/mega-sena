@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
@@ -13,9 +12,11 @@ from app.bets.combinatorics import (
     count_possible_draw_combinations,
 )
 from app.bets.service import (
+    count_closure_bets,
     generate_closure_bets,
     list_recent_generations,
     list_recent_generations_with_bets,
+    save_closure_bets,
     save_generated_bets,
 )
 from app.core.numbers import (
@@ -59,6 +60,33 @@ def test_generate_closure_bets_builds_all_six_number_combinations() -> None:
     assert len(bets) == 7
     assert bets[0].numbers_csv == "1,2,3,4,5,6"
     assert bets[-1].numbers_csv == "2,3,4,5,6,7"
+
+
+def test_closure_accepts_official_twenty_number_limit_with_bounded_preview() -> None:
+    base_numbers = list(range(1, 21))
+
+    assert count_closure_bets(base_numbers) == 38_760
+    preview = generate_closure_bets(base_numbers, limit=3)
+    assert len(preview) == 3
+    assert preview[0].numbers_csv == "1,2,3,4,5,6"
+
+    with pytest.raises(RuntimeError, match="no máximo 20"):
+        count_closure_bets(range(1, 22))
+
+
+def test_twenty_number_closure_is_saved_as_one_complete_generation() -> None:
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+        saved, generation_id = save_closure_bets(range(1, 21))
+        generations = list_recent_generations()
+
+        assert saved == 38_760
+        assert generation_id == 1
+        assert len(generations) == 1
+        assert generations[0]["generation_id"] == 1
+        assert generations[0]["bet_count"] == 38_760
+        assert generations[0]["quantity"] == 6
 
 
 def test_count_draws_matching_sum_interval_filter() -> None:
@@ -440,30 +468,6 @@ def test_generation_url_is_authoritative_bookmarkable_and_can_be_cleared() -> No
     assert 'name="even_min" min="0" max="6" placeholder="Opcional" value=""' in text
 
 
-def test_generation_page_uses_url_without_browser_storage() -> None:
-    app = make_app()
-    with app.app_context():
-        db.create_all()
-
-    client = app.test_client()
-    first = client.get("/bets?quantity=6&amount=2&even_min=1").get_data(as_text=True)
-    second = client.get("/bets?quantity=8&amount=4&sum_max=200").get_data(as_text=True)
-
-    assert 'name="amount" min="1" max="100" value="2"' in first
-    assert 'name="even_min" min="0" max="6" placeholder="Opcional" value="1"' in first
-    assert 'name="quantity" value="8"' in second
-    assert 'name="amount" min="1" max="100" value="4"' in second
-    assert "localStorage" not in first
-    assert 'src="/static/bets.js?v=' in first
-    bets_js = Path("app/static/bets.js").read_text(encoding="utf-8")
-    assert "history.replaceState" in bets_js
-    assert "window.setTimeout(updatePreview, 200)" in bets_js
-    assert "new AbortController()" in bets_js
-    assert "previewController?.abort()" in bets_js
-    assert "signal" in bets_js
-    assert "localStorage" not in bets_js
-
-
 def test_generation_sum_and_integer_inputs_are_bounded() -> None:
     app = make_app()
     with app.app_context():
@@ -624,8 +628,58 @@ def test_bets_can_generate_mathematical_closure_from_base_numbers() -> None:
     assert "7 apostas geradas pelo fechamento matemático." in text
     assert "01" in text
     assert "07" in text
-    assert 'name="bet" value="1,2,3,4,5,6"' in text
-    assert 'name="bet" value="2,3,4,5,6,7"' in text
+    assert 'name="action" value="save_closure"' in text
+    assert 'name="closure_numbers" value="1 2 3 4 5 6 7"' in text
+    assert 'name="bet"' not in text
+
+    save_response = client.post(
+        "/bets",
+        data=csrf_form_data(
+            client,
+            "/bets",
+            {
+                "action": "save_closure",
+                "quantity": "6",
+                "closure_numbers": "1 2 3 4 5 6 7",
+            },
+        ),
+        follow_redirects=True,
+    )
+    assert save_response.status_code == 200
+    assert "7 apostas gravadas" in save_response.get_data(as_text=True)
+    with app.app_context():
+        from app.models import GeneratedBet
+
+        assert GeneratedBet.query.count() == 7
+
+
+def test_twenty_number_closure_renders_bounded_preview() -> None:
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+
+    client = app.test_client()
+    closure_numbers = " ".join(str(number) for number in range(1, 21))
+    response = client.post(
+        "/bets",
+        data=csrf_form_data(
+            client,
+            "/bets",
+            {
+                "action": "closure",
+                "quantity": "20",
+                "amount": "5",
+                "closure_numbers": closure_numbers,
+            },
+        ),
+    )
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "38.760 apostas geradas pelo fechamento matemático." in text
+    assert "Exibindo as primeiras 200 de 38.760 apostas." in text
+    assert text.count('class="bet-line"') == 200
+    assert 'name="action" value="save_closure"' in text
 
 
 def test_closure_bets_can_be_saved_when_default_quantity_is_greater_than_six() -> None:

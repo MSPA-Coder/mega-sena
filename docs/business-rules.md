@@ -1,79 +1,90 @@
 # Regras funcionais
 
-Este documento descreve o comportamento atual que é relevante para quem usa o
-sistema. Detalhes de implementação, decisões temporárias de refatoração e
-contratos entre arquivos pertencem à documentação de arquitetura ou ao código.
+Este documento descreve o comportamento atual visível para quem usa o sistema.
 
 ## Concursos e importação
 
-- A importação recebe uma planilha `.xlsx` e lê a primeira aba.
-- Cada linha válida precisa identificar o concurso e seis dezenas distintas
+- A importação recebe um arquivo `.xlsx` e lê a primeira planilha.
+- Cada linha válida precisa ter um número de concurso e seis dezenas distintas
   entre 1 e 60.
 - Linhas inválidas ou repetidas no mesmo arquivo são ignoradas.
-- Um concurso ainda inexistente é incluído; um concurso existente é atualizado
-  quando os dados da planilha mudam.
-- Datas, ganhadores e premiações são importados quando as colunas correspondentes
-  estão disponíveis.
-- Uma falha durante a gravação não deixa a importação parcialmente aplicada.
+- Um concurso novo é incluído; um concurso existente é atualizado quando os
+  dados importados mudam.
+- Data, ganhadores e valores de premiação são opcionais e dependem das colunas
+  reconhecidas no arquivo.
+- A gravação é transacional: uma falha não deixa parte do arquivo aplicada.
 
-O upload e o conteúdo descompactado têm limites defensivos para evitar consumo
-excessivo de memória ou arquivos XLSX malformados. Esses valores são proteções
-operacionais, não regras da loteria.
+O upload é limitado a 10 MB e a importação a 10.000 linhas. O conteúdo interno
+do XLSX também é verificado quanto a criptografia, quantidade de arquivos,
+tamanho descompactado e taxa de compressão. São proteções contra arquivos
+corrompidos ou consumo excessivo de recursos, não regras da loteria.
 
 ## Estatísticas
 
-O dashboard usa somente os concursos presentes no banco. O período pode abranger
-todo o histórico importado ou os concursos mais recentes. Frequência, atraso,
-paridade, soma, sequências e premiações descrevem essa amostra; não são previsão
-do próximo resultado.
+O dashboard calcula seus indicadores somente com os concursos presentes no
+banco. O usuário pode considerar todo o histórico importado ou um período
+recente.
+
+Frequência, atraso, soma, paridade, sequências e premiações são descrições dessa
+amostra. Nenhum desses indicadores prevê o próximo concurso.
 
 ## Geração de apostas
 
-- A aplicação aceita atualmente de 6 a 15 dezenas por aposta e de 1 a 100
-  apostas por geração.
+- Cada aposta gerada tem de 6 a 20 dezenas distintas entre 1 e 60.
+- Uma geração solicita de 1 a 100 apostas.
 - Critérios em branco ficam desativados.
-- Os critérios disponíveis controlam sequência consecutiva, quantidade de pares,
-  intervalo da soma, faixas ocupadas e concentração por faixa de dezenas.
-- Uma aposta de mais de seis dezenas só é aceita quando todas as combinações de
-  seis dezenas que ela cobre atendem aos critérios informados.
-- Na geração de seis dezenas, uma combinação igual a um resultado importado é
-  descartada.
-- O gerador procura diversidade dentro do mesmo lote. Com critérios muito
-  restritivos, pode devolver menos apostas do que a quantidade solicitada.
+- Os critérios disponíveis tratam de sequência consecutiva, pares, soma,
+  quantidade de faixas ocupadas e concentração em uma faixa.
+- Para apostas com mais de seis dezenas, todas as combinações internas de seis
+  dezenas precisam satisfazer os critérios escolhidos.
+- Uma combinação de seis dezenas idêntica a um concurso importado é descartada.
+- O gerador evita apostas excessivamente parecidas dentro do mesmo lote.
 
-Os parâmetros exibidos na URL representam o estado atual da tela e permitem
-compartilhar ou reabrir a seleção. Quando a URL não informa parâmetros, a tela
-usa os valores definidos em **Configurações**.
+Filtros restritivos podem impedir que a quantidade solicitada seja alcançada.
+Nesse caso, o sistema entrega as apostas encontradas e informa a redução, em vez
+de continuar tentando indefinidamente.
+
+Os parâmetros da URL representam o estado da tela. Sem parâmetros na URL, são
+usados os valores salvos em **Configurações**.
 
 ## Fechamento
 
-O fechamento recebe atualmente entre 6 e 15 dezenas distintas, todas entre 1 e
-60. Ele gera todas as combinações de seis dezenas contidas no conjunto, ou seja,
-`C(n, 6)` apostas. Nesse modo, os filtros da geração aleatória não são aplicados.
+O fechamento recebe de 6 a 20 dezenas-base distintas e produz todas as
+combinações de seis dezenas contidas no conjunto: `C(n, 6)`. Os filtros da
+geração aleatória não são aplicados nesse modo.
 
-Como o número de combinações cresce rapidamente, 15 é um limite operacional do
-aplicativo. Ele não deve ser interpretado como o máximo oficial permitido pela
-Mega-Sena.
+Essa faixa acompanha a regra oficial, conforme o
+[portal da Mega-Sena da CAIXA](https://loterias.caixa.gov.br/Paginas/Mega-Sena.aspx)
+(consultado em 25 de julho de 2026). Um fechamento de 20 dezenas contém 38.760
+combinações. Para manter a resposta utilizável, a tela mostra uma prévia das
+primeiras 200; ao gravar, o servidor recalcula e persiste o fechamento completo.
 
 ## Relatório combinatório
 
-O universo de referência contém `C(60, 6) = 50.063.860` resultados possíveis.
-O relatório mostra quantas combinações permanecem após cada filtro e quantas são
-cobertas pelas apostas selecionadas. A chance exibida é uma relação matemática
-dentro desse universo filtrado; filtros baseados no histórico não tornam um
-resultado futuro mais provável.
+O universo de referência tem `C(60, 6) = 50.063.860` resultados possíveis. O
+relatório conta quantas combinações permanecem após os filtros e estima quantas
+são cobertas pelas apostas selecionadas.
+
+A cobertura exibida é uma relação matemática no universo filtrado. Ela não
+significa que os resultados mantidos pelos filtros sejam mais prováveis em um
+sorteio futuro.
 
 ## Apostas gravadas
 
-As apostas só são persistidas depois da confirmação do usuário. Ao gravar:
+As apostas geradas só são persistidas depois da confirmação do usuário. Ao
+gravar:
 
-- dezenas são normalizadas e apostas repetidas no mesmo envio são removidas;
+- dezenas são normalizadas;
+- duplicatas do mesmo envio são removidas;
 - as apostas recebem um identificador comum de geração;
-- os lotes recentes podem ser consultados na tela de apostas.
+- lotes recentes ficam disponíveis para consulta.
+
+Um lote pode conter no máximo `C(20, 6) = 38.760` apostas, correspondente ao
+maior fechamento aceito pela interface.
 
 ## Escopo de segurança
 
-Operações que alteram dados exigem token CSRF, e respostas recebem cabeçalhos
-HTTP defensivos. O produto não possui autenticação porque seu escopo atual é o
-uso local e individual. Expor o serviço em rede exige rever esse pressuposto,
-além da configuração e do servidor de execução.
+Operações que alteram dados exigem token CSRF, e as respostas recebem cabeçalhos
+HTTP defensivos. Não há autenticação porque o produto foi desenhado para uso
+local e individual. Expor o serviço em rede muda esse pressuposto e exige
+controles adicionais.

@@ -11,7 +11,12 @@ from ..core.numbers import (
     parse_int,
 )
 from ..models import Draw
-from .criteria import GenerationCriteria, coerce_generation_filters
+from .criteria import (
+    MAX_BET_NUMBERS,
+    MIN_BET_NUMBERS,
+    GenerationCriteria,
+    coerce_generation_filters,
+)
 
 
 @lru_cache(maxsize=1)
@@ -148,7 +153,10 @@ def count_possible_draw_combinations(
 
 def build_combination_report(quantity: int = 6, filters: dict | None = None) -> dict:
     filters = coerce_generation_filters(filters)
-    quantity = max(6, min(parse_int(quantity) or 6, 15))
+    quantity = max(
+        MIN_BET_NUMBERS,
+        min(parse_int(quantity) or MIN_BET_NUMBERS, MAX_BET_NUMBERS),
+    )
     total = math.comb(60, 6)
     remaining = total
     steps = []

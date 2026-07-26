@@ -1,24 +1,31 @@
 # Migrações do banco
 
-As revisões do schema são gerenciadas por Flask-Migrate/Alembic e ficam em
-`migrations/versions/`.
+O schema é versionado com Flask-Migrate/Alembic. As revisões ficam em
+`migrations/versions/` e são usadas tanto pelo SQLite quanto pelo PostgreSQL.
 
-Depois de alterar os modelos, gere e aplique uma nova revisão:
+Depois de alterar os modelos:
 
 ```powershell
 flask --app run.py db migrate -m "descrição"
 flask --app run.py db upgrade
-```
-
-Revise o arquivo gerado antes do commit e valide o fluxo com:
-
-```powershell
 python -m pytest -q tests/integration/test_migrations.py
 ```
 
-A inicialização normal aplica revisões pendentes. Para bancos SQLite existentes,
-o bootstrap cria um backup antes de adotar um schema sem metadados do Alembic ou
-antes de executar um upgrade.
+Se a aplicação estiver no Docker:
 
-Não altere uma revisão que já possa ter sido aplicada em outro banco para
-representar uma mudança nova; adicione uma revisão subsequente.
+```powershell
+docker compose --env-file .env.docker exec app flask --app run.py db migrate -m "descrição"
+docker compose --env-file .env.docker exec app flask --app run.py db upgrade
+```
+
+Revise o arquivo gerado antes do commit, especialmente tipos, nulabilidade,
+valores padrão, índices e transformações de dados. O Alembic usa modo batch para
+SQLite e migrações diretas para PostgreSQL.
+
+A aplicação executa `upgrade` na inicialização. Isso mantém o schema atualizado,
+mas não substitui uma política de backup. Para PostgreSQL, use
+`scripts/backup_postgres.ps1`; para SQLite, preserve uma cópia do arquivo
+`instance/mega_sena.db` antes de uma alteração relevante.
+
+Não modifique uma revisão que já possa ter sido aplicada. Uma mudança adicional
+deve ser representada por uma nova revisão.

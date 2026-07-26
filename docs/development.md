@@ -1,117 +1,143 @@
 # Desenvolvimento
 
-## Ambiente
+## Ambientes
 
-O desenvolvimento padrão usa o Dev Container e os serviços definidos em
-`compose.yaml`. Não crie uma `.venv` no Windows.
+O projeto pode ser desenvolvido no contêiner ou em uma instalação Python local.
+Use o ambiente que melhor atende à alteração; o CI continua sendo a referência
+comum.
+
+### Docker e Dev Container
 
 ```powershell
 Copy-Item .env.docker.example .env.docker
+.\scripts\export_local_ca.ps1
 docker compose --env-file .env.docker up --build -d
 ```
 
-Abra `http://127.0.0.1:5001` ou use **Dev Containers: Reopen in Container** no
-VS Code. O Python e todas as dependências são fornecidos pela imagem Docker.
+A aplicação fica em <http://127.0.0.1:5001>. No VS Code, **Dev Containers:
+Reopen in Container** usa o mesmo contêiner `app`.
 
-## Verificações locais
+### Python local
 
-Antes de entregar uma alteração, execute:
+```powershell
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements-dev.txt
+$env:SECRET_KEY = "chave-de-desenvolvimento"
+python run.py
+```
+
+Sem `DATABASE_URL`, esse modo usa `instance/mega_sena.db` e publica a aplicação
+em <http://127.0.0.1:5000>.
+
+## Qualidade
+
+Execute antes de integrar uma alteração:
+
+```powershell
+python -m ruff check app migrations scripts tests run.py
+python -m pytest -q
+```
+
+No Docker, uma suíte isolada com SQLite temporário pode ser executada sem subir
+o PostgreSQL:
 
 ```powershell
 docker compose --env-file .env.docker run --rm --no-deps -e DATABASE_URL= app python -m pytest -q
 docker compose --env-file .env.docker run --rm --no-deps app python -m ruff check app migrations scripts tests run.py
 ```
 
-Para verificar vulnerabilidades conhecidas nas dependências de runtime:
+A auditoria de dependências de runtime é:
 
 ```powershell
-docker compose --env-file .env.docker run --rm --no-deps app python scripts/audit_dependencies.py
+python scripts/audit_dependencies.py
 ```
 
-O CI repete lint e testes em Python 3.11 e 3.13. A auditoria também é executada
-semanalmente e pode ser acionada manualmente.
+O CI executa Ruff e pytest em Python 3.11 e 3.13, aplica as migrações em um
+PostgreSQL real e verifica as dependências semanalmente ou por acionamento
+manual.
 
-## Estratégia de testes
+## Testes
 
 ```text
-tests/unit/          regras e cálculos sem infraestrutura
-tests/integration/   banco, migrações, importação e serviços
-tests/web/           comportamento HTTP, formulários e segurança
+tests/unit/          regras puras e normalização
+tests/integration/   persistência, migrações, importação e serviços
+tests/web/           contratos HTTP, formulários, navegação e segurança
 ```
 
-Um teste deve proteger comportamento útil e atual. Ao alterar uma funcionalidade:
+Um teste deve proteger um comportamento atual ou um risco relevante:
 
-- teste regras e casos de borda no nível mais baixo que ofereça confiança;
-- prefira resultados observáveis a detalhes de implementação;
-- mantenha testes de segurança, integridade de dados e contratos públicos;
-- atualize ou remova o teste quando o requisito que ele representava deixar de
-  existir.
+- teste a regra no nível mais baixo que ofereça confiança;
+- prefira entradas e resultados observáveis a detalhes internos;
+- preserve cobertura de integridade, segurança e contratos usados pela
+  interface;
+- use testes web quando a mudança envolver fluxo, formulário, acessibilidade ou
+  API;
+- atualize ou remova o teste quando o requisito correspondente mudar.
 
-Evite testes criados apenas para registrar uma fase de refatoração, como afirmar
-que um texto “não existe mais”, que um elemento “foi movido” ou que um módulo
-continua em determinado arquivo. Seletores CSS exatos, proporções de layout e
-redirects de URLs antigas só devem ser fixados por teste quando forem requisitos
-atuais de acessibilidade, usabilidade ou compatibilidade assumida.
-
+Estrutura de arquivos, textos incidentais e detalhes visuais só devem ser
+fixados por testes quando forem parte deliberada do contrato do produto.
 Fixtures e builders compartilhados ficam em `tests/conftest.py` e
 `tests/support.py`.
 
 ## Migrações
 
-O schema é versionado com Flask-Migrate/Alembic. Depois de alterar um modelo:
+Depois de alterar um modelo:
+
+```powershell
+flask --app run.py db migrate -m "descrição"
+flask --app run.py db upgrade
+python -m pytest -q tests/integration/test_migrations.py
+```
+
+No contêiner em execução:
 
 ```powershell
 docker compose --env-file .env.docker exec app flask --app run.py db migrate -m "descrição"
 docker compose --env-file .env.docker exec app flask --app run.py db upgrade
-docker compose --env-file .env.docker run --rm --no-deps -e DATABASE_URL= app python -m pytest -q tests/integration/test_migrations.py
 ```
 
-Revise a migração gerada: nomes de tabelas e índices, nulabilidade, valores
-padrão, transformação de dados e caminho de upgrade. Não edite uma revisão já
-aplicada para representar um novo estado; crie outra revisão.
+Revise nulabilidade, tipos, índices, valores padrão e transformações de dados no
+arquivo gerado. Uma revisão que possa ter sido aplicada em outro banco não deve
+ser reescrita para representar um novo estado; crie uma revisão subsequente.
 
-Nos testes isolados, `db.create_all()` pode ser adequado para preparar um banco
-efêmero quando o objeto do teste não é o processo de migração. A inicialização
-normal da aplicação usa Alembic.
+A inicialização normal aplica as migrações pendentes. Testes que não avaliam o
+processo de migração podem usar `db.create_all()` em bancos descartáveis.
 
-## Alterações em critérios de geração
+## Alterações nos critérios de geração
 
-Os campos e a normalização são centralizados em `app/bets/criteria.py`. Ao criar
-ou mudar um critério, verifique os pontos afetados:
+Os parâmetros são normalizados em `app/bets/criteria.py`. Ao mudar um critério,
+avalie os consumidores relevantes:
 
-1. regra de normalização e avaliação;
-2. geração aleatória e apostas com mais de seis dezenas;
-3. relatório combinatório e racional exibido;
-4. valores padrão persistidos;
-5. formulário, URL e JavaScript da tela;
-6. testes proporcionais ao risco da mudança.
+1. normalização e regra de aceitação;
+2. geração de apostas simples e múltiplas;
+3. relatório combinatório;
+4. valores persistidos em configurações;
+5. formulário, URL e JavaScript;
+6. testes proporcionais ao risco.
 
-Nem toda alteração exige teste em todos os níveis. Cubra a regra onde ela vive e
-adicione um teste web quando houver um contrato HTTP ou fluxo de usuário novo.
+Nem toda mudança precisa de cobertura em todos os níveis.
 
-## Limites operacionais
+## Decisões sobre limites
 
 Antes de adicionar ou conservar um limite, identifique sua razão:
 
-- validade do domínio, como dezenas entre 1 e 60;
-- segurança, como tamanho e expansão de uploads;
-- custo computacional, memória ou tamanho de resposta;
-- clareza da interface.
+- validade do domínio;
+- proteção de recursos ou segurança;
+- custo de processamento, transferência ou armazenamento;
+- clareza e capacidade da interface.
 
-Evite tratar como regra de negócio um número escolhido apenas para facilitar uma
-implementação anterior. Limites externos podem mudar; quando forem derivados de
-uma fonte oficial, documente a fonte e a data de verificação. Limites internos
-devem ser fáceis de localizar, ter mensagem clara e possuir testes de fronteira,
-sem duplicar o mesmo valor desnecessariamente em vários módulos.
+Limites externos devem citar a fonte e a data de verificação. Limites internos
+devem ficar centralizados, ter mensagem compreensível e possuir testes de
+fronteira quando o risco justificar.
 
 ## Organização do código
 
-- mantenha regras reutilizáveis fora das rotas;
-- deixe a fronteira de transação explícita no caso de uso que grava dados;
-- evite dependências da aplicação em `app/core/` quando uma função pura resolve;
-- prefira código direto a camadas genéricas sem uso concreto;
-- preserve compatibilidade apenas quando há consumidor ou URL ainda suportado.
+- mantenha cálculos e regras reutilizáveis fora das rotas;
+- deixe a transação explícita no caso de uso que grava dados;
+- coloque código compartilhado em `app/core` somente quando ele não pertencer a
+  uma funcionalidade específica;
+- prefira código direto a abstrações sem consumidor concreto;
+- mantenha compatibilidade quando houver uso conhecido.
 
-Essas orientações ajudam a revisão, mas não substituem julgamento técnico. Uma
-exceção simples e bem explicada é preferível a uma abstração criada somente para
-obedecer à estrutura atual.
+A estrutura atual é um ponto de partida, não um contrato imutável.

@@ -1,33 +1,24 @@
 # Mega Sena AI
 
-Aplicação web local para importar resultados da Mega-Sena, explorar estatísticas
-e montar apostas com critérios configuráveis. O projeto não prevê sorteios nem
-promete vantagem estatística: frequências históricas e filtros servem para
-análise e organização das combinações.
+Aplicação web para importar resultados da Mega-Sena, consultar estatísticas e
+organizar apostas. Frequências e filtros descrevem o histórico carregado; não
+preveem sorteios nem aumentam a probabilidade matemática de uma combinação.
 
-## Principais recursos
+## Recursos
 
-- importação de resultados por planilha `.xlsx`;
-- dashboard com frequência, soma, paridade, sequências e premiações;
-- consulta e filtragem dos concursos importados;
+- importação e atualização de concursos a partir de planilhas `.xlsx`;
+- dashboard de frequências, somas, paridade, sequências e premiações;
+- consulta de concursos com filtros;
 - geração aleatória de apostas com critérios opcionais;
-- fechamento completo a partir de um conjunto de dezenas;
-- relatório do universo combinatório e da cobertura das apostas;
-- gravação e consulta dos lotes gerados;
-- configuração de valores padrão pela própria interface.
+- fechamento completo de um conjunto de dezenas;
+- relatório do universo combinatório e da cobertura calculada;
+- revisão, gravação e consulta dos lotes de apostas;
+- configuração dos valores iniciais da tela de geração.
 
-## Desenvolvimento com VS Code, Docker e PostgreSQL
+## Início rápido com Docker
 
-Este é o ambiente recomendado para executar e desenvolver o projeto. Ele não
-requer `.venv`, Python, Flask ou SQLAlchemy instalados diretamente no Windows:
-as dependências Python ficam dentro do contêiner `app`.
-
-O ambiente usa dois contêineres:
-
-- `app`: aplicação Flask e ferramentas de desenvolvimento;
-- `postgres`: PostgreSQL 17 com volume persistente.
-
-As portas são publicadas somente no loopback do Windows. Para iniciar:
+O ambiente Docker inclui a aplicação, PostgreSQL 17 e as ferramentas de
+desenvolvimento.
 
 ```powershell
 Copy-Item .env.docker.example .env.docker
@@ -35,97 +26,73 @@ Copy-Item .env.docker.example .env.docker
 docker compose --env-file .env.docker up --build -d
 ```
 
-A aplicação fica em `http://127.0.0.1:5001` e o PostgreSQL em
-`127.0.0.1:5433`. O VS Code também pode usar **Dev Containers: Reopen in
-Container**. Nesse modo, o interpretador selecionado é
-`/usr/local/bin/python`, fornecido pela imagem Docker.
+A aplicação fica em <http://127.0.0.1:5001>. Os dados do PostgreSQL permanecem
+no volume `postgres_data` quando os contêineres são interrompidos.
 
-Para migrar os dados preservados em `instance/mega_sena.db`:
+```powershell
+docker compose --env-file .env.docker down
+```
+
+`docker compose down -v` também remove o volume do banco; use essa opção somente
+quando quiser descartar os dados.
+
+O VS Code pode se conectar ao contêiner `app` com **Dev Containers: Reopen in
+Container**.
+
+## Execução local com SQLite
+
+Sem `DATABASE_URL`, a aplicação usa `instance/mega_sena.db`. Uma instalação
+Python local também é válida:
+
+```powershell
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements-dev.txt
+$env:SECRET_KEY = "substitua-por-uma-chave-local"
+python run.py
+```
+
+Nesse modo, acesse <http://127.0.0.1:5000>. O Alembic cria ou atualiza o schema
+na inicialização tanto no SQLite quanto no PostgreSQL.
+
+## Dados existentes
+
+Para copiar os dados de `instance/mega_sena.db` para o PostgreSQL do Docker:
 
 ```powershell
 docker compose --env-file .env.docker --profile tools run --rm migrate
 docker compose --env-file .env.docker exec app python -m scripts.verify_postgres
 ```
 
-O migrador substitui apenas os dados das tabelas da aplicação no PostgreSQL,
-preserva os IDs, ajusta as sequências e grava a conferência em
-`migration_report.json`. O SQLite original permanece intacto como cópia de
-segurança.
+O comando `migrate` substitui os dados das tabelas da aplicação no PostgreSQL.
+Ele preserva o arquivo SQLite e grava a conferência em
+`migration_report.json`.
 
-Para executar a suíte Linux isolada com SQLite temporário:
-
-```powershell
-docker compose --env-file .env.docker run --rm --no-deps -e DATABASE_URL= app python -m pytest -q
-```
-
-Para parar sem remover os dados:
-
-```powershell
-docker compose --env-file .env.docker down
-```
-
-Não use `down -v` sem intenção explícita, pois essa opção remove o volume do
-PostgreSQL.
-
-Para criar um backup em formato próprio do PostgreSQL:
+Para criar um backup do PostgreSQL:
 
 ```powershell
 .\scripts\backup_postgres.ps1
 ```
 
-Os arquivos `.dump` são gravados em `instance/backups`.
+Os arquivos são gravados em `instance/backups/`.
 
-As ferramentas de teste e lint já são instaladas na imagem a partir de
-`requirements-dev.txt`.
+## Uso
 
-## Fluxo de uso
+1. Importe uma planilha em **Concursos**.
+2. Explore o dashboard ou filtre os concursos carregados.
+3. Em **Apostas**, escolha a quantidade de dezenas e os critérios, ou informe
+   as dezenas-base de um fechamento.
+4. Revise o resultado e grave somente os lotes que quiser conservar.
+5. Ajuste os valores iniciais em **Configurações**.
 
-1. Em **Concursos**, importe uma planilha `.xlsx` com os resultados.
-2. Consulte o dashboard e a lista de concursos.
-3. Em **Apostas**, ajuste os critérios ou informe as dezenas de um fechamento.
-4. Revise as combinações geradas e grave apenas os lotes que quiser conservar.
-5. Em **Configurações**, altere os valores iniciais usados pela tela de apostas.
-
-## Escopo atual
-
-O sistema foi projetado para uso local e individual, sem cadastro de usuários.
-A persistência é PostgreSQL, executado em contêiner conforme descrito acima; o
-SQLite permanece apenas como banco efêmero da suíte de testes isolada
-(`-e DATABASE_URL=`), sem infraestrutura externa. A interface aceita apostas e
-fechamentos de 6 a 15 dezenas; esse é um limite operacional do aplicativo, não
-uma descrição das regras oficiais da Mega-Sena. A importação aceita somente
-`.xlsx`.
-
-Se a aplicação for exposta fora da máquina local, use um servidor WSGI adequado
-e defina uma `SECRET_KEY` estável e secreta. O servidor embutido de `run.py` é
-destinado ao uso local.
-
-## Documentação
-
-- [Arquitetura](docs/architecture.md): organização e responsabilidades atuais.
-- [Regras funcionais](docs/business-rules.md): comportamento observado pelo usuário.
-- [Desenvolvimento](docs/development.md): ambiente, testes, migrações e critérios de manutenção.
-
-## Estrutura
-
-```text
-app/
-|-- bets/          # critérios, geração e cálculos combinatórios
-|-- core/          # utilitários compartilhados e segurança HTTP
-|-- draws/         # importação, consultas e estatísticas
-|-- settings/      # configurações e manutenção dos dados
-|-- web/           # rotas e adaptação HTTP
-|-- static/        # JavaScript e CSS
-|-- templates/     # páginas e componentes Jinja
-|-- models.py      # modelos persistidos
-`-- schema.py      # aplica as migrações do Alembic na inicialização
-docs/
-migrations/
-scripts/
-tests/
-```
+O sistema é voltado ao uso local e individual e não possui autenticação. A
+interface aceita de 6 a 20 dezenas, conforme a faixa oficial da Mega-Sena, e
+até 100 apostas por geração. Veja as regras e as proteções operacionais em
+[Regras funcionais](docs/business-rules.md).
 
 ## Verificação
+
+No ambiente Docker:
 
 ```powershell
 docker compose --env-file .env.docker run --rm --no-deps -e DATABASE_URL= app python -m pytest -q
@@ -133,5 +100,41 @@ docker compose --env-file .env.docker run --rm --no-deps app python -m ruff chec
 docker compose --env-file .env.docker run --rm --no-deps app python scripts/audit_dependencies.py
 ```
 
-O CI executa Ruff e pytest com Python 3.11 e 3.13. A auditoria de dependências
-é executada no acionamento manual do workflow e na rotina semanal.
+Em um ambiente Python com `requirements-dev.txt` instalado, os mesmos comandos
+podem ser executados diretamente:
+
+```powershell
+python -m pytest -q
+python -m ruff check app migrations scripts tests run.py
+python scripts/audit_dependencies.py
+```
+
+O CI executa Ruff e pytest em Python 3.11 e 3.13, valida as migrações em
+PostgreSQL e executa a auditoria de dependências semanalmente ou por acionamento
+manual.
+
+## Documentação
+
+- [Arquitetura](docs/architecture.md)
+- [Regras funcionais](docs/business-rules.md)
+- [Desenvolvimento](docs/development.md)
+- [Migrações](migrations/README)
+
+## Estrutura
+
+```text
+app/
+├── bets/          # critérios, geração e combinatória
+├── core/          # utilitários e proteções HTTP
+├── draws/         # importação, consultas e estatísticas
+├── settings/      # preferências e manutenção dos dados
+├── web/           # rotas e adaptação HTTP
+├── static/        # JavaScript e CSS
+├── templates/     # páginas e componentes Jinja
+├── models.py
+└── schema.py
+docs/
+migrations/
+scripts/
+tests/
+```

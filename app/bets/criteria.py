@@ -20,8 +20,10 @@ GENERATION_FILTER_KEYS = (
     "range_max_per_band",
 )
 GENERATION_PARAM_KEYS = ("quantity", "amount", *GENERATION_FILTER_KEYS)
+MIN_BET_NUMBERS = 6
+MAX_BET_NUMBERS = 20
 GENERATION_LIMITS = {
-    "quantity": (6, 15),
+    "quantity": (MIN_BET_NUMBERS, MAX_BET_NUMBERS),
     "amount": (1, 100),
     "consecutive_count": (0, 6),
     "even_min": (0, 6),

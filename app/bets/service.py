@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import math
 import secrets
-from itertools import combinations
+from itertools import combinations, islice
 from threading import Lock
 from typing import Iterable
 
@@ -16,10 +16,15 @@ from ..core.numbers import (
 from ..draws.statistics import all_draw_numbers
 from ..extensions import db
 from ..models import GeneratedBet
-from .criteria import GenerationCriteria, coerce_generation_filters
+from .criteria import (
+    MAX_BET_NUMBERS,
+    MIN_BET_NUMBERS,
+    GenerationCriteria,
+    coerce_generation_filters,
+)
 
 _log = logging.getLogger(__name__)
-MAX_SAVED_BETS = math.comb(15, 6)
+MAX_SAVED_BETS = math.comb(MAX_BET_NUMBERS, MIN_BET_NUMBERS)
 _GENERATION_SAVE_LOCK = Lock()
 _RNG = secrets.SystemRandom()
 
@@ -86,7 +91,11 @@ def generate_bets(
     persist: bool = True,
     filters: dict | None = None,
 ) -> list[GeneratedBet]:
-    quantity = clamp_int(parse_int(quantity) or 6, 6, 15)
+    quantity = clamp_int(
+        parse_int(quantity) or MIN_BET_NUMBERS,
+        MIN_BET_NUMBERS,
+        MAX_BET_NUMBERS,
+    )
     amount = clamp_int(parse_int(amount) or 1, 1, 100)
     filters = coerce_generation_filters(filters)
     draws = all_draw_numbers()
@@ -127,24 +136,40 @@ def generate_bets(
     return created
 
 
-def generate_closure_bets(numbers: Iterable[int]) -> list[GeneratedBet]:
+def _normalize_closure_numbers(numbers: Iterable[int]) -> list[int]:
     base_numbers = sorted(set(numbers))
-    if len(base_numbers) < 6:
+    if len(base_numbers) < MIN_BET_NUMBERS:
         raise RuntimeError(
             "Informe pelo menos 6 dezenas distintas para gerar um fechamento matemático."
         )
-    if len(base_numbers) > 15:
-        raise RuntimeError("Use no máximo 15 dezenas no fechamento matemático.")
+    if len(base_numbers) > MAX_BET_NUMBERS:
+        raise RuntimeError(
+            f"Use no máximo {MAX_BET_NUMBERS} dezenas no fechamento matemático."
+        )
     if any(number < 1 or number > 60 for number in base_numbers):
         raise RuntimeError("As dezenas do fechamento devem estar entre 1 e 60.")
+    return base_numbers
 
+
+def count_closure_bets(numbers: Iterable[int]) -> int:
+    base_numbers = _normalize_closure_numbers(numbers)
+    return math.comb(len(base_numbers), MIN_BET_NUMBERS)
+
+
+def generate_closure_bets(
+    numbers: Iterable[int], *, limit: int | None = None
+) -> list[GeneratedBet]:
+    base_numbers = _normalize_closure_numbers(numbers)
+    generated_combinations = combinations(base_numbers, MIN_BET_NUMBERS)
+    if limit is not None:
+        generated_combinations = islice(generated_combinations, max(0, limit))
     return [
         GeneratedBet(
-            quantity=6,
+            quantity=MIN_BET_NUMBERS,
             numbers_csv=",".join(map(str, combination)),
             score=0,
         )
-        for combination in combinations(base_numbers, 6)
+        for combination in generated_combinations
     ]
 
 
@@ -206,8 +231,12 @@ def get_generation_bets(generation_id: int) -> list[GeneratedBet]:
 
 
 def save_generated_bets(quantity: int, bets: Iterable[str]) -> tuple[int, int | None]:
-    quantity = clamp_int(parse_int(quantity) or 6, 6, 15)
-    valid_bets = []
+    quantity = clamp_int(
+        parse_int(quantity) or MIN_BET_NUMBERS,
+        MIN_BET_NUMBERS,
+        MAX_BET_NUMBERS,
+    )
+    valid_bets: list[GeneratedBet] = []
     seen_bets: set[str] = set()
     for index, numbers_csv in enumerate(bets, start=1):
         if index > MAX_SAVED_BETS:
@@ -225,19 +254,30 @@ def save_generated_bets(quantity: int, bets: Iterable[str]) -> tuple[int, int | 
         normalized_bet = ",".join(map(str, nums))
         if normalized_bet not in seen_bets:
             seen_bets.add(normalized_bet)
-            valid_bets.append(normalized_bet)
+            valid_bets.append(
+                GeneratedBet(
+                    quantity=quantity,
+                    numbers_csv=normalized_bet,
+                    score=0,
+                )
+            )
 
     if not valid_bets:
         return 0, None
 
     # O servidor local do Flask pode atender requisicoes em threads diferentes;
     # a persistencia compartilhada serializa a alocacao do ID do lote.
-    models = [
-        GeneratedBet(quantity=quantity, numbers_csv=numbers_csv, score=0)
-        for numbers_csv in valid_bets
-    ]
-    generation_id = _persist_bet_batch(models)
+    generation_id = _persist_bet_batch(valid_bets)
     if generation_id is None:  # protegido pelo teste de valid_bets acima
         return 0, None
     _log.info("Apostas salvas: %d na geração #%d.", len(valid_bets), generation_id)
     return len(valid_bets), generation_id
+
+
+def save_closure_bets(numbers: Iterable[int]) -> tuple[int, int | None]:
+    base_numbers = _normalize_closure_numbers(numbers)
+    serialized_bets = (
+        ",".join(map(str, combination))
+        for combination in combinations(base_numbers, MIN_BET_NUMBERS)
+    )
+    return save_generated_bets(MIN_BET_NUMBERS, serialized_bets)

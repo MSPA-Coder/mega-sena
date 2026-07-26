@@ -7,8 +7,8 @@
     <p>Valores padrão usados ao abrir a geração e o racional.</p>
     <form method="post" action="{{ url_for('web.save_settings') }}" class="form-grid settings-grid">
         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-        <label>Números por aposta<input type="number" name="bet_quantity" min="6" max="15" value="{{ config_values.bet_quantity }}"></label>
-        <label>Quantas apostas deseja gerar<input type="number" name="generation_amount" min="1" max="100" value="{{ config_values.generation_amount }}"></label>
+        <label>Números por aposta<input type="number" name="bet_quantity" min="{{ generation_limits['quantity'][0] }}" max="{{ generation_limits['quantity'][1] }}" value="{{ config_values.bet_quantity }}"></label>
+        <label>Quantas apostas deseja gerar<input type="number" name="generation_amount" min="{{ generation_limits['amount'][0] }}" max="{{ generation_limits['amount'][1] }}" value="{{ config_values.generation_amount }}"></label>
         <label>Maior sequência consecutiva permitida<input type="number" name="consecutive_count" min="0" max="6" placeholder="Opcional" value="{{ config_values.consecutive_count }}"></label>
         <label>Mínimo de números pares<input type="number" name="even_min" min="0" max="6" placeholder="Opcional" value="{{ config_values.even_min }}"></label>
         <label>Máximo de números pares<input type="number" name="even_max" min="0" max="6" placeholder="Opcional" value="{{ config_values.even_max }}"></label>

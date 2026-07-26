@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from flask import jsonify, redirect, render_template, request, url_for
 
-from ..draws.statistics import build_recent_frequency, build_stats
+from ..draws.statistics import build_stats
 from . import bp
 from .helpers import optional_int
 
@@ -24,11 +24,6 @@ def _bounded_period() -> int | None:
     raw = request.args.get("count", "").strip()
     count = optional_int(raw) if raw else None
     return max(10, min(count, 10_000)) if count is not None else None
-
-
-@bp.get("/api/recent-frequency")
-def recent_frequency():
-    return jsonify(build_recent_frequency(_bounded_period()))
 
 
 @bp.get("/api/dashboard-stats")

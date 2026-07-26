@@ -82,7 +82,7 @@ jobs:
         run: python -m flask --app run.py db upgrade
 
       - name: Verify PostgreSQL connectivity and transactions
-        run: python scripts/verify_postgres.py
+        run: python -m scripts.verify_postgres
 
   dependency-audit:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'

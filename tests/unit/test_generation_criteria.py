@@ -17,7 +17,7 @@ def test_generation_criteria_normalize_bounds_and_cross_field_rules() -> None:
         }
     )
 
-    assert params.quantity == 15
+    assert params.quantity == 20
     assert params.amount == 1
     assert params.even_min == 5
     assert params.even_max == 5

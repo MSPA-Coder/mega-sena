@@ -6,6 +6,7 @@ import logging
 
 from flask import flash, redirect, render_template, request, url_for
 
+from ..bets.criteria import GENERATION_LIMITS
 from ..settings.service import get_config_values, reset_all_data, update_config_values
 from . import bp
 
@@ -15,7 +16,11 @@ _log = logging.getLogger(__name__)
 
 @bp.get("/settings")
 def settings_page():
-    return render_template("settings/index.html", config_values=get_config_values())
+    return render_template(
+        "settings/index.html",
+        config_values=get_config_values(),
+        generation_limits=GENERATION_LIMITS,
+    )
 
 
 @bp.post("/settings")

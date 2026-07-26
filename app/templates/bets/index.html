@@ -13,7 +13,7 @@
   <h2 class="form-title">Parâmetros para a Geração das Apostas</h2>
   <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" data-csrf-token>
   <input type="hidden" name="quantity" value="{{ selected_quantity }}">
-  <label>Quantas apostas deseja gerar?<input type="number" name="amount" min="1" max="100" value="{{ selected_amount }}"></label>
+  <label>Quantas apostas deseja gerar?<input type="number" name="amount" min="{{ generation_limits['amount'][0] }}" max="{{ generation_limits['amount'][1] }}" value="{{ selected_amount }}"></label>
   <label>Maior sequência consecutiva permitida<input type="number" name="consecutive_count" min="0" max="6" placeholder="Opcional" value="{{ selected_filters.consecutive_count if selected_filters.consecutive_count is not none else '' }}"></label>
   <label>Mínimo de números pares<input type="number" name="even_min" min="0" max="6" placeholder="Opcional" value="{{ selected_filters.even_min if selected_filters.even_min is not none else '' }}"></label>
   <label>Máximo de números pares<input type="number" name="even_max" min="0" max="6" placeholder="Opcional" value="{{ selected_filters.even_max if selected_filters.even_max is not none else '' }}"></label>
@@ -122,13 +122,19 @@
 {% if bets %}
 <section class="panel">
   <div class="panel-header">
-    <h2>Apostas geradas</h2>
+    <h2>{{ 'Prévia do fechamento' if closure_preview_truncated else 'Apostas geradas' }}</h2>
   </div>
+  {% if closure_preview_truncated %}
+    <p class="muted">Exibindo as primeiras {{ bets|length }} de {{ closure_total_formatted }} apostas. Ao gravar, o fechamento completo será recalculado a partir das dezenas informadas.</p>
+  {% endif %}
   <form method="post">
     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-    <input type="hidden" name="action" value="save">
+    <input type="hidden" name="action" value="{{ 'save_closure' if closure_mode else 'save' }}">
     <input type="hidden" name="quantity" value="{{ bets[0].quantity }}">
     <input type="hidden" name="amount" value="{{ selected_amount }}">
+    {% if closure_mode %}
+      <input type="hidden" name="closure_numbers" value="{{ closure_numbers }}">
+    {% endif %}
     {% for key, value in selected_filters.items() %}
       {% if value is not none %}
         <input type="hidden" name="{{ key }}" value="{{ value }}">
@@ -137,7 +143,9 @@
     <div class="generated-bets-grid">
       {% for bet in bets %}
         <div class="bet-line">
-          <input type="hidden" name="bet" value="{{ bet.numbers_csv }}">
+          {% if not closure_mode %}
+            <input type="hidden" name="bet" value="{{ bet.numbers_csv }}">
+          {% endif %}
           {{ render_balls(bet.numbers) }}
           <small>Diversidade {{ "%.2f"|format(bet.score) }}</small>
         </div>

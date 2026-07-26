@@ -172,38 +172,3 @@ def ensure_draw_parameters_current() -> int:
         marker.value = _DRAW_PARAMETERS_VERSION
     db.session.commit()
     return updated
-
-
-def build_recent_frequency(count: int | None) -> dict:
-    """
-    Frequência de aparição de cada dezena nos últimos `count` concursos.
-    Se `count` for None, considera todos os concursos históricos.
-    """
-    query = Draw.query.order_by(Draw.contest.desc())
-    if count is not None:
-        query = query.limit(count)
-    draws = query.all()
-
-    if not draws:
-        return {
-            "count": count,
-            "actual_count": 0,
-            "frequency": {str(n): 0 for n in range(1, 61)},
-            "max_frequency": 0,
-            "most_frequent": [],
-            "least_frequent": [],
-        }
-
-    flat = [n for draw in draws for n in draw.numbers]
-    freq: Counter[int] = Counter(flat)
-    for n in range(1, 61):
-        freq.setdefault(n, 0)
-
-    return {
-        "count": count,
-        "actual_count": len(draws),
-        "frequency": {str(n): freq[n] for n in range(1, 61)},
-        "max_frequency": max(freq.values()),
-        "most_frequent": freq.most_common(10),
-        "least_frequent": sorted(freq.items(), key=lambda kv: (kv[1], kv[0]))[:10],
-    }
