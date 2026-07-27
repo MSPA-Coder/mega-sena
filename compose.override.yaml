@@ -1,0 +1,18 @@
+# Overrides de desenvolvimento, mesclados automaticamente pelo Docker Compose
+# quando presente (nenhuma flag extra necessária: `docker compose up` já usa
+# este arquivo além de compose.yaml). Troca para a imagem `dev` (ferramentas
+# de teste/lint) e monta o código via bind mount para edição ao vivo. Nada
+# aqui muda a separação entre aplicação e migrações: docker-entrypoint.sh
+# continua sendo o único lugar que aplica `flask db upgrade`/`seed-defaults`,
+# tanto aqui quanto em produção.
+
+services:
+  app:
+    build:
+      target: dev
+    volumes:
+      - .:/app
+
+  migrate:
+    build:
+      target: dev

@@ -25,16 +25,29 @@ servidor.
 `app.create_app()` é a factory da aplicação. Ela:
 
 1. carrega a configuração padrão e as substituições recebidas;
-2. escolhe o banco por `DATABASE_URL`, usando SQLite local quando a variável
-   não está definida;
+2. exige `DATABASE_URL` apontando para PostgreSQL — a aplicação recusa iniciar
+   sem uma URL válida; SQLite não é um backend operacional (a única leitura
+   legítima de SQLite no projeto é o script explícito de importação de base
+   legada, `scripts/migrate_sqlite_to_postgres.py`, que não passa por esta
+   fábrica);
 3. inicializa SQLAlchemy e Flask-Migrate;
-4. registra o blueprint web e os filtros Jinja;
-5. aplica as migrações pendentes;
-6. garante as configurações iniciais e os parâmetros derivados dos concursos.
+4. registra o blueprint web, os filtros Jinja e o comando `flask seed-defaults`.
 
-O Docker Compose define `DATABASE_URL` para PostgreSQL. SQLite e PostgreSQL usam
-o mesmo conjunto de modelos e revisões do Alembic; o modo batch é habilitado
-somente para migrações SQLite.
+`create_app()` nunca aplica migrações nem grava dados por conta própria —
+nenhuma consulta ao banco acontece durante a construção da aplicação. Isso é
+deliberado: `flask db upgrade` precisa conseguir carregar a aplicação (via
+`run.py`) só para descobrir a configuração do banco, antes de o schema
+existir. Migrações e seed de dados são etapas controladas e separadas,
+executadas nesta ordem antes de iniciar o servidor:
+
+1. `flask --app run.py db upgrade` — aplica as revisões pendentes do Alembic;
+2. `flask --app run.py seed-defaults` — garante configuração padrão e
+   parâmetros derivados dos concursos.
+
+Em Docker, `docker-entrypoint.sh` executa essas duas etapas a cada início de
+contêiner (idempotentes) antes de `exec` no processo do servidor (gunicorn em
+produção, `python run.py` em desenvolvimento). Fora do Docker, rode os dois
+comandos manualmente após qualquer alteração de schema.
 
 ## Módulos
 
@@ -72,9 +85,10 @@ e apostas solicitada pelo usuário.
 - `GeneratedBet`, para apostas agrupadas por geração;
 - `Config`, para preferências persistidas.
 
-Alterações de schema são feitas em revisões de `migrations/versions/`. A
-aplicação aplica as revisões pendentes ao iniciar; backups continuam sendo uma
-responsabilidade operacional separada.
+Alterações de schema são feitas em revisões de `migrations/versions/`, aplicadas
+por `flask db upgrade` como etapa controlada (nunca automaticamente pela
+aplicação — veja "Inicialização e configuração"). Backups continuam sendo uma
+responsabilidade operacional separada (`scripts/backup_postgres.ps1`).
 
 ## Interface
 
@@ -92,10 +106,18 @@ O escopo padrão é local:
 - as respostas recebem CSP e outros cabeçalhos defensivos;
 - cookies de sessão usam `HttpOnly` e `SameSite=Lax`.
 
-Esse conjunto não substitui autenticação, TLS ou um servidor WSGI de produção.
-Qualquer exposição em rede exige definir uma `SECRET_KEY` estável, revisar
-`TRUSTED_HOSTS`, adicionar controle de acesso e escolher uma estratégia de
-implantação apropriada.
+A imagem de produção (`Dockerfile`, estágio `runtime`) roda a aplicação sob
+gunicorn (WSGI), com usuário não-root e sem bind mount — imutável entre
+implantações. `compose.override.yaml`, mesclado automaticamente em
+desenvolvimento, troca para o estágio `dev` (bind mount, servidor de
+desenvolvimento do Flask); a imagem de produção é obtida ignorando esse
+override (`docker compose -f compose.yaml ...`).
+
+Esse conjunto não substitui autenticação, TLS ou um proxy reverso adequado à
+rede em que a aplicação for exposta. Qualquer exposição fora de `localhost`
+exige definir uma `SECRET_KEY` estável, revisar `TRUSTED_HOSTS`, adicionar
+controle de acesso e escolher uma estratégia de implantação apropriada (TLS
+terminado por um proxy reverso, por exemplo).
 
 ## Critérios para evolução
 

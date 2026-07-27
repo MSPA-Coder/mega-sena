@@ -19,31 +19,43 @@ Reopen in Container** usa o mesmo contêiner `app`.
 
 ### Python local
 
+PostgreSQL é o único backend suportado; use o serviço do Docker Compose
+(`127.0.0.1:5433` por padrão) ou uma instalação local.
+
 ```powershell
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements-dev.txt
 $env:SECRET_KEY = "chave-de-desenvolvimento"
+$env:DATABASE_URL = "postgresql+psycopg://mega_sena:mega_sena_dev_local@127.0.0.1:5433/mega_sena"
+python -m flask --app run.py db upgrade
+python -m flask --app run.py seed-defaults
 python run.py
 ```
 
-Sem `DATABASE_URL`, esse modo usa `instance/mega_sena.db` e publica a aplicação
-em <http://127.0.0.1:5000>.
+A aplicação publica em <http://127.0.0.1:5000>. `db upgrade` e `seed-defaults`
+são comandos explícitos: `create_app()` não migra nem grava dados por conta
+própria (veja [Arquitetura](architecture.md)); rode-os de novo depois de
+qualquer alteração de schema.
 
 ## Qualidade
 
-Execute antes de integrar uma alteração:
+A suíte de testes exige um PostgreSQL descartável (`TEST_DATABASE_URL`, ou
+`DATABASE_URL` como alternativa); nenhum teste usa SQLite para simular
+persistência. Testes puros de `tests/unit/` não tocam o banco.
 
 ```powershell
+$env:TEST_DATABASE_URL = "postgresql+psycopg://mega_sena:mega_sena_dev_local@127.0.0.1:5433/mega_sena_test"
 python -m ruff check app migrations scripts tests run.py
 python -m pytest -q
 ```
 
-No Docker, uma suíte isolada com SQLite temporário pode ser executada sem subir
-o PostgreSQL:
+No Docker, aponte para o banco descartável exposto pelo serviço `postgres`:
 
 ```powershell
-docker compose --env-file .env.docker run --rm --no-deps -e DATABASE_URL= app python -m pytest -q
+docker compose --env-file .env.docker run --rm --no-deps `
+  -e TEST_DATABASE_URL=postgresql+psycopg://mega_sena:mega_sena_dev_local@postgres:5432/mega_sena_test `
+  app python -m pytest -q
 docker compose --env-file .env.docker run --rm --no-deps app python -m ruff check app migrations scripts tests run.py
 ```
 
@@ -53,9 +65,9 @@ A auditoria de dependências de runtime é:
 python scripts/audit_dependencies.py
 ```
 
-O CI executa Ruff e pytest em Python 3.11 e 3.13, aplica as migrações em um
-PostgreSQL real e verifica as dependências semanalmente ou por acionamento
-manual.
+O CI executa Ruff e a suíte completa em Python 3.11 e 3.13 contra PostgreSQL
+real, valida o fluxo de migração + seed + smoke transacional, e verifica as
+dependências semanalmente ou por acionamento manual.
 
 ## Testes
 
@@ -101,8 +113,12 @@ Revise nulabilidade, tipos, índices, valores padrão e transformações de dado
 arquivo gerado. Uma revisão que possa ter sido aplicada em outro banco não deve
 ser reescrita para representar um novo estado; crie uma revisão subsequente.
 
-A inicialização normal aplica as migrações pendentes. Testes que não avaliam o
-processo de migração podem usar `db.create_all()` em bancos descartáveis.
+Migrações são aplicadas por uma etapa controlada e separada (`flask db
+upgrade`), nunca automaticamente pela aplicação — veja
+[Arquitetura](architecture.md). A suíte de testes aplica o schema uma única
+vez por processo contra o PostgreSQL descartável; os `db.create_all()` que
+aparecem em testes individuais são idempotentes e servem como salvaguarda, não
+como substituto das migrações.
 
 ## Alterações nos critérios de geração
 

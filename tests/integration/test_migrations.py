@@ -1,35 +1,72 @@
 from __future__ import annotations
 
-from pathlib import Path
+import uuid
 
+import sqlalchemy as sa
 from sqlalchemy import inspect, text
 
 from app import create_app, db
+from app.schema import ensure_database_schema
+from tests.support import get_test_database_url
 
 
-def _config(database_path: Path, *, initialize: bool) -> dict[str, object]:
-    return {
-        "TESTING": True,
-        "SECRET_KEY": "test",
-        "SQLALCHEMY_DATABASE_URI": f"sqlite:///{database_path.as_posix()}",
-        "AUTO_INITIALIZE_DATABASE": initialize,
-    }
+def test_fresh_database_is_created_from_migrations() -> None:
+    """`ensure_database_schema()` cria o schema completo e deixa o banco na
+    revisão mais recente do Alembic.
+
+    Validado em PostgreSQL real e descartável (criado e destruído só para
+    este teste), não em SQLite: migrações, constraints e tipos de coluna são
+    um contrato específico de dialeto e SQLite não é usado para simular
+    PostgreSQL (ver AGENTS.md).
+    """
+    base_url = sa.make_url(get_test_database_url())
+    server_url = base_url.set(database="postgres")
+    temp_db_name = f"mega_sena_migration_test_{uuid.uuid4().hex[:12]}"
+
+    _run_as_admin(server_url, f'CREATE DATABASE "{temp_db_name}"')
+
+    temp_url = base_url.set(database=temp_db_name)
+    try:
+        app = create_app(
+            {
+                "TESTING": True,
+                "SECRET_KEY": "test",
+                "SQLALCHEMY_DATABASE_URI": temp_url.render_as_string(
+                    hide_password=False
+                ),
+            }
+        )
+        with app.app_context():
+            ensure_database_schema(app)
+
+            tables = set(inspect(db.engine).get_table_names())
+            revision = db.session.execute(
+                text("SELECT version_num FROM alembic_version")
+            ).scalar_one()
+            assert {"alembic_version", "config", "draws", "generated_bets"} <= tables
+            assert revision == "0003_expand_money"
+
+            check = app.test_cli_runner().invoke(args=["db", "check"])
+            assert check.exit_code == 0, check.output
+
+            db.session.remove()
+            db.engine.dispose()
+    finally:
+        _run_as_admin(
+            server_url,
+            "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+            f"WHERE datname = '{temp_db_name}' AND pid <> pg_backend_pid()",
+        )
+        _run_as_admin(server_url, f'DROP DATABASE IF EXISTS "{temp_db_name}"')
 
 
-def test_fresh_database_is_created_from_migrations(tmp_path: Path) -> None:
-    """Contrato independente de dialeto: ensure_database_schema() precisa
-    criar o schema completo e deixar o banco na revisão mais recente do
-    Alembic, seja em SQLite (usado aqui por não exigir infraestrutura) ou em
-    PostgreSQL (validado à parte pelo job postgres-smoke do CI, que roda
-    `flask db upgrade` contra um Postgres real)."""
-    database_path = tmp_path / "fresh.db"
-
-    app = create_app(_config(database_path, initialize=True))
-
-    with app.app_context():
-        tables = set(inspect(db.engine).get_table_names())
-        revision = db.session.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-        assert {"alembic_version", "config", "draws", "generated_bets"} <= tables
-        assert revision == "0003_expand_money"
-    check = app.test_cli_runner().invoke(args=["db", "check"])
-    assert check.exit_code == 0, check.output
+def _run_as_admin(server_url: sa.engine.URL, statement: str) -> None:
+    """Executa uma instrução administrativa (CREATE/DROP DATABASE) fora de
+    transação, conectando-se ao banco de manutenção `postgres` do mesmo
+    servidor usado pela suíte de testes."""
+    engine = sa.create_engine(server_url, isolation_level="AUTOCOMMIT")
+    try:
+        with engine.connect() as connection:
+            connection.execute(text(statement))
+    finally:
+        engine.dispose()

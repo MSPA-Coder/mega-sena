@@ -5,7 +5,7 @@ from app.core.numbers import (
     draw_parameters,
 )
 from app.models import Draw
-from tests.support import csrf_form_data, make_app
+from tests.support import csrf_form_data, get_test_database_url, make_app
 
 
 def test_mutating_forms_include_csrf_tokens_and_clear_uses_post() -> None:
@@ -113,7 +113,7 @@ def test_factory_rejects_untrusted_host_headers() -> None:
         {
             "TESTING": True,
             "SECRET_KEY": "factory-test",
-            "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
+            "SQLALCHEMY_DATABASE_URI": get_test_database_url(),
         }
     )
 

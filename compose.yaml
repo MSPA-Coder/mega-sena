@@ -1,5 +1,16 @@
 name: mega-sena
 
+# Base de produção-símile: imagem imutável (`Dockerfile` estágio `runtime`),
+# gunicorn como servidor WSGI, sem bind mount de código. Migrações e seed de
+# dados são aplicados por docker-entrypoint.sh como etapa controlada, antes
+# do processo do servidor iniciar — nunca dentro de `create_app()`.
+#
+# Uso em desenvolvimento: `docker compose up` já mescla automaticamente
+# `compose.override.yaml` (convenção do Docker Compose), trocando para a
+# imagem `dev` com bind mount e o servidor de desenvolvimento do Flask.
+#
+# Uso "produção-símile" (sem overrides de dev): `docker compose -f compose.yaml up`.
+
 services:
   postgres:
     image: postgres:17-alpine
@@ -21,6 +32,7 @@ services:
   app:
     build:
       context: .
+      target: runtime
       secrets:
         - local_ca
     environment:
@@ -31,12 +43,9 @@ services:
       TZ: America/Sao_Paulo
     ports:
       - "127.0.0.1:${APP_PORT:-5001}:5000"
-    volumes:
-      - .:/workspace
     depends_on:
       postgres:
         condition: service_healthy
-    command: ["python", "run.py"]
     healthcheck:
       test:
         - CMD
@@ -52,6 +61,7 @@ services:
     profiles: ["tools"]
     build:
       context: .
+      target: runtime
       secrets:
         - local_ca
     environment:
@@ -59,20 +69,23 @@ services:
       SECRET_KEY: ${SECRET_KEY:-development-only-change-me}
       TZ: America/Sao_Paulo
     volumes:
-      - .:/workspace
+      # Somente a base legada (leitura) e um destino para o relatório de
+      # importação — não o código-fonte, que já está embutido na imagem
+      # `runtime`. Isto não é o bind mount de desenvolvimento (código
+      # editável); é a entrada/saída mínima de uma ferramenta pontual.
       - ./instance:/sqlite:ro
+      - .:/report-output
     depends_on:
       postgres:
         condition: service_healthy
+    entrypoint: ["sh", "-c"]
     command:
-      - sh
-      - -c
       - >-
         flask --app run.py db upgrade &&
         python scripts/migrate_sqlite_to_postgres.py
         --sqlite /sqlite/mega_sena.db
         --confirm-reset-postgres
-        --report /workspace/migration_report.json
+        --report /report-output/migration_report.json
 
 volumes:
   postgres_data:

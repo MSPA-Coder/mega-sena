@@ -15,6 +15,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # A suíte inteira (unitária, integração, web) roda contra um PostgreSQL
+  # descartável real: SQLite não é usado para simular persistência (ver
+  # AGENTS.md). O mesmo serviço também valida, na sequência, o fluxo real de
+  # implantação (migrações + seed + smoke test transacional) contra um banco
+  # separado, do jeito que docker-entrypoint.sh faz em produção.
   quality:
     if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
@@ -22,29 +27,6 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.13"]
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache: pip
-
-      - name: Install development dependencies
-        run: python -m pip install --disable-pip-version-check -r requirements-dev.txt
-
-      - name: Lint
-        run: python -m ruff check app migrations scripts tests run.py
-
-      - name: Test
-        run: python -m pytest -q
-
-  postgres-smoke:
-    if: github.event_name != 'schedule'
-    runs-on: ubuntu-latest
 
     services:
       postgres:
@@ -63,7 +45,8 @@ jobs:
 
     env:
       DATABASE_URL: postgresql+psycopg://mega_sena:mega_sena_ci@localhost:5432/mega_sena
-      SECRET_KEY: ci-postgres-smoke
+      TEST_DATABASE_URL: postgresql+psycopg://mega_sena:mega_sena_ci@localhost:5432/mega_sena_test
+      SECRET_KEY: ci-quality
 
     steps:
       - name: Checkout
@@ -72,14 +55,56 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: "3.13"
+          python-version: ${{ matrix.python-version }}
           cache: pip
 
       - name: Install development dependencies
         run: python -m pip install --disable-pip-version-check -r requirements-dev.txt
 
-      - name: Apply Alembic migrations to PostgreSQL
+      - name: Create disposable database for the test suite
+        run: |
+          python - <<'PYEOF'
+          import sqlalchemy as sa
+
+          engine = sa.create_engine(
+              "postgresql+psycopg://mega_sena:mega_sena_ci@localhost:5432/mega_sena",
+              isolation_level="AUTOCOMMIT",
+          )
+          with engine.connect() as connection:
+              connection.execute(sa.text("CREATE DATABASE mega_sena_test"))
+          engine.dispose()
+          PYEOF
+
+      - name: Lint
+        run: python -m ruff check app migrations scripts tests run.py
+
+      - name: Test (suíte completa contra PostgreSQL descartável)
+        run: python -m pytest -q
+
+      - name: Apply Alembic migrations (fluxo real de implantação)
         run: python -m flask --app run.py db upgrade
+
+      - name: Seed application defaults
+        run: python -m flask --app run.py seed-defaults
+
+      - name: Seed a minimal draw for the transactional smoke check
+        run: |
+          python - <<'PYEOF'
+          from app import create_app, db
+          from app.models import Draw
+
+          app = create_app()
+          with app.app_context():
+              if not db.session.query(Draw).first():
+                  db.session.add(
+                      Draw(
+                          contest=1,
+                          n1=1, n2=2, n3=3, n4=4, n5=5, n6=6,
+                          total_sum=21, even_count=3, consecutive_count=6,
+                      )
+                  )
+                  db.session.commit()
+          PYEOF
 
       - name: Verify PostgreSQL connectivity and transactions
         run: python -m scripts.verify_postgres

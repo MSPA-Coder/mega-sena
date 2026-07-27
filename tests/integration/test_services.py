@@ -13,7 +13,7 @@ from app.draws.statistics import (
     ensure_draw_parameters_current,
 )
 from app.models import Draw
-from tests.support import make_app
+from tests.support import get_test_database_url, make_app
 
 
 def test_count_even_numbers_counts_only_even_dozen_values() -> None:
@@ -90,17 +90,18 @@ def test_draw_parameters_refresh_runs_only_once_per_version() -> None:
 
 
 def test_create_app_accepts_configuration_overrides() -> None:
+    database_url = get_test_database_url()
     app = create_app(
         {
             "TESTING": True,
             "SECRET_KEY": "factory-test",
-            "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
+            "SQLALCHEMY_DATABASE_URI": database_url,
         }
     )
 
     assert app.testing is True
     assert app.config["SECRET_KEY"] == "factory-test"
-    assert app.config["SQLALCHEMY_DATABASE_URI"] == "sqlite:///:memory:"
+    assert app.config["SQLALCHEMY_DATABASE_URI"] == database_url
 
 
 def test_build_stats_with_no_count_considers_full_history() -> None:

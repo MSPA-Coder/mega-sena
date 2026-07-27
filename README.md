@@ -18,7 +18,9 @@ preveem sorteios nem aumentam a probabilidade matemática de uma combinação.
 ## Início rápido com Docker
 
 O ambiente Docker inclui a aplicação, PostgreSQL 17 e as ferramentas de
-desenvolvimento.
+desenvolvimento. `docker compose up` já usa `compose.override.yaml`
+automaticamente (convenção do Docker Compose): código montado por bind mount
+e servidor de desenvolvimento do Flask.
 
 ```powershell
 Copy-Item .env.docker.example .env.docker
@@ -27,7 +29,11 @@ docker compose --env-file .env.docker up --build -d
 ```
 
 A aplicação fica em <http://127.0.0.1:5001>. Os dados do PostgreSQL permanecem
-no volume `postgres_data` quando os contêineres são interrompidos.
+no volume `postgres_data` quando os contêineres são interrompidos. Ao subir,
+`docker-entrypoint.sh` aplica as migrações pendentes (`flask db upgrade`) e
+garante a configuração padrão (`flask seed-defaults`) como uma etapa
+controlada, antes de iniciar o servidor — a aplicação em si nunca faz isso por
+conta própria (veja [Arquitetura](docs/architecture.md)).
 
 ```powershell
 docker compose --env-file .env.docker down
@@ -36,24 +42,37 @@ docker compose --env-file .env.docker down
 `docker compose down -v` também remove o volume do banco; use essa opção somente
 quando quiser descartar os dados.
 
+Para construir a imagem de produção (`Dockerfile`, estágio `runtime`: gunicorn,
+usuário não-root, sem bind mount), ignore o override de desenvolvimento:
+
+```powershell
+docker compose -f compose.yaml --env-file .env.docker up --build -d
+```
+
 O VS Code pode se conectar ao contêiner `app` com **Dev Containers: Reopen in
 Container**.
 
-## Execução local com SQLite
+## Execução local com Python
 
-Sem `DATABASE_URL`, a aplicação usa `instance/mega_sena.db`. Uma instalação
-Python local também é válida:
+PostgreSQL é o único backend suportado; a aplicação recusa iniciar sem uma
+`DATABASE_URL` válida (SQLite não é usado para simular persistência — veja
+[Arquitetura](docs/architecture.md)). Use o PostgreSQL do Docker Compose
+(exposto em `127.0.0.1:5433` por padrão) ou uma instalação local:
 
 ```powershell
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements-dev.txt
 $env:SECRET_KEY = "substitua-por-uma-chave-local"
+$env:DATABASE_URL = "postgresql+psycopg://mega_sena:mega_sena_dev_local@127.0.0.1:5433/mega_sena"
+python -m flask --app run.py db upgrade
+python -m flask --app run.py seed-defaults
 python run.py
 ```
 
-Nesse modo, acesse <http://127.0.0.1:5000>. O Alembic cria ou atualiza o schema
-na inicialização tanto no SQLite quanto no PostgreSQL.
+Nesse modo, acesse <http://127.0.0.1:5000>. Migrações e seed de dados são
+comandos explícitos executados uma vez (ou a cada alteração de schema), nunca
+automáticos na inicialização da aplicação.
 
 ## Dados existentes
 
@@ -92,26 +111,34 @@ até 100 apostas por geração. Veja as regras e as proteções operacionais em
 
 ## Verificação
 
-No ambiente Docker:
+A suíte de testes exige um PostgreSQL descartável (`TEST_DATABASE_URL` ou
+`DATABASE_URL`); nenhum teste usa SQLite para simular persistência. No
+ambiente Docker, o serviço `postgres` já expõe um banco descartável em
+`127.0.0.1:${POSTGRES_PORT:-5433}` para isso:
 
 ```powershell
-docker compose --env-file .env.docker run --rm --no-deps -e DATABASE_URL= app python -m pytest -q
+docker compose --env-file .env.docker run --rm --no-deps `
+  -e TEST_DATABASE_URL=postgresql+psycopg://mega_sena:mega_sena_dev_local@postgres:5432/mega_sena_test `
+  app python -m pytest -q
 docker compose --env-file .env.docker run --rm --no-deps app python -m ruff check app migrations scripts tests run.py
 docker compose --env-file .env.docker run --rm --no-deps app python scripts/audit_dependencies.py
 ```
 
-Em um ambiente Python com `requirements-dev.txt` instalado, os mesmos comandos
-podem ser executados diretamente:
+Em um ambiente Python com `requirements-dev.txt` instalado e um PostgreSQL
+acessível, os mesmos comandos podem ser executados diretamente:
 
 ```powershell
+$env:TEST_DATABASE_URL = "postgresql+psycopg://mega_sena:mega_sena_dev_local@127.0.0.1:5433/mega_sena_test"
 python -m pytest -q
 python -m ruff check app migrations scripts tests run.py
 python scripts/audit_dependencies.py
 ```
 
-O CI executa Ruff e pytest em Python 3.11 e 3.13, valida as migrações em
-PostgreSQL e executa a auditoria de dependências semanalmente ou por acionamento
-manual.
+O schema de teste é criado automaticamente (Alembic) na primeira vez que um
+teste precisa de banco; testes unitários puros (`tests/unit/`) não tocam o
+PostgreSQL. O CI executa Ruff e a suíte completa em Python 3.11 e 3.13 contra
+PostgreSQL real, valida o fluxo de migração + seed + smoke transacional, e
+executa a auditoria de dependências semanalmente ou por acionamento manual.
 
 ## Documentação
 

@@ -7,12 +7,13 @@ from pathlib import Path
 from typing import Mapping
 
 from flask import Flask, flash, redirect, url_for
-from sqlalchemy import event
 
 from .core.formatting import format_brl, format_brl_without_cents
 from .extensions import db, migrate
 
 _log = logging.getLogger(__name__)
+
+_SUPPORTED_DIALECTS = ("postgresql://", "postgresql+psycopg://")
 
 
 def create_app(config: Mapping[str, object] | None = None) -> Flask:
@@ -20,21 +21,10 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
 
     app = Flask(__name__)
     base_dir = Path(__file__).resolve().parent.parent
-    instance_dir = base_dir / "instance"
-    instance_dir.mkdir(exist_ok=True)
-    database_path = instance_dir / "mega_sena.db"
-    database_uri = os.environ.get(
-        "DATABASE_URL", f"sqlite:///{database_path.as_posix()}"
-    ).strip()
-    engine_options: dict[str, object] = {"pool_pre_ping": True}
-    if database_uri.startswith("sqlite:"):
-        engine_options = {"connect_args": {"timeout": 30}}
 
     app.config.from_mapping(
-        SQLALCHEMY_DATABASE_URI=database_uri,
-        SQLALCHEMY_ENGINE_OPTIONS=engine_options,
+        SQLALCHEMY_ENGINE_OPTIONS={"pool_pre_ping": True},
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
-        AUTO_INITIALIZE_DATABASE=True,
         MAX_CONTENT_LENGTH=10 * 1024 * 1024,
         SESSION_COOKIE_SAMESITE="Lax",
         SESSION_COOKIE_HTTPONLY=True,
@@ -42,6 +32,29 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
     )
     if config:
         app.config.update(config)
+
+    # ------------------------------------------------------------------
+    # Banco de dados: PostgreSQL é o único backend operacional suportado.
+    # SQLite não é usado para simular PostgreSQL; a única leitura legítima de
+    # SQLite no projeto é o script explícito de importação de base legada
+    # (scripts/migrate_sqlite_to_postgres.py), que acessa o arquivo diretamente
+    # e não passa por esta fábrica de aplicação.
+    # ------------------------------------------------------------------
+    database_uri = str(app.config.get("SQLALCHEMY_DATABASE_URI", "")).strip()
+    if not database_uri:
+        database_uri = os.environ.get("DATABASE_URL", "").strip()
+    if not database_uri:
+        raise RuntimeError(
+            "DATABASE_URL não definida. Configure uma URL PostgreSQL "
+            "(ex.: postgresql+psycopg://usuario:senha@host:5432/banco). "
+            "Veja docs/architecture.md e docs/development.md."
+        )
+    if not database_uri.startswith(_SUPPORTED_DIALECTS):
+        raise RuntimeError(
+            "DATABASE_URL deve apontar para PostgreSQL "
+            f"({' ou '.join(_SUPPORTED_DIALECTS)}); valor recebido não é suportado."
+        )
+    app.config["SQLALCHEMY_DATABASE_URI"] = database_uri
 
     # ------------------------------------------------------------------
     # Segurança: chave secreta via variável de ambiente
@@ -71,11 +84,6 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
         db,
         directory=str(base_dir / "migrations"),
         compare_type=True,
-        # O modo batch existe para contornar a falta de ALTER TABLE completo no
-        # SQLite (recria a tabela inteira). No PostgreSQL isso é desnecessário
-        # e mais custoso: forçar batch=True também ali faria `flask db migrate`
-        # autogerar migrações pesadas por padrão nesse dialeto.
-        render_as_batch=database_uri.startswith("sqlite:"),
     )
 
     from .web import bp
@@ -111,17 +119,27 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
         flash("O arquivo enviado ultrapassa o limite de 10 MB.")
         return redirect(url_for("web.contests")), 413
 
-    with app.app_context():
-        from . import models  # noqa: F401
+    from . import models  # noqa: F401  (garante que os modelos sejam registrados)
+
+    # ------------------------------------------------------------------
+    # Comando explícito de seed de dados de aplicação (configuração padrão e
+    # parâmetros derivados dos concursos). NUNCA roda automaticamente na
+    # construção da aplicação: `create_app()` não faz nenhuma consulta ao
+    # banco por conta própria, então pode ser importada com segurança mesmo
+    # antes do schema existir (ex.: pelo próprio `flask db upgrade`, que
+    # precisa carregar a aplicação para descobrir a configuração do banco).
+    # Rode `flask seed-defaults` como uma etapa controlada, sempre depois de
+    # `flask db upgrade` e antes de iniciar o servidor. Veja
+    # docs/architecture.md e o entrypoint do container.
+    # ------------------------------------------------------------------
+    @app.cli.command("seed-defaults")
+    def _seed_defaults_command() -> None:
+        """Garante configuração padrão e parâmetros derivados dos concursos."""
         from .draws.statistics import ensure_draw_parameters_current
-        from .schema import ensure_database_schema
         from .settings.service import ensure_default_config
 
-        _configure_sqlite_engine(app)
-        if app.config["AUTO_INITIALIZE_DATABASE"]:
-            ensure_database_schema(app)
-            ensure_default_config()
-            ensure_draw_parameters_current()
+        ensure_default_config()
+        ensure_draw_parameters_current()
 
     return app
 
@@ -135,19 +153,3 @@ def _configure_logging() -> None:
             format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
         )
-
-
-def _configure_sqlite_engine(app: Flask) -> None:
-    database_uri = str(app.config.get("SQLALCHEMY_DATABASE_URI", ""))
-    if not database_uri.startswith("sqlite:"):
-        return
-
-    @event.listens_for(db.engine, "connect")
-    def _set_sqlite_pragmas(dbapi_connection, _connection_record) -> None:
-        cursor = dbapi_connection.cursor()
-        try:
-            cursor.execute("PRAGMA foreign_keys=ON")
-            cursor.execute("PRAGMA busy_timeout=30000")
-            cursor.execute("PRAGMA journal_mode=WAL")
-        finally:
-            cursor.close()

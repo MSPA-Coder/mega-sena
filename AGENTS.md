@@ -342,24 +342,27 @@ Frequências, filtros e relatórios descrevem somente o histórico carregado. N�
 apresente estatísticas como previsão nem como aumento de probabilidade de uma
 combinação.
 
-## Transições necessárias para aderência à base
+## Persistência e implantação: invariantes a preservar
 
-A suíte legada ainda usa SQLite em testes de persistência e na execução Python
-local. O Compose atual também possui características de desenvolvimento, como
-bind mount do código, dependências de desenvolvimento na imagem, servidor
-embutido do Flask e migrações aplicadas durante a criação da aplicação.
+PostgreSQL é o único backend operacional. `create_app()` nunca aplica
+migrações nem grava dados por conta própria — nenhuma consulta ao banco
+acontece durante a construção da aplicação. `flask db upgrade` e
+`flask seed-defaults` são etapas controladas e separadas, executadas por
+`docker-entrypoint.sh` (Docker) ou manualmente (Python local) sempre antes de
+iniciar o servidor. A suíte de testes usa PostgreSQL descartável para tudo que
+toca persistência (`tests/support.py` cria o schema uma vez por processo via
+Alembic e reseta cada teste por TRUNCATE); testes puros de critérios,
+combinatória, normalização e estatísticas permanecem sem banco. A imagem de
+produção (`Dockerfile`, estágio `runtime`) roda sob gunicorn, com usuário
+não-root e sem bind mount; `compose.override.yaml` concentra bind mount e
+ferramentas de desenvolvimento (estágio `dev`), mesclado automaticamente pelo
+Docker Compose em ambiente de desenvolvimento.
 
-Esses pontos não são exceções permanentes. Ao alterar as áreas correspondentes:
-
-- migre os testes de persistência afetados para PostgreSQL descartável;
-- não amplie o uso operacional de SQLite;
-- separe a aplicação de migrações executadas no startup;
-- use servidor WSGI e imagem imutável no ambiente de produção;
-- mantenha bind mount e ferramentas de desenvolvimento em configuração própria;
-- execute `scripts.verify_postgres` para mudanças de persistência.
-
-Testes puros de critérios, combinatória, normalização e estatísticas devem
-permanecer sem banco.
+Ao alterar áreas correspondentes, preserve essas propriedades — não as
+reintroduza como atalho de conveniência (ex.: religar seed de dados dentro de
+`create_app()`, voltar a usar SQLite para simular persistência em um teste
+novo, ou aplicar migrações fora de uma etapa controlada). Execute
+`scripts.verify_postgres` para mudanças de persistência.
 
 ## Arquitetura
 
@@ -440,14 +443,16 @@ Use a estratégia progressiva da base. Os controles atuais incluem:
 
 ```powershell
 python -m ruff check app migrations scripts tests run.py
+python -m pytest -q
 python scripts/audit_dependencies.py
 docker compose --env-file .env.docker up -d
 docker compose --env-file .env.docker exec app python -m scripts.verify_postgres
 ```
 
-Os testes SQLite existentes podem servir temporariamente como sinal suplementar,
-mas não comprovam persistência PostgreSQL. Ao tocar uma área de banco, migre os
-testes afetados e valide migrations, constraints e transações no PostgreSQL.
+`pytest` já roda a suíte inteira contra um PostgreSQL descartável
+(`TEST_DATABASE_URL`, ou `DATABASE_URL` como alternativa); não existe uma
+suíte SQLite separada a considerar como sinal parcial. Ao tocar uma área de
+banco, valide migrations, constraints e transações no PostgreSQL real.
 
 Ao mudar critérios de geração, avalie os consumidores relevantes:
 
@@ -471,6 +476,4 @@ Ao mudar critérios de geração, avalie os consumidores relevantes:
 
 ## Desvios aprovados da base compartilhada
 
-Não há desvios aprovados. SQLite operacional, testes de persistência em SQLite e
-o Compose de desenvolvimento atual são lacunas conhecidas a remover, não
-exceções permanentes à base.
+Não há desvios aprovados nem lacunas conhecidas pendentes.
