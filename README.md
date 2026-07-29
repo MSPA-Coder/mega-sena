@@ -70,7 +70,7 @@ python -m flask --app run.py seed-defaults
 python run.py
 ```
 
-Nesse modo, acesse <http://127.0.0.1:5000>. Migrações e seed de dados são
+Nesse modo, acesse <http://127.0.0.1:5001>. Migrações e seed de dados são
 comandos explícitos executados uma vez (ou a cada alteração de schema), nunca
 automáticos na inicialização da aplicação.
 

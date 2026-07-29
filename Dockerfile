@@ -60,9 +60,9 @@ COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 USER mega_sena
 
-EXPOSE 5000
+EXPOSE 5001
 ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--threads", "4", "--timeout", "60", "run:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5001", "--workers", "2", "--threads", "4", "--timeout", "60", "run:app"]
 
 # -----------------------------------------------------------------------
 # dev: imagem de desenvolvimento — ferramentas de teste/lint; o código real
@@ -76,6 +76,6 @@ COPY --from=builder-dev /opt/venv /opt/venv
 COPY . .
 COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
-EXPOSE 5000
+EXPOSE 5001
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["python", "run.py"]

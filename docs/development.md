@@ -33,7 +33,7 @@ python -m flask --app run.py seed-defaults
 python run.py
 ```
 
-A aplicação publica em <http://127.0.0.1:5000>. `db upgrade` e `seed-defaults`
+A aplicação publica em <http://127.0.0.1:5001>. `db upgrade` e `seed-defaults`
 são comandos explícitos: `create_app()` não migra nem grava dados por conta
 própria (veja [Arquitetura](architecture.md)); rode-os de novo depois de
 qualquer alteração de schema.

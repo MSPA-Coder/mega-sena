@@ -26,6 +26,10 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
         SQLALCHEMY_ENGINE_OPTIONS={"pool_pre_ping": True},
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         MAX_CONTENT_LENGTH=10 * 1024 * 1024,
+        SESSION_COOKIE_NAME=os.environ.get(
+            "MEGA_SENA_SESSION_COOKIE_NAME", "mega_sena_session"
+        ).strip()
+        or "mega_sena_session",
         SESSION_COOKIE_SAMESITE="Lax",
         SESSION_COOKIE_HTTPONLY=True,
         TRUSTED_HOSTS=["localhost", "127.0.0.1", "[::1]"],
