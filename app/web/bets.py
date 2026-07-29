@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import math
 
+from functools import lru_cache
+
 from flask import flash, jsonify, redirect, render_template, request, url_for
 from werkzeug.datastructures import MultiDict
 
@@ -21,6 +23,7 @@ from ..bets.criteria import (
     GenerationCriteria,
 )
 from ..bets.service import (
+    InvalidClosureNumbersError,
     count_closure_bets,
     generate_bets,
     generate_closure_bets,
@@ -39,6 +42,17 @@ CLOSURE_PREVIEW_LIMIT = 200
 
 
 def _parse_number_list(value: str | None) -> list[int]:
+    """Extrai lista de números a partir de string delimitada.
+    
+    Args:
+        value: String com números separados por vírgula, ponto-e-vírgula ou espaço
+        
+    Returns:
+        Lista de inteiros
+        
+    Raises:
+        InvalidClosureNumbersError: Se algum valor não for número válido
+    """
     if not value:
         return []
     normalized = value.replace(";", ",").replace(" ", ",")
@@ -50,8 +64,8 @@ def _parse_number_list(value: str | None) -> list[int]:
         try:
             numbers.append(int(part))
         except ValueError:
-            raise RuntimeError(
-                "Informe as dezenas do fechamento separadas por espaço, vírgula ou ponto e vírgula."
+            raise InvalidClosureNumbersError(
+                f"Dezena inválida: '{part}'. Use apenas números entre 1 e 60."
             )
     return numbers
 
@@ -154,6 +168,27 @@ def _draw_filter_preview_payload(
         "percentage": round(percentage, 2),
         "percentage_text": f"{percentage:.2f}%".replace(".", ","),
     }
+
+
+@bp.get("/health")
+def health_check():
+    """Endpoint de verificação de saúde da aplicação."""
+    try:
+        db.session.execute(db.text("SELECT 1"))
+        db_status = "ok"
+        status_code = 200
+    except Exception as e:
+        db_status = f"error: {str(e)}"
+        status_code = 503
+    
+    from ..draws.service import count_draws
+    total_draws = count_draws()
+    
+    return jsonify({
+        "status": "healthy" if db_status == "ok" else "unhealthy",
+        "database": db_status,
+        "total_draws": total_draws
+    }), status_code
 
 
 @bp.route("/rationale")
@@ -294,14 +329,15 @@ def bet_generation():
             else:
                 amount = selected_amount
                 generation_filters = _active_filters(selected_filters)
-                bets = generate_bets(
+                result = generate_bets(
                     quantity=quantity,
                     amount=amount,
                     persist=False,
                     filters=generation_filters,
                 )
-                generated = len(bets)
-                if generated < amount:
+                bets = result.bets
+                generated = result.generated_count
+                if not result.success:
                     flash(
                         f"{generated} {plural(generated, 'aposta gerada', 'apostas geradas')}. "
                         f"Não foi possível atingir {amount} {plural(amount, 'aposta', 'apostas')} "
@@ -312,6 +348,8 @@ def bet_generation():
                         f"{generated} {plural(generated, 'aposta gerada', 'apostas geradas')}. "
                         "Revise e escolha se deseja gravar no banco de dados."
                     )
+        except InvalidClosureNumbersError as exc:
+            flash(str(exc))
         except RuntimeError as exc:
             flash(str(exc))
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import math
 from collections import Counter
+from functools import lru_cache
 from itertools import combinations
 
 from ..core.numbers import draw_parameters
@@ -19,14 +20,17 @@ def all_draw_numbers() -> list[list[int]]:
     return [list(row) for row in rows]
 
 
-def build_stats(count: int | None = None) -> dict:
-    """
-    Monta o conjunto de estatísticas exibidas no dashboard.
+@lru_cache(maxsize=10)
+def _build_stats_cached(count_key: str) -> dict:
+    """Versão cacheada de build_stats para evitar recálculos frequentes."""
+    # Implementação real movida para _build_stats_impl para separar cache da lógica
+    return _build_stats_impl(count_key)
 
-    Se `count` for informado, considera apenas os `count` concursos mais
-    recentes (por número de concurso). Se for None, considera todo o
-    histórico — comportamento padrão usado no carregamento inicial da página.
-    """
+
+def _build_stats_impl(count_key: str) -> dict:
+    """Implementação interna de build_stats chamada pela versão cacheada."""
+    count = int(count_key) if count_key.isdigit() else None
+    
     query = Draw.query.order_by(Draw.contest.desc())
     if count is not None:
         query = query.limit(count)
@@ -113,6 +117,20 @@ def build_stats(count: int | None = None) -> dict:
     }
 
 
+def build_stats(count: int | None = None) -> dict:
+    """
+    Monta o conjunto de estatísticas exibidas no dashboard.
+
+    Se `count` for informado, considera apenas os `count` concursos mais
+    recentes (por número de concurso). Se for None, considera todo o
+    histórico — comportamento padrão usado no carregamento inicial da página.
+    
+    Usa cache LRU para evitar recálculos frequentes das mesmas estatísticas.
+    """
+    count_key = str(count) if count is not None else "all"
+    return _build_stats_cached(count_key)
+
+
 def _build_sum_histogram(sums: list[int], bin_size: int = 10) -> dict:
     if not sums:
         return {"bins": [], "max_frequency": 0, "y_ticks": [0]}
@@ -140,22 +158,34 @@ def _build_sum_histogram(sums: list[int], bin_size: int = 10) -> dict:
 
 
 def refresh_draw_parameters() -> int:
+    """Recalcula parâmetros derivados de todos os concursos em lotes.
+    
+    Usa processamento em batch para evitar consumo excessivo de memória
+    e melhorar performance em bases grandes.
+    """
     total_draws = Draw.query.count()
     if total_draws == 0:
         return 0
 
     updated = 0
-    for draw in Draw.query.all():
-        derived = draw_parameters(draw.numbers)
-        changed = False
-        for key, value in derived.items():
-            if getattr(draw, key) != value:
-                setattr(draw, key, value)
-                changed = True
-        if changed:
-            updated += 1
+    batch_size = 500
+    for offset in range(0, total_draws, batch_size):
+        draws = Draw.query.order_by(Draw.contest).offset(offset).limit(batch_size).all()
+        batch_updated = 0
+        for draw in draws:
+            derived = draw_parameters(draw.numbers)
+            changed = False
+            for key, value in derived.items():
+                if getattr(draw, key) != value:
+                    setattr(draw, key, value)
+                    changed = True
+            if changed:
+                batch_updated += 1
+        if batch_updated:
+            db.session.commit()
+            updated += batch_updated
+    
     if updated:
-        db.session.commit()
         _log.info("refresh_draw_parameters: %d/%d concursos recalculados.", updated, total_draws)
     return updated
 

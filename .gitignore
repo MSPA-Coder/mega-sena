@@ -1,14 +1,68 @@
+```python
+# Compiled and build artifacts
+*.pyc
+__pycache__/
+*.o
+*.obj
+
+# Dependencies
 .venv/
 venv/
-__pycache__/
-.pytest_cache/
-*.pyc
+node_modules/
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
 .idea/
+
+# Coverage
+.coverage
+coverage/
+htmlcov/
+
+# Python specific
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.Python
+*.pot
+*.po
+*~
+.pytest_cache/
+.mypy_cache/
+.tox/
+
+# Build directories
 dist/
-mega_sena.db
-instance/
-.env.docker
-.certs/
-migration_report.json
-*.xls
-*.xlsx
+build/
+*.egg
+*.eggs
+.installed.cfg
+lib/
+lib64/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Icon?
+.directory
+*.nib
+*~
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+```
