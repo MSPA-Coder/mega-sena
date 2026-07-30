@@ -53,11 +53,15 @@ python -m pytest -q
 No Docker, aponte para o banco descartável exposto pelo serviço `postgres`:
 
 ```powershell
+# Execute apenas na primeira vez, depois de subir o serviço postgres.
+docker compose --env-file .env.docker exec -T postgres sh -c 'createdb -U "$POSTGRES_USER" mega_sena_test'
 docker compose --env-file .env.docker run --rm --no-deps `
   -e TEST_DATABASE_URL=postgresql+psycopg://mega_sena:mega_sena_dev_local@postgres:5432/mega_sena_test `
   app python -m pytest -q
 docker compose --env-file .env.docker run --rm --no-deps app python -m ruff check app migrations scripts tests run.py
 ```
+
+O banco `mega_sena_test` é descartável: a suíte o limpa antes de cada teste.
 
 A auditoria de dependências de runtime é:
 

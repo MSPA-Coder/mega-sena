@@ -44,7 +44,19 @@ def test_fresh_database_is_created_from_migrations() -> None:
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
             assert {"alembic_version", "config", "draws", "generated_bets"} <= tables
-            assert revision == "0003_expand_money"
+            assert revision == "0004_generation_id_sequence"
+            assert (
+                db.session.execute(
+                    text("SELECT to_regclass('generated_bets_generation_id_seq')")
+                ).scalar_one()
+                == "generated_bets_generation_id_seq"
+            )
+            assert (
+                db.session.execute(
+                    text("SELECT nextval('generated_bets_generation_id_seq')")
+                ).scalar_one()
+                == 1
+            )
 
             check = app.test_cli_runner().invoke(args=["db", "check"])
             assert check.exit_code == 0, check.output

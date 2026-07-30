@@ -4,10 +4,9 @@ import logging
 import math
 import secrets
 from itertools import combinations, islice
-from threading import Lock
 from typing import Iterable
 
-from sqlalchemy import func
+from sqlalchemy import func, text
 
 from ..core.numbers import (
     clamp_int,
@@ -25,8 +24,8 @@ from .criteria import (
 
 _log = logging.getLogger(__name__)
 MAX_SAVED_BETS = math.comb(MAX_BET_NUMBERS, MIN_BET_NUMBERS)
-_GENERATION_SAVE_LOCK = Lock()
 _RNG = secrets.SystemRandom()
+_GENERATION_ID_SEQUENCE = "generated_bets_generation_id_seq"
 
 
 def _passes_generation_filters(numbers: list[int], filters: dict | None) -> bool:
@@ -66,23 +65,21 @@ def _secure_random_candidate(quantity: int) -> list[int]:
 
 
 def _persist_bet_batch(bets: list[GeneratedBet]) -> int | None:
-    """Persiste um lote com ID unico entre as threads do servidor local."""
+    """Persiste um lote com identificador único fornecido pelo PostgreSQL."""
     if not bets:
         return None
-    with _GENERATION_SAVE_LOCK:
-        try:
-            last_generation_id = (
-                db.session.query(func.max(GeneratedBet.generation_id)).scalar() or 0
-            )
-            generation_id = last_generation_id + 1
-            for bet in bets:
-                bet.generation_id = generation_id
-            db.session.add_all(bets)
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
-            raise
-    return generation_id
+    try:
+        generation_id = db.session.execute(
+            text(f"SELECT nextval('{_GENERATION_ID_SEQUENCE}')")
+        ).scalar_one()
+        for bet in bets:
+            bet.generation_id = generation_id
+        db.session.add_all(bets)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+    return int(generation_id)
 
 
 def generate_bets(

@@ -1,0 +1,2 @@
+# Scripts executados dentro de imagens Linux devem manter finais de linha Unix.
+*.sh text eol=lf
