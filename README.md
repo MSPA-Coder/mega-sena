@@ -117,12 +117,16 @@ ambiente Docker, o serviço `postgres` já expõe um banco descartável em
 `127.0.0.1:${POSTGRES_PORT:-5433}` para isso:
 
 ```powershell
+# Execute apenas na primeira vez, depois de subir o serviço postgres.
+docker compose --env-file .env.docker exec -T postgres sh -c 'createdb -U "$POSTGRES_USER" mega_sena_test'
 docker compose --env-file .env.docker run --rm --no-deps `
   -e TEST_DATABASE_URL=postgresql+psycopg://mega_sena:mega_sena_dev_local@postgres:5432/mega_sena_test `
   app python -m pytest -q
 docker compose --env-file .env.docker run --rm --no-deps app python -m ruff check app migrations scripts tests run.py
 docker compose --env-file .env.docker run --rm --no-deps app python scripts/audit_dependencies.py
 ```
+
+O banco `mega_sena_test` é descartável: a suíte o limpa antes de cada teste.
 
 Em um ambiente Python com `requirements-dev.txt` instalado e um PostgreSQL
 acessível, os mesmos comandos podem ser executados diretamente:

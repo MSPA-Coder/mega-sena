@@ -3,12 +3,10 @@ from __future__ import annotations
 import logging
 import math
 import secrets
-from dataclasses import dataclass, field
 from itertools import combinations, islice
-from threading import Lock
 from typing import Iterable
 
-from sqlalchemy import func
+from sqlalchemy import func, text
 
 from ..core.numbers import (
     clamp_int,
@@ -26,32 +24,8 @@ from .criteria import (
 
 _log = logging.getLogger(__name__)
 MAX_SAVED_BETS = math.comb(MAX_BET_NUMBERS, MIN_BET_NUMBERS)
-_GENERATION_SAVE_LOCK = Lock()
 _RNG = secrets.SystemRandom()
-
-
-class InvalidClosureNumbersError(ValueError):
-    """Exceção levantada quando as dezenas do fechamento são inválidas."""
-    pass
-
-
-class GenerationTooRestrictiveError(RuntimeError):
-    """Exceção levantada quando os filtros são muito restritivos."""
-    pass
-
-
-@dataclass
-class GenerationResult:
-    """Resultado estruturado da geração de apostas."""
-    bets: list[GeneratedBet] = field(default_factory=list)
-    generated_count: int = 0
-    requested_count: int = 0
-    attempts: int = 0
-    success: bool = False
-    
-    def __post_init__(self):
-        self.generated_count = len(self.bets)
-        self.success = self.generated_count >= self.requested_count
+_GENERATION_ID_SEQUENCE = "generated_bets_generation_id_seq"
 
 
 def _passes_generation_filters(numbers: list[int], filters: dict | None) -> bool:
@@ -91,31 +65,21 @@ def _secure_random_candidate(quantity: int) -> list[int]:
 
 
 def _persist_bet_batch(bets: list[GeneratedBet]) -> int | None:
-    """Persiste um lote com ID unico entre as threads do servidor local.
-    
-    Usa transação atômica com sequence do PostgreSQL para garantir thread-safety.
-    """
+    """Persiste um lote com identificador único fornecido pelo PostgreSQL."""
     if not bets:
         return None
-    with _GENERATION_SAVE_LOCK:
-        try:
-            # PostgreSQL sequence é thread-safe e evita race conditions
-            result = db.session.execute(
-                db.text("SELECT nextval('generated_bets_generation_id_seq')")
-            )
-            generation_id = result.scalar()
-            
-            for bet in bets:
-                bet.generation_id = generation_id
-            db.session.add_all(bets)
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
-            raise
-    return generation_id
-
-
-MAX_GENERATION_ATTEMPTS_PER_BET = 2000
+    try:
+        generation_id = db.session.execute(
+            text(f"SELECT nextval('{_GENERATION_ID_SEQUENCE}')")
+        ).scalar_one()
+        for bet in bets:
+            bet.generation_id = generation_id
+        db.session.add_all(bets)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+    return int(generation_id)
 
 
 def generate_bets(
@@ -123,21 +87,7 @@ def generate_bets(
     amount: int,
     persist: bool = True,
     filters: dict | None = None,
-) -> GenerationResult:
-    """Gera apostas aleatórias respeitando critérios opcionais.
-    
-    Args:
-        quantity: Número de dezenas por aposta (6-20)
-        amount: Quantidade de apostas a gerar (1-100)
-        persist: Se True, salva no banco de dados
-        filters: Dicionário de critérios (consecutive_count, even_min, etc.)
-    
-    Returns:
-        GenerationResult com lista de GeneratedBet e status da operação
-    
-    Raises:
-        GenerationTooRestrictiveError: Se filtros forem muito restritivos
-    """
+) -> list[GeneratedBet]:
     quantity = clamp_int(
         parse_int(quantity) or MIN_BET_NUMBERS,
         MIN_BET_NUMBERS,
@@ -151,7 +101,8 @@ def generate_bets(
     created_numbers: list[list[int]] = []
     attempts = 0
     # Limite razoável: evita loop infinito com filtros muito restritivos.
-    max_attempts = amount * MAX_GENERATION_ATTEMPTS_PER_BET
+    # 2000 tentativas por aposta é suficiente para qualquer configuração prática.
+    max_attempts = amount * 2000
     while len(created) < amount and attempts < max_attempts:
         attempts += 1
         nums = _secure_random_candidate(quantity)
@@ -177,39 +128,23 @@ def generate_bets(
             attempts,
             filters,
         )
-    if persist and created:
+    if persist:
         _persist_bet_batch(created)
-    
-    return GenerationResult(
-        bets=created,
-        requested_count=amount,
-        attempts=attempts
-    )
+    return created
 
 
 def _normalize_closure_numbers(numbers: Iterable[int]) -> list[int]:
-    """Normaliza e valida as dezenas para fechamento combinatório.
-    
-    Args:
-        numbers: Iterável de dezenas (1-60)
-        
-    Returns:
-        Lista ordenada de dezenas únicas
-        
-    Raises:
-        InvalidClosureNumbersError: Se as dezenas forem inválidas
-    """
     base_numbers = sorted(set(numbers))
     if len(base_numbers) < MIN_BET_NUMBERS:
-        raise InvalidClosureNumbersError(
+        raise RuntimeError(
             "Informe pelo menos 6 dezenas distintas para gerar um fechamento matemático."
         )
     if len(base_numbers) > MAX_BET_NUMBERS:
-        raise InvalidClosureNumbersError(
+        raise RuntimeError(
             f"Use no máximo {MAX_BET_NUMBERS} dezenas no fechamento matemático."
         )
     if any(number < 1 or number > 60 for number in base_numbers):
-        raise InvalidClosureNumbersError("As dezenas do fechamento devem estar entre 1 e 60.")
+        raise RuntimeError("As dezenas do fechamento devem estar entre 1 e 60.")
     return base_numbers
 
 
@@ -293,18 +228,6 @@ def get_generation_bets(generation_id: int) -> list[GeneratedBet]:
 
 
 def save_generated_bets(quantity: int, bets: Iterable[str]) -> tuple[int, int | None]:
-    """Salva apostas manualmente informadas no banco de dados.
-    
-    Args:
-        quantity: Número de dezenas por aposta
-        bets: Iterável de strings CSV com as dezenas
-        
-    Returns:
-        Tupla (quantidade_salva, generation_id) ou (0, None) se nenhuma válida
-        
-    Raises:
-        RuntimeError: Se exceder o limite máximo de apostas por geração
-    """
     quantity = clamp_int(
         parse_int(quantity) or MIN_BET_NUMBERS,
         MIN_BET_NUMBERS,
