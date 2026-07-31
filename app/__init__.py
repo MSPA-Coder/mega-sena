@@ -6,7 +6,7 @@ import secrets
 from pathlib import Path
 from typing import Mapping
 
-from flask import Flask, flash, redirect, url_for
+from flask import Flask, flash, make_response, redirect, render_template, request, url_for
 
 from .core.formatting import format_brl, format_brl_without_cents
 from .extensions import db, migrate
@@ -103,7 +103,13 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
         static_dir = Path(app.static_folder or "")
         asset_paths = [
             static_dir / name
-            for name in ("style.css", "base.js", "bets.js", "dashboard.js")
+            for name in (
+                "style.css",
+                "base.js",
+                "bets.js",
+                "dashboard.js",
+                "vendor/htmx-2.0.10.min.js",
+            )
         ]
         asset_paths.extend(sorted((static_dir / "css").glob("*.css")))
         mtimes = []
@@ -120,6 +126,16 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
     # ------------------------------------------------------------------
     @app.errorhandler(413)
     def _request_entity_too_large(error):  # type: ignore[return]
+        if request.headers.get("HX-Request", "").lower() == "true":
+            response = make_response(
+                render_template(
+                    "contests/_import_feedback.html",
+                    message="O arquivo enviado ultrapassa o limite de 10 MB.",
+                ),
+                413,
+            )
+            response.vary.add("HX-Request")
+            return response
         flash("O arquivo enviado ultrapassa o limite de 10 MB.")
         return redirect(url_for("web.contests")), 413
 

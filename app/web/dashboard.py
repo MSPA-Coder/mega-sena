@@ -2,11 +2,23 @@
 
 from __future__ import annotations
 
-from flask import jsonify, redirect, render_template, request, url_for
+from flask import jsonify, redirect, request, url_for
 
 from ..draws.statistics import build_stats
 from . import bp
-from .helpers import optional_int
+from .helpers import is_htmx_request, optional_int, render_htmx, render_page
+
+
+_DASHBOARD_PERIODS = (
+    (None, "Todos"),
+    (2000, "Últ. 2000"),
+    (1000, "Últ. 1000"),
+    (500, "Últ. 500"),
+    (200, "Últ. 200"),
+    (100, "Últ. 100"),
+    (50, "Últ. 50"),
+    (10, "Últ. 10"),
+)
 
 
 @bp.get("/")
@@ -16,8 +28,16 @@ def home():
 
 @bp.get("/dashboard")
 def dashboard():
-    stats = build_stats()
-    return render_template("dashboard/index.html", stats=stats)
+    selected_count = _bounded_period()
+    stats = build_stats(selected_count)
+    context = {
+        "stats": stats,
+        "selected_count": selected_count,
+        "periods": _DASHBOARD_PERIODS,
+    }
+    if is_htmx_request():
+        return render_htmx("dashboard/_content.html", **context)
+    return render_page("dashboard/index.html", **context)
 
 
 def _bounded_period() -> int | None:

@@ -1,0 +1,19 @@
+{% from "components/balls.html" import render_balls %}
+<section id="generation-result" class="panel" aria-live="polite">
+  {% if feedback %}<div class="flash">{{ feedback }}</div>{% endif %}
+  {% if bets %}
+    <div class="panel-header"><h2>{{ 'Prévia do fechamento' if closure_preview_truncated else 'Apostas geradas' }}</h2></div>
+    {% if closure_preview_truncated %}<p class="muted">Exibindo as primeiras {{ bets|length }} de {{ closure_total_formatted }} apostas. Ao gravar, o fechamento completo será recalculado a partir das dezenas informadas.</p>{% endif %}
+    <form method="post" action="{{ url_for('web.bet_generation') }}"
+          hx-post="{{ url_for('web.bet_generation') }}" hx-target="#generation-result" hx-swap="outerHTML"
+          hx-disabled-elt="find button[type='submit']" hx-indicator="#save-indicator">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="{{ 'save_closure' if closure_mode else 'save' }}"><input type="hidden" name="quantity" value="{{ bets[0].quantity }}"><input type="hidden" name="amount" value="{{ selected_amount }}">
+      {% if closure_mode %}<input type="hidden" name="closure_numbers" value="{{ closure_numbers }}">{% endif %}
+      {% for key, value in selected_filters.items() %}{% if value is not none %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endif %}{% endfor %}
+      <div class="generated-bets-grid">{% for bet in bets %}<div class="bet-line">{% if not closure_mode %}<input type="hidden" name="bet" value="{{ bet.numbers_csv }}">{% endif %}{{ render_balls(bet.numbers) }}<small>Diversidade {{ "%.2f"|format(bet.score) }}</small></div>{% endfor %}</div>
+      <div class="actions"><button type="submit">Gravar no banco</button><span id="save-indicator" class="htmx-indicator" role="status">Gravando…</span><a class="button secondary" href="{{ url_for('web.bet_generation', **generation_params) if generation_params is defined else url_for('web.bet_generation') }}">Não gravar</a></div>
+    </form>
+  {% elif feedback %}
+    <p class="muted">Corrija os parâmetros e tente novamente.</p>
+  {% endif %}
+</section>

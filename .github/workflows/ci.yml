@@ -128,3 +128,31 @@ jobs:
 
       - name: Audit runtime dependencies
         run: python scripts/audit_dependencies.py
+
+  production-image-smoke:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Build and start the production-like stack
+        run: |
+          mkdir -p .certs
+          : > .certs/local-root-ca.crt
+          docker compose -f compose.yaml up --build -d --wait
+
+      - name: Smoke test runtime HTTP assets and pages
+        run: |
+          curl --fail --silent --show-error http://127.0.0.1:5001/dashboard > /dev/null
+          curl --fail --silent --show-error http://127.0.0.1:5001/static/vendor/htmx-2.0.10.min.js > /dev/null
+          curl --fail --silent --show-error -H 'HX-Request: true' 'http://127.0.0.1:5001/dashboard?count=10' > /dev/null
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose -f compose.yaml logs --no-color
+
+      - name: Stop production-like stack
+        if: always()
+        run: docker compose -f compose.yaml down -v

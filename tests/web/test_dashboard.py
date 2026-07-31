@@ -269,8 +269,8 @@ def test_dashboard_renders_period_selector_buttons() -> None:
     assert 'data-period="200"' in text
     assert 'data-period="100"' in text
     assert 'id="freq-chart"' in text
-    assert "/api/dashboard-stats" in text
-    assert 'src="/static/dashboard.js?v=' in text
+    assert 'hx-target="#dashboard-content"' in text
+    assert 'src="/static/vendor/htmx-2.0.10.min.js?v=' in text
 
 
 def test_dashboard_stats_endpoint_returns_full_payload_for_all_sections() -> None:

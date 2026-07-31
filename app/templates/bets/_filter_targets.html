@@ -1,0 +1,9 @@
+{% if targets.total %}
+  {% set fields = [('consecutive_count', 'filter-consecutive-count', 0, 6), ('even_min', 'filter-even-min', 0, 6), ('even_max', 'filter-even-max', 0, 6), ('sum_min', 'filter-sum-min', 0, 345), ('sum_max', 'filter-sum-max', 0, 345), ('range_min_occupied', 'filter-range-min-occupied', 1, 6), ('range_max_per_band', 'filter-range-max-per-band', 1, 6)] %}
+  {% for name, element_id, minimum, maximum in fields %}
+    <input id="{{ element_id }}" type="number" name="{{ name }}" min="{{ minimum }}" max="{{ maximum }}" placeholder="Opcional" value="{{ targets.parameters[name].value if targets.parameters[name].value is not none else '' }}" hx-swap-oob="outerHTML">
+  {% endfor %}
+  <p id="filter-target-status" class="form-note" aria-live="polite">Parâmetros preenchidos para pelo menos {{ target_percentage|round(2) }}% em cada critério isolado.</p>
+{% else %}
+  <p id="filter-target-status" class="form-note" aria-live="polite">Importe concursos para calcular os parâmetros.</p>
+{% endif %}

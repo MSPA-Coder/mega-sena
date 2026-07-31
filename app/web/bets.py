@@ -33,7 +33,7 @@ from ..core.formatting import format_int, format_percent
 from ..draws.service import count_draws
 from ..settings.service import get_generation_defaults
 from . import bp
-from .helpers import optional_int, plural
+from .helpers import is_htmx_request, optional_int, plural, render_htmx
 
 CLOSURE_PREVIEW_LIMIT = 200
 
@@ -156,6 +156,42 @@ def _draw_filter_preview_payload(
     }
 
 
+def _preview_context(values: MultiDict) -> dict:
+    """Build the read-only preview shown beside the generation form."""
+    closure_numbers = values.get("closure_numbers", "")
+    quantity, selected_filters, selected_amount = _read_generation_state(values)
+    (
+        quantity,
+        selected_filters,
+        selected_amount,
+        closure_mode,
+        closure_base_count,
+    ) = _apply_closure_mode(
+        closure_numbers, quantity, selected_filters, selected_amount
+    )
+    combination_report = build_combination_report(
+        quantity=quantity, filters=selected_filters
+    )
+    covered_by_amount, chance_with_amount, chance_with_amount_one_in = (
+        _coverage_metrics(combination_report, selected_amount)
+    )
+    return {
+        "filter_preview": _draw_filter_preview_payload(selected_filters),
+        "combination_report": combination_report,
+        "selected_quantity": quantity,
+        "selected_amount": selected_amount,
+        "closure_mode": closure_mode,
+        "closure_base_count": closure_base_count,
+        "covered_by_amount_formatted": format_int(covered_by_amount),
+        "chance_with_amount_percent_formatted": format_percent(chance_with_amount * 100),
+        "chance_with_amount_one_in_formatted": (
+            format_int(chance_with_amount_one_in)
+            if chance_with_amount_one_in
+            else "0"
+        ),
+    }
+
+
 @bp.route("/rationale")
 def rationale():
     closure_numbers = request.args.get("closure_numbers", "")
@@ -214,6 +250,8 @@ def bet_generation():
     bets = []
     closure_total = 0
     closure_preview_truncated = False
+    feedback: str | None = None
+    htmx_request = is_htmx_request()
     closure_numbers = request.args.get("closure_numbers", "")
     selected_quantity, selected_filters, selected_amount = _read_generation_state(
         request.args
@@ -246,6 +284,10 @@ def bet_generation():
                         bets=request.form.getlist("bet"),
                     )
             except RuntimeError as exc:
+                if htmx_request:
+                    return render_htmx(
+                        "bets/_generation_result.html", bets=[], feedback=str(exc)
+                    )
                 flash(str(exc))
                 return redirect(
                     url_for(
@@ -255,10 +297,18 @@ def bet_generation():
                         ),
                     )
                 )
-            flash(
+            feedback = (
                 f"{format_int(saved)} "
                 f"{plural(saved, 'aposta gravada', 'apostas gravadas')} no banco de dados."
             )
+            if htmx_request:
+                return render_htmx(
+                    "bets/_save_response.html",
+                    feedback=feedback,
+                    recent_generations=list_recent_generations_with_bets(),
+                    selected_generation_id=generation_id,
+                )
+            flash(feedback)
             if generation_id is not None:
                 return redirect(
                     url_for(
@@ -286,7 +336,7 @@ def bet_generation():
                 )
                 closure_total = generated
                 closure_preview_truncated = generated > len(bets)
-                flash(
+                feedback = (
                     f"{format_int(generated)} "
                     f"{plural(generated, 'aposta gerada', 'apostas geradas')} "
                     "pelo fechamento matemático."
@@ -302,18 +352,21 @@ def bet_generation():
                 )
                 generated = len(bets)
                 if generated < amount:
-                    flash(
+                    feedback = (
                         f"{generated} {plural(generated, 'aposta gerada', 'apostas geradas')}. "
                         f"Não foi possível atingir {amount} {plural(amount, 'aposta', 'apostas')} "
                         "com os filtros informados."
                     )
                 else:
-                    flash(
+                    feedback = (
                         f"{generated} {plural(generated, 'aposta gerada', 'apostas geradas')}. "
                         "Revise e escolha se deseja gravar no banco de dados."
                     )
         except RuntimeError as exc:
-            flash(str(exc))
+            feedback = str(exc)
+
+        if feedback and not htmx_request:
+            flash(feedback)
 
     filter_preview = _draw_filter_preview_payload(selected_filters)
     (
@@ -334,8 +387,7 @@ def bet_generation():
     covered_by_amount, chance_with_amount, chance_with_amount_one_in = (
         _coverage_metrics(combination_report, selected_amount)
     )
-    return render_template(
-        "bets/index.html",
+    context = dict(
         bets=bets,
         closure_total_formatted=format_int(closure_total),
         closure_preview_truncated=closure_preview_truncated,
@@ -351,14 +403,23 @@ def bet_generation():
         closure_base_count=closure_base_count,
         covered_by_amount_formatted=format_int(covered_by_amount),
         chance_with_amount_percent_formatted=format_percent(chance_with_amount * 100),
-        chance_with_amount_one_in_formatted=format_int(chance_with_amount_one_in)
-        if chance_with_amount_one_in
-        else "0",
+        chance_with_amount_one_in_formatted=(
+            format_int(chance_with_amount_one_in)
+            if chance_with_amount_one_in
+            else "0"
+        ),
         closure_numbers=closure_numbers,
         generation_limits=GENERATION_LIMITS,
         generation_params=_generation_params(
             selected_quantity, selected_filters, selected_amount
         ),
+        feedback=feedback,
+    )
+    if htmx_request:
+        return render_htmx("bets/_generation_result.html", **context)
+    return render_template(
+        "bets/index.html",
+        **context,
     )
 
 
@@ -368,10 +429,30 @@ def draw_filter_preview():
     return jsonify(_draw_filter_preview_payload(selected_filters))
 
 
+@bp.get("/bets/preview")
+def bet_preview():
+    """Return the server-rendered read-only generation preview for htmx."""
+    return render_htmx("bets/_preview.html", **_preview_context(request.args))
+
+
 @bp.get("/api/filter-targets")
 def filter_targets():
     target_percentage = request.args.get("target_percentage", 80, type=float)
     return jsonify(calculate_individual_filter_targets(target_percentage))
+
+
+@bp.get("/bets/filter-targets/fragment")
+def filter_targets_fragment():
+    target_percentage = request.args.get("target_percentage", 80, type=float)
+    target_percentage = max(0, min(target_percentage, 100))
+    targets = calculate_individual_filter_targets(target_percentage)
+    response = render_htmx(
+        "bets/_filter_targets.html",
+        target_percentage=target_percentage,
+        targets=targets,
+    )
+    response.headers["HX-Trigger"] = "bets-preview"
+    return response
 
 
 @bp.get("/api/combinations")

@@ -9,6 +9,7 @@ from flask import flash, redirect, render_template, request, url_for
 from ..bets.criteria import GENERATION_LIMITS
 from ..settings.service import get_config_values, reset_all_data, update_config_values
 from . import bp
+from .helpers import is_htmx_request, render_htmx
 
 
 _log = logging.getLogger(__name__)
@@ -27,6 +28,10 @@ def settings_page():
 def save_settings():
     update_config_values(request.form)
     _log.info("Configuracoes de geracao atualizadas.")
+    if is_htmx_request():
+        return render_htmx(
+            "settings/_feedback.html", message="Configurações salvas."
+        )
     flash("Configurações salvas.")
     return redirect(url_for("web.settings_page"))
 
@@ -35,5 +40,8 @@ def save_settings():
 def reset_database():
     draw_count, bet_count = reset_all_data()
     _log.warning("Base reiniciada: %d concursos e %d apostas apagados.", draw_count, bet_count)
-    flash("Base reiniciada: concursos e apostas apagados.")
+    message = "Base reiniciada: concursos e apostas apagados."
+    if is_htmx_request():
+        return render_htmx("settings/_feedback.html", message=message)
+    flash(message)
     return redirect(url_for("web.settings_page"))
