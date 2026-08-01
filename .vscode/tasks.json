@@ -10,7 +10,7 @@
     {
       "label": "Docker: executar testes",
       "type": "shell",
-      "command": "docker compose --env-file .env.docker run --rm --no-deps -e DATABASE_URL= app python -m pytest -q",
+      "command": "docker compose --env-file .env.docker run --rm --no-deps --entrypoint sh app -c 'export TEST_DATABASE_URL=\"${DATABASE_URL%/*}/mega_sena_test\"; python -m pytest -q'",
       "problemMatcher": []
     },
     {

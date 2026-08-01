@@ -1,12 +1,12 @@
 {
   "name": "Mega Sena",
-  "dockerComposeFile": "../compose.yaml",
+  "dockerComposeFile": ["../compose.yaml", "../compose.override.yaml"],
   "service": "app",
-  "workspaceFolder": "/workspace",
+  "workspaceFolder": "/app",
   "shutdownAction": "stopCompose",
-  "forwardPorts": [5000, 5432],
+  "forwardPorts": [5001, 5432],
   "portsAttributes": {
-    "5000": {
+    "5001": {
       "label": "Aplicação Flask",
       "onAutoForward": "openBrowser"
     },
