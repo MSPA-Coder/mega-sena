@@ -111,6 +111,19 @@ def main() -> int:
                 )
             )
 
+        # A carga preserva generation_id; avance também a sequência exclusiva
+        # desses lotes, para que a próxima gravação não reutilize um identificador
+        # migrado e funda lotes distintos na interface.
+        target.execute(
+            sa.text(
+                "SELECT setval("
+                "'generated_bets_generation_id_seq', "
+                "COALESCE(MAX(generation_id), 1), "
+                "MAX(generation_id) IS NOT NULL"
+                ") FROM generated_bets"
+            )
+        )
+
     args.report.write_text(
         json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )

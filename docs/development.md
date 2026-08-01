@@ -1,12 +1,10 @@
 # Desenvolvimento
 
-## Ambientes
+## Ambiente de desenvolvimento
 
-O projeto pode ser desenvolvido no contêiner ou em uma instalação Python local.
-Use o ambiente que melhor atende à alteração; o CI continua sendo a referência
-comum.
-
-### Docker e Dev Container
+O projeto é container-first: Python, dependências, PostgreSQL, migrações,
+testes e verificações rodam nos serviços Docker. O host mantém Docker Desktop,
+Git, GitHub CLI e o editor.
 
 ```powershell
 Copy-Item .env.docker.example .env.docker
@@ -17,47 +15,26 @@ docker compose --env-file .env.docker up --build -d
 A aplicação fica em <http://127.0.0.1:5001>. No VS Code, **Dev Containers:
 Reopen in Container** usa o mesmo contêiner `app`.
 
-### Python local
-
-PostgreSQL é o único backend suportado; use o serviço do Docker Compose
-(`127.0.0.1:5433` por padrão) ou uma instalação local.
-
-```powershell
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements-dev.txt
-$env:SECRET_KEY = "chave-de-desenvolvimento"
-$env:DATABASE_URL = "postgresql+psycopg://mega_sena:mega_sena_dev_local@127.0.0.1:5433/mega_sena"
-python -m flask --app run.py db upgrade
-python -m flask --app run.py seed-defaults
-python run.py
-```
-
-A aplicação publica em <http://127.0.0.1:5001>. `db upgrade` e `seed-defaults`
-são comandos explícitos: `create_app()` não migra nem grava dados por conta
-própria (veja [Arquitetura](architecture.md)); rode-os de novo depois de
-qualquer alteração de schema.
+`docker-entrypoint.sh` aplica `flask db upgrade` e `flask seed-defaults` antes
+de iniciar a aplicação. `create_app()` não migra nem grava dados por conta
+própria (veja [Arquitetura](architecture.md)).
 
 ## Qualidade
 
-A suíte de testes exige um PostgreSQL descartável (`TEST_DATABASE_URL`, ou
-`DATABASE_URL` como alternativa); nenhum teste usa SQLite para simular
-persistência. Testes puros de `tests/unit/` não tocam o banco.
-
-```powershell
-$env:TEST_DATABASE_URL = "postgresql+psycopg://mega_sena:mega_sena_dev_local@127.0.0.1:5433/mega_sena_test"
-python -m ruff check app migrations scripts tests run.py
-python -m pytest -q
-```
+A suíte de testes exige um PostgreSQL descartável definido em
+`TEST_DATABASE_URL`; nenhum teste usa SQLite para simular persistência. A
+suíte nunca usa `DATABASE_URL` como alternativa, para não limpar o banco da
+aplicação. A URL de teste precisa identificar um banco distinto cujo nome
+termine em `_test`; a limpeza é restrita às tabelas conhecidas da aplicação.
+Testes puros de `tests/unit/` não tocam o banco.
 
 No Docker, aponte para o banco descartável exposto pelo serviço `postgres`:
 
 ```powershell
 # Execute apenas na primeira vez, depois de subir o serviço postgres.
 docker compose --env-file .env.docker exec -T postgres sh -c 'createdb -U "$POSTGRES_USER" mega_sena_test'
-docker compose --env-file .env.docker run --rm --no-deps `
-  -e TEST_DATABASE_URL=postgresql+psycopg://mega_sena:mega_sena_dev_local@postgres:5432/mega_sena_test `
-  app python -m pytest -q
+docker compose --env-file .env.docker run --rm --no-deps app sh -c `
+  'export TEST_DATABASE_URL="${DATABASE_URL%/*}/mega_sena_test"; python -m pytest -q'
 docker compose --env-file .env.docker run --rm --no-deps app python -m ruff check app migrations scripts tests run.py
 ```
 
@@ -98,15 +75,7 @@ Fixtures e builders compartilhados ficam em `tests/conftest.py` e
 
 ## Migrações
 
-Depois de alterar um modelo:
-
-```powershell
-flask --app run.py db migrate -m "descrição"
-flask --app run.py db upgrade
-python -m pytest -q tests/integration/test_migrations.py
-```
-
-No contêiner em execução:
+Depois de alterar um modelo, gere e revise a revisão no contêiner:
 
 ```powershell
 docker compose --env-file .env.docker exec app flask --app run.py db migrate -m "descrição"
@@ -120,9 +89,8 @@ ser reescrita para representar um novo estado; crie uma revisão subsequente.
 Migrações são aplicadas por uma etapa controlada e separada (`flask db
 upgrade`), nunca automaticamente pela aplicação — veja
 [Arquitetura](architecture.md). A suíte de testes aplica o schema uma única
-vez por processo contra o PostgreSQL descartável; os `db.create_all()` que
-aparecem em testes individuais são idempotentes e servem como salvaguarda, não
-como substituto das migrações.
+vez por processo contra o PostgreSQL descartável via Alembic. `create_all()`
+não substitui esse bootstrap.
 
 ## Alterações nos critérios de geração
 

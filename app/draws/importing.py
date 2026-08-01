@@ -33,14 +33,23 @@ def _parse_date(value: object) -> date | None:
     if isinstance(value, date):
         return value
     if isinstance(value, (int, float)):
-        return None
+        raise ValueError("data inválida")
     text = str(value).strip()
     for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"):
         try:
             return datetime.strptime(text, fmt).date()
         except ValueError:
             pass
-    return None
+    raise ValueError("data inválida")
+
+
+def _parse_winner_count(value: object) -> int:
+    if value is None or value == "":
+        return 0
+    parsed = parse_int(value, max_abs=MAX_INT32)
+    if parsed is None or parsed < 0:
+        raise ValueError("quantidade de ganhadores inválida")
+    return parsed
 
 
 def _count_rows_with_limit(rows: Iterable[tuple[object, ...]]) -> int:
@@ -54,10 +63,17 @@ def _count_rows_with_limit(rows: Iterable[tuple[object, ...]]) -> int:
 
 
 def _money_to_cents(value: object) -> int:
+    """Converte um valor monetário explícito para centavos.
+
+    Uma célula vazia representa zero. Já um valor não vazio que não possa ser
+    interpretado como dinheiro é um erro da planilha: não o trate como zero,
+    pois isso poderia apagar uma premiação já armazenada ao reimportar um
+    concurso.
+    """
     if value is None or value == "":
         return 0
     if isinstance(value, bool):
-        return 0
+        raise ValueError("valor monetário inválido")
     try:
         if isinstance(value, (int, float, Decimal)):
             amount = Decimal(str(value))
@@ -70,7 +86,7 @@ def _money_to_cents(value: object) -> int:
                 .replace(" ", "")
             )
             if not text or len(text) > 64:
-                return 0
+                raise ValueError("valor monetário inválido")
             if "," in text and "." in text:
                 text = (
                     text.replace(".", "").replace(",", ".")
@@ -81,11 +97,13 @@ def _money_to_cents(value: object) -> int:
                 text = text.replace(",", ".")
             amount = Decimal(text)
         if not amount.is_finite() or amount < 0:
-            return 0
+            raise ValueError("valor monetário inválido")
         cents = int((amount * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
-        return cents if cents <= MAX_INT64 else 0
+        if cents > MAX_INT64:
+            raise ValueError("valor monetário fora do limite aceito")
+        return cents
     except (InvalidOperation, OverflowError, TypeError, ValueError):
-        return 0
+        raise ValueError("valor monetário inválido") from None
 
 
 def _validate_xlsx_archive(source: str | Path | BinaryIO) -> None:
@@ -240,9 +258,6 @@ def import_results_from_xlsx(source: str | Path | BinaryIO) -> dict[str, int]:
                 numbers = sorted(numbers)  # type: ignore[arg-type]
                 derived = draw_parameters(numbers)
                 payload = {
-                    "draw_date": _parse_date(row[date_idx])
-                    if date_idx is not None and date_idx < len(row)
-                    else None,
                     "n1": numbers[0],
                     "n2": numbers[1],
                     "n3": numbers[2],
@@ -252,36 +267,47 @@ def import_results_from_xlsx(source: str | Path | BinaryIO) -> dict[str, int]:
                     "total_sum": derived["total_sum"],
                     "even_count": derived["even_count"],
                     "consecutive_count": derived["consecutive_count"],
-                    "winners_6": max(
-                        parse_int(row[winners_6_idx], max_abs=MAX_INT32) or 0, 0
-                    )
-                    if winners_6_idx is not None and winners_6_idx < len(row)
-                    else 0,
-                    "winners_5": max(
-                        parse_int(row[winners_5_idx], max_abs=MAX_INT32) or 0, 0
-                    )
-                    if winners_5_idx is not None and winners_5_idx < len(row)
-                    else 0,
-                    "winners_4": max(
-                        parse_int(row[winners_4_idx], max_abs=MAX_INT32) or 0, 0
-                    )
-                    if winners_4_idx is not None and winners_4_idx < len(row)
-                    else 0,
-                    "prize_cents": _money_to_cents(row[prize_idx])
-                    if prize_idx is not None and prize_idx < len(row)
-                    else 0,
-                    "accumulated_cents": _money_to_cents(row[accumulated_idx])
-                    if accumulated_idx is not None and accumulated_idx < len(row)
-                    else 0,
-                    "quina_rateio_cents": _money_to_cents(row[quina_rateio_idx])
-                    if quina_rateio_idx is not None and quina_rateio_idx < len(row)
-                    else 0,
-                    "quadra_rateio_cents": _money_to_cents(row[quadra_rateio_idx])
-                    if quadra_rateio_idx is not None and quadra_rateio_idx < len(row)
-                    else 0,
                 }
+                optional_payload: dict[str, object] = {}
+
+                def cell_at(index: int) -> object:
+                    return row[index] if index < len(row) else None
+
+                if date_idx is not None:
+                    try:
+                        optional_payload["draw_date"] = _parse_date(cell_at(date_idx))
+                    except ValueError as exc:
+                        raise RuntimeError(
+                            f"Data inválida no concurso {contest}."
+                        ) from exc
+                for field, index, label in (
+                    ("winners_6", winners_6_idx, "ganhadores de 6 acertos"),
+                    ("winners_5", winners_5_idx, "ganhadores de 5 acertos"),
+                    ("winners_4", winners_4_idx, "ganhadores de 4 acertos"),
+                ):
+                    if index is not None:
+                        try:
+                            optional_payload[field] = _parse_winner_count(cell_at(index))
+                        except ValueError as exc:
+                            raise RuntimeError(
+                                f"Quantidade inválida no concurso {contest} ({label})."
+                            ) from exc
+                for field, index, label in (
+                    ("prize_cents", prize_idx, "rateio de 6 acertos"),
+                    ("accumulated_cents", accumulated_idx, "acumulado"),
+                    ("quina_rateio_cents", quina_rateio_idx, "rateio de 5 acertos"),
+                    ("quadra_rateio_cents", quadra_rateio_idx, "rateio de 4 acertos"),
+                ):
+                    if index is not None:
+                        try:
+                            optional_payload[field] = _money_to_cents(cell_at(index))
+                        except ValueError as exc:
+                            raise RuntimeError(
+                                f"Valor monetário inválido no concurso {contest} ({label})."
+                            ) from exc
                 draw = existing_draws.get(contest)
                 if draw:
+                    payload.update(optional_payload)
                     if all(
                         getattr(draw, key) == value for key, value in payload.items()
                     ):
@@ -292,7 +318,7 @@ def import_results_from_xlsx(source: str | Path | BinaryIO) -> dict[str, int]:
                         setattr(draw, key, value)
                     updated += 1
                 else:
-                    draw = Draw(contest=contest, **payload)
+                    draw = Draw(contest=contest, **payload, **optional_payload)
                     db.session.add(draw)
                     existing_draws[contest] = draw
                     imported += 1

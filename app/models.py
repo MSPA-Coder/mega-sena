@@ -1,7 +1,25 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from sqlalchemy import CheckConstraint
+
 from .extensions import db
+
+
+_CONSECUTIVE_COUNT_SQL = (
+    "GREATEST("
+    "CASE WHEN n2 = n1 + 1 THEN CASE WHEN n3 = n2 + 1 THEN "
+    "CASE WHEN n4 = n3 + 1 THEN CASE WHEN n5 = n4 + 1 THEN "
+    "CASE WHEN n6 = n5 + 1 THEN 6 ELSE 5 END ELSE 4 END ELSE 3 END "
+    "ELSE 2 END ELSE 0 END, "
+    "CASE WHEN n3 = n2 + 1 THEN CASE WHEN n4 = n3 + 1 THEN "
+    "CASE WHEN n5 = n4 + 1 THEN CASE WHEN n6 = n5 + 1 THEN 5 ELSE 4 END "
+    "ELSE 3 END ELSE 2 END ELSE 0 END, "
+    "CASE WHEN n4 = n3 + 1 THEN CASE WHEN n5 = n4 + 1 THEN "
+    "CASE WHEN n6 = n5 + 1 THEN 4 ELSE 3 END ELSE 2 END ELSE 0 END, "
+    "CASE WHEN n5 = n4 + 1 THEN CASE WHEN n6 = n5 + 1 THEN 3 ELSE 2 END "
+    "ELSE 0 END, CASE WHEN n6 = n5 + 1 THEN 2 ELSE 0 END)"
+)
 
 
 def _utcnow() -> datetime:
@@ -11,6 +29,41 @@ def _utcnow() -> datetime:
 
 class Draw(db.Model):
     __tablename__ = "draws"
+    __table_args__ = (
+        CheckConstraint("contest > 0", name="ck_draws_contest_positive"),
+        CheckConstraint(
+            "n1 >= 1 AND n6 <= 60 AND n1 < n2 AND n2 < n3 "
+            "AND n3 < n4 AND n4 < n5 AND n5 < n6",
+            name="ck_draws_numbers_ordered_and_bounded",
+        ),
+        CheckConstraint(
+            "total_sum = n1 + n2 + n3 + n4 + n5 + n6",
+            name="ck_draws_total_sum_matches_numbers",
+        ),
+        CheckConstraint(
+            "even_count = "
+            "((CASE WHEN n1 % 2 = 0 THEN 1 ELSE 0 END) + "
+            "(CASE WHEN n2 % 2 = 0 THEN 1 ELSE 0 END) + "
+            "(CASE WHEN n3 % 2 = 0 THEN 1 ELSE 0 END) + "
+            "(CASE WHEN n4 % 2 = 0 THEN 1 ELSE 0 END) + "
+            "(CASE WHEN n5 % 2 = 0 THEN 1 ELSE 0 END) + "
+            "(CASE WHEN n6 % 2 = 0 THEN 1 ELSE 0 END))",
+            name="ck_draws_even_count_matches_numbers",
+        ),
+        CheckConstraint(
+            f"consecutive_count = {_CONSECUTIVE_COUNT_SQL}",
+            name="ck_draws_consecutive_count_matches_numbers",
+        ),
+        CheckConstraint(
+            "winners_6 >= 0 AND winners_5 >= 0 AND winners_4 >= 0",
+            name="ck_draws_winners_nonnegative",
+        ),
+        CheckConstraint(
+            "prize_cents >= 0 AND accumulated_cents >= 0 AND "
+            "quina_rateio_cents >= 0 AND quadra_rateio_cents >= 0",
+            name="ck_draws_money_nonnegative",
+        ),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     contest = db.Column(db.Integer, nullable=False, unique=True, index=True)
@@ -40,6 +93,18 @@ class Draw(db.Model):
 
 class GeneratedBet(db.Model):
     __tablename__ = "generated_bets"
+    __table_args__ = (
+        CheckConstraint(
+            "quantity BETWEEN 6 AND 20", name="ck_generated_bets_quantity_range"
+        ),
+        CheckConstraint(
+            "score >= 0 AND score <= 1", name="ck_generated_bets_score_range"
+        ),
+        CheckConstraint(
+            "generation_id IS NULL OR generation_id > 0",
+            name="ck_generated_bets_generation_id_positive",
+        ),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     generation_id = db.Column(db.Integer, nullable=True, index=True)

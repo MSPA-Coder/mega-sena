@@ -5,14 +5,19 @@
     <label>Percentual de jogos que passariam<input type="text" readonly data-filter-preview-percent value="{{ filter_preview.percentage_text }}"></label>
   </div>
   <section class="panel combinations-panel" data-combination-report>
-    <div class="panel-header"><div><h2>Resumo dos filtros</h2><p class="panel-header-caption">Os números abaixo usam os filtros atuais da tela Gerar apostas.</p></div></div>
+    <div class="panel-header"><div><h2>Universo do sorteio e filtros</h2><p class="panel-header-caption">Os filtros descrevem um universo filtrado, mas não mudam a probabilidade real de cada resultado do sorteio.</p></div></div>
     <div class="combination-summary">
-      <div><span>Total possível</span><strong data-combination-total>{{ combination_report.total_formatted }}</strong><small>sorteios de 6 números</small></div>
-      <div><span>Eliminadas pelos filtros</span><strong data-combination-eliminated>{{ combination_report.eliminated_formatted }}</strong><small>combinações removidas</small></div>
-      <div><span>Restantes</span><strong data-combination-remaining>{{ combination_report.remaining_formatted }}</strong><small>combinações possíveis</small></div>
-      <div><span>{{ 'Apostas no fechamento' if closure_mode else ('Cobertas por ' ~ selected_amount ~ ' ' ~ ('aposta' if selected_amount == 1 else 'apostas')) }}</span><strong>{{ covered_by_amount_formatted }}</strong><small>{% if closure_mode %}C({{ closure_base_count }}, 6) com {{ closure_base_count }} dezenas-base{% else %}C({{ selected_quantity }}, 6) x {{ selected_amount }}{% endif %}</small></div>
-      <div><span>{{ 'Chance no fechamento' if closure_mode else ('Chance com ' ~ selected_amount ~ ' ' ~ ('aposta' if selected_amount == 1 else 'apostas')) }}</span><strong>{{ chance_with_amount_percent_formatted }}%</strong><small>1 em {{ chance_with_amount_one_in_formatted }}</small></div>
+      <div><span>Universo real do sorteio</span><strong data-combination-total>{{ combination_report.total_formatted }}</strong><small>C(60, 6) resultados equiprováveis</small></div>
+      <div><span>Fora do universo filtrado</span><strong data-combination-eliminated>{{ combination_report.eliminated_formatted }}</strong><small>descrição dos filtros, não da chance</small></div>
+      <div><span>No universo filtrado</span><strong data-combination-remaining>{{ combination_report.remaining_formatted }}</strong><small>combinações que passam pelos critérios</small></div>
+      {% if coverage_metrics.exact_coverage_available %}
+      <div><span>{{ 'Combinações distintas no fechamento' if closure_mode else 'Cobertura exata das apostas geradas' }}</span><strong>{{ coverage_metrics.exact_covered_combinations_formatted }}</strong><small>{% if closure_mode %}C({{ closure_base_count }}, 6) com {{ closure_base_count }} dezenas-base{% else %}união das combinações internas das apostas concretas{% endif %}</small></div>
+      <div><span>Probabilidade real do conjunto</span><strong>{{ coverage_metrics.exact_probability_percent_formatted }}%</strong><small>1 em {{ coverage_metrics.exact_probability_one_in_formatted }}, sobre C(60, 6)</small></div>
+      {% else %}
+      <div><span>Limite superior teórico</span><strong>{{ coverage_metrics.theoretical_upper_combinations_formatted }}</strong><small>C({{ selected_quantity }}, 6) x {{ selected_amount }}; apostas ainda não concretas</small></div>
+      <div><span>Limite superior da probabilidade</span><strong>{{ coverage_metrics.theoretical_upper_probability_percent_formatted }}%</strong><small>pode ser menor por sobreposição; denominador C(60, 6)</small></div>
+      {% endif %}
     </div>
-    <div class="combination-filter-list">{% if combination_report.steps %}{% for step in combination_report.steps %}{{ render_filter_summary_step(step) }}{% endfor %}{% else %}<p class="muted">Nenhum filtro aplicado. O universo permanece em {{ combination_report.total_formatted }} combinações.</p>{% endif %}</div>
+    <div class="combination-filter-list">{% if combination_report.steps %}{% for step in combination_report.steps %}{{ render_filter_summary_step(step) }}{% endfor %}{% else %}<p class="muted">Nenhum filtro aplicado. O universo filtrado coincide com as {{ combination_report.total_formatted }} combinações do sorteio.</p>{% endif %}</div>
   </section>
 </section>

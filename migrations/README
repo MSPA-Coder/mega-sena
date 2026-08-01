@@ -1,31 +1,23 @@
-# Migrações do banco
+# Operação de schema
 
-O schema é versionado com Flask-Migrate/Alembic. As revisões ficam em
-`migrations/versions/` e são usadas tanto pelo SQLite quanto pelo PostgreSQL.
+O schema PostgreSQL é versionado por Flask-Migrate/Alembic. As revisões em
+`versions/` são a fonte de verdade para criar um banco novo. SQLite é permitido
+somente na ferramenta explícita de importação de uma base legada, nunca como
+backend da aplicação ou da suíte de persistência.
 
-Depois de alterar os modelos:
-
-```powershell
-flask --app run.py db migrate -m "descrição"
-flask --app run.py db upgrade
-python -m pytest -q tests/integration/test_migrations.py
-```
-
-Se a aplicação estiver no Docker:
+Para alterar o schema, gere a candidata no contêiner, revise-a e aplique-a:
 
 ```powershell
 docker compose --env-file .env.docker exec app flask --app run.py db migrate -m "descrição"
 docker compose --env-file .env.docker exec app flask --app run.py db upgrade
+docker compose --env-file .env.docker run --rm --no-deps app python -m pytest -q
 ```
 
-Revise o arquivo gerado antes do commit, especialmente tipos, nulabilidade,
-valores padrão, índices e transformações de dados. O Alembic usa modo batch para
-SQLite e migrações diretas para PostgreSQL.
+Revise tipos, nulabilidade, valores padrão, índices, constraints e qualquer
+transformação de dados antes de versionar a revisão. Não reescreva uma revisão
+que possa ter sido aplicada: uma mudança adicional exige uma nova revisão.
 
-A aplicação executa `upgrade` na inicialização. Isso mantém o schema atualizado,
-mas não substitui uma política de backup. Para PostgreSQL, use
-`scripts/backup_postgres.ps1`; para SQLite, preserve uma cópia do arquivo
-`instance/mega_sena.db` antes de uma alteração relevante.
-
-Não modifique uma revisão que já possa ter sido aplicada. Uma mudança adicional
-deve ser representada por uma nova revisão.
+`create_app()` não executa migrações nem grava dados. O entrypoint Docker roda
+`flask db upgrade` e `flask seed-defaults` como etapas controladas antes do
+servidor. A adoção de schema legado sem `alembic_version` exige backup validado,
+verificação estrutural e registro administrativo; ela nunca ocorre no startup.

@@ -139,7 +139,7 @@ def _build_sum_histogram(sums: list[int], bin_size: int = 10) -> dict:
     return {"bins": bins, "max_frequency": scale_max, "y_ticks": y_ticks}
 
 
-def refresh_draw_parameters() -> int:
+def refresh_draw_parameters(*, commit: bool = True) -> int:
     total_draws = Draw.query.count()
     if total_draws == 0:
         return 0
@@ -154,21 +154,22 @@ def refresh_draw_parameters() -> int:
                 changed = True
         if changed:
             updated += 1
-    if updated:
+    if updated and commit:
         db.session.commit()
         _log.info("refresh_draw_parameters: %d/%d concursos recalculados.", updated, total_draws)
     return updated
 
 
-def ensure_draw_parameters_current() -> int:
+def ensure_draw_parameters_current(*, commit: bool = True) -> int:
     """Executa a atualização derivada uma vez por versão, em vez de a cada boot."""
     marker = Config.query.filter_by(key=_DRAW_PARAMETERS_VERSION_KEY).one_or_none()
     if marker and marker.value == _DRAW_PARAMETERS_VERSION:
         return 0
-    updated = refresh_draw_parameters()
+    updated = refresh_draw_parameters(commit=False)
     if marker is None:
         db.session.add(Config(key=_DRAW_PARAMETERS_VERSION_KEY, value=_DRAW_PARAMETERS_VERSION))
     else:
         marker.value = _DRAW_PARAMETERS_VERSION
-    db.session.commit()
+    if commit:
+        db.session.commit()
     return updated

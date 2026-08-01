@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 
+import pytest
 import sqlalchemy as sa
 from sqlalchemy import inspect, text
 
@@ -44,7 +45,7 @@ def test_fresh_database_is_created_from_migrations() -> None:
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
             assert {"alembic_version", "config", "draws", "generated_bets"} <= tables
-            assert revision == "0004_generation_id_sequence"
+            assert revision == "0005_integrity_constraints"
             assert (
                 db.session.execute(
                     text("SELECT to_regclass('generated_bets_generation_id_seq')")
@@ -57,6 +58,88 @@ def test_fresh_database_is_created_from_migrations() -> None:
                 ).scalar_one()
                 == 1
             )
+            checks = {
+                check["name"] for check in inspect(db.engine).get_check_constraints("draws")
+            }
+            assert {
+                "ck_draws_contest_positive",
+                "ck_draws_numbers_ordered_and_bounded",
+                "ck_draws_total_sum_matches_numbers",
+                "ck_draws_even_count_matches_numbers",
+                "ck_draws_consecutive_count_matches_numbers",
+                "ck_draws_winners_nonnegative",
+                "ck_draws_money_nonnegative",
+            } <= checks
+            generated_bet_checks = {
+                check["name"]
+                for check in inspect(db.engine).get_check_constraints("generated_bets")
+            }
+            assert {
+                "ck_generated_bets_quantity_range",
+                "ck_generated_bets_score_range",
+                "ck_generated_bets_generation_id_positive",
+            } <= generated_bet_checks
+
+            with pytest.raises(sa.exc.IntegrityError):
+                db.session.execute(
+                    text(
+                        "INSERT INTO draws "
+                        "(contest, n1, n2, n3, n4, n5, n6, total_sum, even_count, "
+                        "consecutive_count, winners_6, winners_5, winners_4, prize_cents, "
+                        "accumulated_cents, quina_rateio_cents, quadra_rateio_cents, created_at) "
+                        "VALUES (0, 1, 2, 3, 4, 5, 6, 21, 3, 6, 0, 0, 0, 0, 0, 0, 0, NOW())"
+                    )
+                )
+                db.session.commit()
+            db.session.rollback()
+
+            with pytest.raises(sa.exc.IntegrityError):
+                db.session.execute(
+                    text(
+                        "INSERT INTO draws "
+                        "(contest, n1, n2, n3, n4, n5, n6, total_sum, even_count, "
+                        "consecutive_count, winners_6, winners_5, winners_4, prize_cents, "
+                        "accumulated_cents, quina_rateio_cents, quadra_rateio_cents, created_at) "
+                        "VALUES (2, 1, 2, 10, 20, 30, 40, 103, 5, 0, 0, 0, 0, 0, 0, 0, 0, NOW())"
+                    )
+                )
+                db.session.commit()
+            db.session.rollback()
+
+            db.session.execute(
+                text(
+                    "INSERT INTO draws "
+                    "(contest, n1, n2, n3, n4, n5, n6, total_sum, even_count, "
+                    "consecutive_count, winners_6, winners_5, winners_4, prize_cents, "
+                    "accumulated_cents, quina_rateio_cents, quadra_rateio_cents, created_at) "
+                    "VALUES (3, 1, 2, 10, 20, 30, 40, 103, 5, 2, 0, 0, 0, 0, 0, 0, 0, NOW())"
+                )
+            )
+            db.session.rollback()
+
+            db.session.execute(
+                text(
+                    "INSERT INTO draws "
+                    "(contest, n1, n2, n3, n4, n5, n6, total_sum, even_count, "
+                    "consecutive_count, winners_6, winners_5, winners_4, prize_cents, "
+                    "accumulated_cents, quina_rateio_cents, quadra_rateio_cents, created_at) "
+                    "VALUES "
+                    "(4, 1, 3, 5, 7, 9, 11, 36, 0, 0, 0, 0, 0, 0, 0, 0, 0, NOW()), "
+                    "(5, 1, 2, 3, 4, 5, 6, 21, 3, 6, 0, 0, 0, 0, 0, 0, 0, NOW())"
+                )
+            )
+            db.session.rollback()
+
+            with pytest.raises(sa.exc.IntegrityError):
+                db.session.execute(
+                    text(
+                        "INSERT INTO generated_bets "
+                        "(numbers_csv, quantity, score, created_at) "
+                        "VALUES ('1,2,3,4,5,6', 5, 0, NOW())"
+                    )
+                )
+                db.session.commit()
+            db.session.rollback()
 
             check = app.test_cli_runner().invoke(args=["db", "check"])
             assert check.exit_code == 0, check.output

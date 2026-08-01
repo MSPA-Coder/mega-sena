@@ -13,22 +13,48 @@ from app import create_app
 TEST_DATABASE_URL_ENV = "TEST_DATABASE_URL"
 
 
+def _database_identity(url: str) -> tuple[str, int, str]:
+    parsed = sa.make_url(url)
+    if parsed.get_backend_name() != "postgresql":
+        raise RuntimeError("TEST_DATABASE_URL deve apontar para PostgreSQL.")
+    database = (parsed.database or "").strip()
+    if not database:
+        raise RuntimeError("TEST_DATABASE_URL deve identificar um banco.")
+    return ((parsed.host or "").casefold(), parsed.port or 5432, database.casefold())
+
+
 def get_test_database_url() -> str:
     """Retorna a URL do PostgreSQL descartável usado pela suíte de testes.
 
     A suíte não usa SQLite para simular persistência (veja AGENTS.md). É
-    necessário um PostgreSQL real e descartável, apontado por
-    `TEST_DATABASE_URL` (ou `DATABASE_URL` como alternativa, útil no Docker
-    Compose de desenvolvimento). Veja docs/development.md.
+    necessário um PostgreSQL real e descartável, apontado exclusivamente por
+    `TEST_DATABASE_URL`. Não use `DATABASE_URL`: ela identifica o banco da
+    aplicação e a limpeza entre testes poderia apagar seus dados. Veja
+    docs/development.md.
     """
-    url = os.environ.get(TEST_DATABASE_URL_ENV, "").strip() or os.environ.get(
-        "DATABASE_URL", ""
-    ).strip()
+    url = os.environ.get(TEST_DATABASE_URL_ENV, "").strip()
     if not url:
         raise RuntimeError(
-            "TEST_DATABASE_URL (ou DATABASE_URL) não definida. A suíte de "
-            "testes exige um PostgreSQL descartável; veja docs/development.md."
+            "TEST_DATABASE_URL não definida. A suíte de testes exige um "
+            "PostgreSQL descartável; veja docs/development.md."
         )
+    test_identity = _database_identity(url)
+    if test_identity[2] == "postgres" or not test_identity[2].endswith("_test"):
+        raise RuntimeError(
+            "TEST_DATABASE_URL deve usar um banco descartável cujo nome termine "
+            "em '_test'; bancos operacionais ou de manutenção são recusados."
+        )
+    application_url = os.environ.get("DATABASE_URL", "").strip()
+    if application_url:
+        try:
+            application_identity = _database_identity(application_url)
+        except (RuntimeError, sa.exc.ArgumentError):
+            application_identity = None
+        if application_identity == test_identity:
+            raise RuntimeError(
+                "TEST_DATABASE_URL aponta para o mesmo banco de DATABASE_URL; "
+                "a suíte se recusa a limpar o banco da aplicação."
+            )
     return url
 
 
@@ -72,10 +98,11 @@ def _reset_test_database(database_url: str) -> None:
     engine = sa.create_engine(database_url, poolclass=sa.pool.NullPool)
     try:
         with engine.connect() as connection:
+            from app.extensions import db
+
+            existing_tables = set(sa.inspect(engine).get_table_names())
             table_names = [
-                name
-                for name in sa.inspect(engine).get_table_names()
-                if name != "alembic_version"
+                name for name in db.metadata.tables if name in existing_tables
             ]
             if not table_names:
                 return

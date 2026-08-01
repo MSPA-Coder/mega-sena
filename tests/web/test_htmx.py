@@ -110,7 +110,7 @@ def test_bets_preview_is_one_server_rendered_fragment() -> None:
     assert response.status_code == 200
     assert 'id="bets-preview"' in text
     assert "Concursos no BD que passariam" in text
-    assert "Resumo dos filtros" in text
+    assert "Universo do sorteio e filtros" in text
     assert "<!doctype html>" not in text.lower()
     assert "HX-Request" in response.headers["Vary"]
 

@@ -18,9 +18,9 @@ preveem sorteios nem aumentam a probabilidade matemática de uma combinação.
 ## Início rápido com Docker
 
 O ambiente Docker inclui a aplicação, PostgreSQL 17 e as ferramentas de
-desenvolvimento. `docker compose up` já usa `compose.override.yaml`
-automaticamente (convenção do Docker Compose): código montado por bind mount
-e servidor de desenvolvimento do Flask.
+desenvolvimento. O host precisa somente de Docker Desktop, Git e GitHub CLI.
+`docker compose up` já usa `compose.override.yaml` automaticamente: código
+montado por bind mount e servidor de desenvolvimento do Flask.
 
 ```powershell
 Copy-Item .env.docker.example .env.docker
@@ -51,28 +51,6 @@ docker compose -f compose.yaml --env-file .env.docker up --build -d
 
 O VS Code pode se conectar ao contêiner `app` com **Dev Containers: Reopen in
 Container**.
-
-## Execução local com Python
-
-PostgreSQL é o único backend suportado; a aplicação recusa iniciar sem uma
-`DATABASE_URL` válida (SQLite não é usado para simular persistência — veja
-[Arquitetura](docs/architecture.md)). Use o PostgreSQL do Docker Compose
-(exposto em `127.0.0.1:5433` por padrão) ou uma instalação local:
-
-```powershell
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements-dev.txt
-$env:SECRET_KEY = "substitua-por-uma-chave-local"
-$env:DATABASE_URL = "postgresql+psycopg://mega_sena:mega_sena_dev_local@127.0.0.1:5433/mega_sena"
-python -m flask --app run.py db upgrade
-python -m flask --app run.py seed-defaults
-python run.py
-```
-
-Nesse modo, acesse <http://127.0.0.1:5001>. Migrações e seed de dados são
-comandos explícitos executados uma vez (ou a cada alteração de schema), nunca
-automáticos na inicialização da aplicação.
 
 ## Dados existentes
 
@@ -111,32 +89,24 @@ até 100 apostas por geração. Veja as regras e as proteções operacionais em
 
 ## Verificação
 
-A suíte de testes exige um PostgreSQL descartável (`TEST_DATABASE_URL` ou
-`DATABASE_URL`); nenhum teste usa SQLite para simular persistência. No
+A suíte de testes exige um PostgreSQL descartável definido em
+`TEST_DATABASE_URL`; nenhum teste usa SQLite para simular persistência. A
+suíte nunca aceita `DATABASE_URL` como alternativa, para não limpar o banco da
+aplicação. O banco de teste precisa ter nome terminado em `_test`, ser distinto
+de `DATABASE_URL` e somente as tabelas conhecidas da aplicação são limpas. No
 ambiente Docker, o serviço `postgres` já expõe um banco descartável em
 `127.0.0.1:${POSTGRES_PORT:-5433}` para isso:
 
 ```powershell
 # Execute apenas na primeira vez, depois de subir o serviço postgres.
 docker compose --env-file .env.docker exec -T postgres sh -c 'createdb -U "$POSTGRES_USER" mega_sena_test'
-docker compose --env-file .env.docker run --rm --no-deps `
-  -e TEST_DATABASE_URL=postgresql+psycopg://mega_sena:mega_sena_dev_local@postgres:5432/mega_sena_test `
-  app python -m pytest -q
+docker compose --env-file .env.docker run --rm --no-deps app sh -c `
+  'export TEST_DATABASE_URL="${DATABASE_URL%/*}/mega_sena_test"; python -m pytest -q'
 docker compose --env-file .env.docker run --rm --no-deps app python -m ruff check app migrations scripts tests run.py
 docker compose --env-file .env.docker run --rm --no-deps app python scripts/audit_dependencies.py
 ```
 
 O banco `mega_sena_test` é descartável: a suíte o limpa antes de cada teste.
-
-Em um ambiente Python com `requirements-dev.txt` instalado e um PostgreSQL
-acessível, os mesmos comandos podem ser executados diretamente:
-
-```powershell
-$env:TEST_DATABASE_URL = "postgresql+psycopg://mega_sena:mega_sena_dev_local@127.0.0.1:5433/mega_sena_test"
-python -m pytest -q
-python -m ruff check app migrations scripts tests run.py
-python scripts/audit_dependencies.py
-```
 
 O schema de teste é criado automaticamente (Alembic) na primeira vez que um
 teste precisa de banco; testes unitários puros (`tests/unit/`) não tocam o

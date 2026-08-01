@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from io import BytesIO
 from zipfile import ZIP_DEFLATED, ZipFile
 
@@ -148,6 +149,205 @@ def test_import_updates_existing_contest_when_stored_fields_change() -> None:
         assert draw.winners_6 == 1
         assert draw.winners_5 == 11
         assert draw.prize_cents == 800
+
+
+def test_minimal_reimport_preserves_existing_optional_metadata() -> None:
+    """Uma planilha sem colunas opcionais só atualiza dezenas e derivados."""
+    from openpyxl import Workbook
+
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+        import_results_from_xlsx(
+            workbook_bytes(
+                [
+                    [
+                        1,
+                        "01/01/2026",
+                        1,
+                        2,
+                        3,
+                        4,
+                        5,
+                        6,
+                        2,
+                        3,
+                        4,
+                        "10,00",
+                        "20,00",
+                        "30,00",
+                        "40,00",
+                    ]
+                ]
+            )
+        )
+
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.append(
+            ["Concurso", "Bola1", "Bola2", "Bola3", "Bola4", "Bola5", "Bola6"]
+        )
+        sheet.append([1, 10, 11, 12, 13, 14, 15])
+        minimal = BytesIO()
+        workbook.save(minimal)
+        minimal.seek(0)
+
+        result = import_results_from_xlsx(minimal)
+        draw = Draw.query.filter_by(contest=1).one()
+
+        assert result == {"imported": 0, "updated": 1, "ignored": 0}
+        assert draw.numbers == [10, 11, 12, 13, 14, 15]
+        assert (draw.draw_date, draw.winners_6, draw.winners_5, draw.winners_4) == (
+            date(2026, 1, 1),
+            2,
+            3,
+            4,
+        )
+        assert (
+            draw.prize_cents,
+            draw.quina_rateio_cents,
+            draw.quadra_rateio_cents,
+            draw.accumulated_cents,
+        ) == (1_000, 2_000, 3_000, 4_000)
+
+
+def test_malformed_money_aborts_import_without_overwriting_existing_draws() -> None:
+    app = make_app()
+    with app.app_context():
+        db.create_all()
+        import_results_from_xlsx(
+            workbook_bytes(
+                [
+                    [
+                        1,
+                        "01/01/2026",
+                        1,
+                        2,
+                        3,
+                        4,
+                        5,
+                        6,
+                        0,
+                        0,
+                        0,
+                        "10,00",
+                        "0",
+                        "0",
+                        "0",
+                    ]
+                ]
+            )
+        )
+
+        with pytest.raises(RuntimeError, match="Valor monetário inválido"):
+            import_results_from_xlsx(
+                workbook_bytes(
+                    [
+                        [
+                            1,
+                            "01/01/2026",
+                            7,
+                            8,
+                            9,
+                            10,
+                            11,
+                            12,
+                            0,
+                            0,
+                            0,
+                            "20,00",
+                            "0",
+                            "0",
+                            "0",
+                        ],
+                        [
+                            2,
+                            "02/01/2026",
+                            13,
+                            14,
+                            15,
+                            16,
+                            17,
+                            18,
+                            0,
+                            0,
+                            0,
+                            "não é dinheiro",
+                            "0",
+                            "0",
+                            "0",
+                        ],
+                    ]
+                )
+            )
+
+        draw = Draw.query.filter_by(contest=1).one()
+        assert Draw.query.count() == 1
+        assert draw.numbers == [1, 2, 3, 4, 5, 6]
+        assert draw.prize_cents == 1_000
+
+
+@pytest.mark.parametrize(
+    ("column_index", "invalid_value", "message"),
+    [
+        (1, "31/02/2026", "Data inválida"),
+        (8, "muitos", "Quantidade inválida"),
+    ],
+)
+def test_malformed_optional_metadata_aborts_without_overwriting_existing_draw(
+    column_index: int, invalid_value: object, message: str
+) -> None:
+    app = make_app()
+    with app.app_context():
+        import_results_from_xlsx(
+            workbook_bytes(
+                [
+                    [
+                        1,
+                        "01/01/2026",
+                        1,
+                        2,
+                        3,
+                        4,
+                        5,
+                        6,
+                        2,
+                        3,
+                        4,
+                        "10,00",
+                        "20,00",
+                        "30,00",
+                        "40,00",
+                    ]
+                ]
+            )
+        )
+        replacement = [
+            1,
+            "02/02/2026",
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            5,
+            6,
+            7,
+            "50,00",
+            "60,00",
+            "70,00",
+            "80,00",
+        ]
+        replacement[column_index] = invalid_value
+
+        with pytest.raises(RuntimeError, match=message):
+            import_results_from_xlsx(workbook_bytes([replacement]))
+
+        draw = Draw.query.filter_by(contest=1).one()
+        assert draw.numbers == [1, 2, 3, 4, 5, 6]
+        assert draw.draw_date == date(2026, 1, 1)
+        assert (draw.winners_6, draw.winners_5, draw.winners_4) == (2, 3, 4)
 
 
 def test_import_settings_save_default_generation_parameters() -> None:
@@ -305,7 +505,7 @@ def test_import_rejects_xlsx_with_excessive_uncompressed_size(monkeypatch) -> No
         import_results_from_xlsx(stream)
 
 
-def test_import_rejects_fractional_or_negative_contests_and_normalizes_values() -> None:
+def test_import_rejects_fractional_or_negative_contests_and_normalizes_money() -> None:
     app = make_app()
     with app.app_context():
         db.create_all()
@@ -355,13 +555,13 @@ def test_import_rejects_fractional_or_negative_contests_and_normalizes_values() 
                         4,
                         5,
                         6,
-                        -1,
-                        -2,
-                        -3,
+                        0,
+                        0,
+                        0,
                         "1234.56",
                         "1.234,56",
-                        "NaN",
-                        "-1",
+                        "0",
+                        "0",
                     ],
                 ]
             )
@@ -381,57 +581,54 @@ def test_import_ignores_rows_beyond_postgres_integer_range() -> None:
     """Draw.contest e Draw.winners_* são colunas db.Integer (int4 no
     PostgreSQL). Um contest que caiba em um int64 mas estoure um int32 deve
     descartar a linha, em vez de propagar até o INSERT e derrubar o lote
-    inteiro com "integer out of range". Um winners_* fora do intervalo segue a
-    mesma normalização já aplicada a outros valores inválidos desse campo
-    (negativo ou não numérico): vira 0, sem descartar a linha."""
+    inteiro com "integer out of range". Um winners_* explícito fora do intervalo
+    é inválido e interrompe atomicamente a importação."""
     app = make_app()
     with app.app_context():
         db.create_all()
-        result = import_results_from_xlsx(
-            workbook_bytes(
-                [
+        with pytest.raises(RuntimeError, match="Quantidade inválida"):
+            import_results_from_xlsx(
+                workbook_bytes(
                     [
-                        MAX_INT32 + 1,
-                        "01/01/2026",
-                        1,
-                        2,
-                        3,
-                        4,
-                        5,
-                        6,
-                        1,
-                        1,
-                        1,
-                        "1,00",
-                        "1,00",
-                        "1,00",
-                        "1,00",
-                    ],
-                    [
-                        4,
-                        "01/01/2026",
-                        1,
-                        2,
-                        3,
-                        4,
-                        5,
-                        6,
-                        MAX_INT32 + 1,
-                        1,
-                        1,
-                        "1,00",
-                        "1,00",
-                        "1,00",
-                        "1,00",
-                    ],
-                ]
+                        [
+                            MAX_INT32 + 1,
+                            "01/01/2026",
+                            1,
+                            2,
+                            3,
+                            4,
+                            5,
+                            6,
+                            1,
+                            1,
+                            1,
+                            "1,00",
+                            "1,00",
+                            "1,00",
+                            "1,00",
+                        ],
+                        [
+                            4,
+                            "01/01/2026",
+                            1,
+                            2,
+                            3,
+                            4,
+                            5,
+                            6,
+                            MAX_INT32 + 1,
+                            1,
+                            1,
+                            "1,00",
+                            "1,00",
+                            "1,00",
+                            "1,00",
+                        ],
+                    ]
+                )
             )
-        )
 
-        assert result == {"imported": 1, "updated": 0, "ignored": 1}
-        draw = Draw.query.one()
-        assert draw.contest == 4
-        assert draw.winners_6 == 0
+        assert Draw.query.count() == 0
 
 
 def test_refresh_draw_parameters_skips_empty_database() -> None:

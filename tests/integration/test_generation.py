@@ -8,6 +8,7 @@ from app import db
 from app.bets.combinatorics import (
     build_combination_report,
     calculate_individual_filter_targets,
+    count_distinct_internal_combinations,
     count_draws_matching_filters,
     count_possible_draw_combinations,
 )
@@ -40,18 +41,32 @@ def test_filters_on_large_bets_cover_every_internal_six_number_draw() -> None:
     assert _passes_generation_filters(numbers, {"range_max_per_band": 5}) is False
 
 
-def test_combination_report_counts_remaining_combinations_and_chance() -> None:
+def test_combination_report_keeps_real_draw_denominator_when_filters_are_active() -> None:
     report = build_combination_report(
         quantity=7, filters={"even_min": 2, "even_max": 4}
     )
 
     assert report["total"] == 50_063_860
+    assert report["real_draw_denominator"] == 50_063_860
+    assert report["filtered_universe_is_probability_denominator"] is False
     assert report["remaining"] == 40_325_950
     assert report["covered_combinations"] == 7
+    assert report["chance_percent"] == pytest.approx(7 / 50_063_860 * 100)
     assert report["steps"][0]["eliminated"] == 9_737_910
     assert count_possible_draw_combinations(even_min=7) == 0
     assert count_possible_draw_combinations(range_min_occupied=6) == 1_000_000
     assert count_possible_draw_combinations(range_max_per_band=1) == 1_000_000
+
+
+def test_concrete_bets_use_exact_union_of_internal_combinations() -> None:
+    exact_union = count_distinct_internal_combinations(
+        [
+            [1, 2, 3, 4, 5, 6, 7],
+            [1, 2, 3, 4, 5, 6, 8],
+        ]
+    )
+
+    assert exact_union == 13
 
 
 def test_generate_closure_bets_builds_all_six_number_combinations() -> None:
@@ -359,6 +374,19 @@ def test_combinations_api_updates_from_generation_form_filters() -> None:
     assert data["total"] == 50_063_860
     assert data["remaining"] == 40_325_950
     assert data["covered_combinations"] == 7
+    assert data["exact_coverage_available"] is False
+    assert data["coverage_kind"] == "theoretical_upper"
+    assert data["theoretical_upper_combinations"] == 35
+    assert data["theoretical_upper_probability_percent"] == pytest.approx(
+        35 / 50_063_860 * 100
+    )
+    assert data["covered_by_amount"] == 35
+    assert data["chance_with_amount_percent"] == pytest.approx(
+        35 / 50_063_860 * 100
+    )
+    assert data["single_bet_probability_percent"] == pytest.approx(
+        7 / 50_063_860 * 100
+    )
 
 
 def test_combinations_api_uses_closure_numbers_for_coverage() -> None:
@@ -375,8 +403,11 @@ def test_combinations_api_uses_closure_numbers_for_coverage() -> None:
     assert data["closure_mode"] is True
     assert data["closure_base_count"] == 7
     assert data["selected_amount"] == 7
+    assert data["exact_coverage_available"] is True
+    assert data["coverage_kind"] == "exact"
+    assert data["exact_covered_combinations"] == 7
+    assert data["exact_covered_combinations_formatted"] == "7"
     assert data["covered_by_amount"] == 7
-    assert data["covered_by_amount_formatted"] == "7"
 
 
 def test_combinations_api_closure_accepts_space_or_comma_separators() -> None:
@@ -406,8 +437,8 @@ def test_combinations_api_closure_accepts_space_or_comma_separators() -> None:
     assert comma_data["closure_mode"] is True
     assert space_data["selected_amount"] == 210
     assert comma_data["selected_amount"] == 210
-    assert space_data["covered_by_amount"] == 210
-    assert comma_data["covered_by_amount"] == 210
+    assert space_data["exact_covered_combinations"] == 210
+    assert comma_data["exact_covered_combinations"] == 210
 
 
 def test_generation_url_is_authoritative_bookmarkable_and_can_be_cleared() -> None:
@@ -678,6 +709,8 @@ def test_twenty_number_closure_renders_bounded_preview() -> None:
     assert response.status_code == 200
     assert "38.760 apostas geradas pelo fechamento matemático." in text
     assert "Exibindo as primeiras 200 de 38.760 apostas." in text
+    assert "Cobertura exata do fechamento completo que será recalculado ao gravar" in text
+    assert "Cobertura exata destas apostas" not in text
     assert text.count('class="bet-line"') == 200
     assert 'name="action" value="save_closure"' in text
 
@@ -721,8 +754,8 @@ def test_bets_summary_uses_closure_labels_when_closure_numbers_are_present() -> 
     text = response.get_data(as_text=True)
 
     assert response.status_code == 200
-    assert "Apostas no fechamento" in text
-    assert "Chance no fechamento" in text
+    assert "Combinações distintas no fechamento" in text
+    assert "Probabilidade real do conjunto" in text
 
 
 def test_rationale_uses_closure_numbers_and_preserves_field_on_return() -> None:
@@ -737,7 +770,7 @@ def test_rationale_uses_closure_numbers_and_preserves_field_on_return() -> None:
 
     assert response.status_code == 200
     assert "Resumo dos filtros" not in text
-    assert "Quantidade de apostas = C(7, 6) = 7" in text
+    assert "Combinações distintas = C(7, 6) = 7" in text
     assert "Nesse modo, os filtros da aba de geração ficam opcionais" in text
     assert "amount=3" in text
     assert "closure_numbers=1+2+3+4+5+6+7" in text

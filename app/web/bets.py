@@ -8,8 +8,10 @@ from flask import flash, jsonify, redirect, render_template, request, url_for
 from werkzeug.datastructures import MultiDict
 
 from ..bets.combinatorics import (
+    TOTAL_DRAW_COMBINATIONS,
     build_combination_report,
     calculate_individual_filter_targets,
+    count_distinct_internal_combinations,
     count_draws_matching_filters,
 )
 from ..bets.criteria import (
@@ -81,20 +83,71 @@ def _apply_closure_mode(
 
 
 def _coverage_metrics(
-    combination_report: dict, amount: int
-) -> tuple[int, float, int | None]:
-    coverage_per_bet = combination_report["covered_combinations"]
-    covered_by_amount = min(coverage_per_bet * amount, combination_report["remaining"])
-    chance_with_amount = (
-        (covered_by_amount / combination_report["remaining"])
-        if combination_report["remaining"]
-        else 0
+    combination_report: dict,
+    amount: int,
+    concrete_bets: list | None = None,
+    *,
+    exact_combination_count: int | None = None,
+) -> dict[str, int | float | str | bool | None]:
+    """Describe theoretical and, when available, exact real-draw coverage."""
+    theoretical_upper = min(
+        combination_report["covered_combinations"] * amount,
+        TOTAL_DRAW_COMBINATIONS,
     )
-    chance_with_amount = min(chance_with_amount, 1.0)
-    chance_with_amount_one_in = (
-        math.ceil(1 / chance_with_amount) if chance_with_amount else None
+    exact_count = exact_combination_count
+    if exact_count is None and concrete_bets is not None:
+        exact_count = count_distinct_internal_combinations(
+            bet.numbers for bet in concrete_bets
+        )
+
+    exact_probability = (
+        exact_count / TOTAL_DRAW_COMBINATIONS if exact_count is not None else None
     )
-    return covered_by_amount, chance_with_amount, chance_with_amount_one_in
+    effective_count = exact_count if exact_count is not None else theoretical_upper
+    effective_probability = effective_count / TOTAL_DRAW_COMBINATIONS
+    effective_one_in = (
+        math.ceil(1 / effective_probability) if effective_probability else None
+    )
+    return {
+        "coverage_kind": "exact" if exact_count is not None else "theoretical_upper",
+        "theoretical_upper_combinations": theoretical_upper,
+        "theoretical_upper_combinations_formatted": format_int(theoretical_upper),
+        "theoretical_upper_probability_percent": (
+            theoretical_upper / TOTAL_DRAW_COMBINATIONS * 100
+        ),
+        "theoretical_upper_probability_percent_formatted": format_percent(
+            theoretical_upper / TOTAL_DRAW_COMBINATIONS * 100
+        ),
+        "exact_coverage_available": exact_count is not None,
+        "exact_covered_combinations": exact_count,
+        "exact_covered_combinations_formatted": (
+            format_int(exact_count) if exact_count is not None else None
+        ),
+        "exact_probability_percent": (
+            exact_probability * 100 if exact_probability is not None else None
+        ),
+        "exact_probability_percent_formatted": (
+            format_percent(exact_probability * 100)
+            if exact_probability is not None
+            else None
+        ),
+        "exact_probability_one_in_formatted": (
+            format_int(math.ceil(1 / exact_probability)) if exact_probability else "0"
+        ),
+        # Compatibilidade do endpoint JSON legado. A matemática foi corrigida:
+        # estes aliases usam sempre C(60, 6) e `coverage_kind` informa se o
+        # valor é exato ou apenas um limite superior.
+        "covered_by_amount": effective_count,
+        "covered_by_amount_formatted": format_int(effective_count),
+        "chance_with_amount_percent": effective_probability * 100,
+        "chance_with_amount_percent_formatted": format_percent(
+            effective_probability * 100
+        ),
+        "chance_with_amount_one_in": effective_one_in,
+        "chance_with_amount_one_in_formatted": (
+            format_int(effective_one_in) if effective_one_in else "0"
+        ),
+    }
 
 
 def _read_generation_state(values: MultiDict) -> tuple[int, dict[str, int | None], int]:
@@ -172,8 +225,12 @@ def _preview_context(values: MultiDict) -> dict:
     combination_report = build_combination_report(
         quantity=quantity, filters=selected_filters
     )
-    covered_by_amount, chance_with_amount, chance_with_amount_one_in = (
-        _coverage_metrics(combination_report, selected_amount)
+    coverage_metrics = _coverage_metrics(
+        combination_report,
+        selected_amount,
+        exact_combination_count=(
+            math.comb(closure_base_count, 6) if closure_mode else None
+        ),
     )
     return {
         "filter_preview": _draw_filter_preview_payload(selected_filters),
@@ -182,13 +239,7 @@ def _preview_context(values: MultiDict) -> dict:
         "selected_amount": selected_amount,
         "closure_mode": closure_mode,
         "closure_base_count": closure_base_count,
-        "covered_by_amount_formatted": format_int(covered_by_amount),
-        "chance_with_amount_percent_formatted": format_percent(chance_with_amount * 100),
-        "chance_with_amount_one_in_formatted": (
-            format_int(chance_with_amount_one_in)
-            if chance_with_amount_one_in
-            else "0"
-        ),
+        "coverage_metrics": coverage_metrics,
     }
 
 
@@ -209,8 +260,12 @@ def rationale():
     combination_report = build_combination_report(
         quantity=quantity, filters=selected_filters
     )
-    covered_by_amount, chance_with_amount, chance_with_amount_one_in = (
-        _coverage_metrics(combination_report, selected_amount)
+    coverage_metrics = _coverage_metrics(
+        combination_report,
+        selected_amount,
+        exact_combination_count=(
+            math.comb(closure_base_count, 6) if closure_mode else None
+        ),
     )
     return_filters = (
         selected_filters
@@ -224,12 +279,7 @@ def rationale():
         "bets/rationale.html",
         combination_report=combination_report,
         selected_amount=selected_amount,
-        covered_by_amount=covered_by_amount,
-        covered_by_amount_formatted=format_int(covered_by_amount),
-        chance_with_amount_percent_formatted=format_percent(chance_with_amount * 100),
-        chance_with_amount_one_in_formatted=format_int(chance_with_amount_one_in)
-        if chance_with_amount_one_in
-        else "0",
+        coverage_metrics=coverage_metrics,
         closure_mode=closure_mode,
         closure_base_count=closure_base_count,
         selected_filters=selected_filters,
@@ -384,8 +434,13 @@ def bet_generation():
     combination_report = build_combination_report(
         quantity=selected_quantity, filters=selected_filters
     )
-    covered_by_amount, chance_with_amount, chance_with_amount_one_in = (
-        _coverage_metrics(combination_report, selected_amount)
+    coverage_metrics = _coverage_metrics(
+        combination_report,
+        selected_amount,
+        bets if bets else None,
+        exact_combination_count=(
+            math.comb(closure_base_count, 6) if closure_mode else None
+        ),
     )
     context = dict(
         bets=bets,
@@ -401,13 +456,7 @@ def bet_generation():
         selected_amount=selected_amount,
         closure_mode=closure_mode,
         closure_base_count=closure_base_count,
-        covered_by_amount_formatted=format_int(covered_by_amount),
-        chance_with_amount_percent_formatted=format_percent(chance_with_amount * 100),
-        chance_with_amount_one_in_formatted=(
-            format_int(chance_with_amount_one_in)
-            if chance_with_amount_one_in
-            else "0"
-        ),
+        coverage_metrics=coverage_metrics,
         closure_numbers=closure_numbers,
         generation_limits=GENERATION_LIMITS,
         generation_params=_generation_params(
@@ -468,24 +517,19 @@ def combinations():
         )
     )
     report = build_combination_report(quantity=quantity, filters=selected_filters)
-    covered_by_amount, chance_with_amount, chance_with_amount_one_in = (
-        _coverage_metrics(report, selected_amount)
+    coverage_metrics = _coverage_metrics(
+        report,
+        selected_amount,
+        exact_combination_count=(
+            math.comb(closure_base_count, 6) if closure_mode else None
+        ),
     )
     report.update(
         {
             "selected_amount": selected_amount,
             "closure_mode": closure_mode,
             "closure_base_count": closure_base_count,
-            "covered_by_amount": covered_by_amount,
-            "covered_by_amount_formatted": format_int(covered_by_amount),
-            "chance_with_amount_percent": chance_with_amount * 100,
-            "chance_with_amount_percent_formatted": format_percent(
-                chance_with_amount * 100
-            ),
-            "chance_with_amount_one_in": chance_with_amount_one_in,
-            "chance_with_amount_one_in_formatted": format_int(chance_with_amount_one_in)
-            if chance_with_amount_one_in
-            else "0",
+            **coverage_metrics,
         }
     )
     return jsonify(report)

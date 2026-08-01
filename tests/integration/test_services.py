@@ -80,10 +80,21 @@ def test_draw_parameters_refresh_runs_only_once_per_version() -> None:
     app = make_app()
     with app.app_context():
         db.create_all()
-        db.session.add(Draw(contest=1, n1=1, n2=2, n3=3, n4=4, n5=5, n6=6))
+        db.session.add(
+            Draw(
+                contest=1,
+                n1=1,
+                n2=2,
+                n3=3,
+                n4=4,
+                n5=5,
+                n6=6,
+                **draw_parameters([1, 2, 3, 4, 5, 6]),
+            )
+        )
         db.session.commit()
 
-        assert ensure_draw_parameters_current() == 1
+        assert ensure_draw_parameters_current() == 0
         assert ensure_draw_parameters_current() == 0
         draw = Draw.query.one()
         assert (draw.total_sum, draw.even_count, draw.consecutive_count) == (21, 3, 6)

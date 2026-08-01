@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 from functools import lru_cache
+from itertools import combinations
 from typing import Iterable
 
 from ..core.formatting import format_int, format_percent
@@ -17,6 +18,11 @@ from .criteria import (
     GenerationCriteria,
     coerce_generation_filters,
 )
+
+TOTAL_DRAW_COMBINATIONS = math.comb(60, 6)
+# A união é calculada apenas quando o conjunto cabe confortavelmente na memória.
+# Acima desse limite, a interface apresenta somente o limite superior teórico.
+MAX_EXACT_COVERAGE_COMBINATIONS = 250_000
 
 
 @lru_cache(maxsize=1)
@@ -151,13 +157,38 @@ def count_possible_draw_combinations(
     return total
 
 
+def count_distinct_internal_combinations(
+    bets: Iterable[Iterable[int]],
+    *,
+    maximum_combinations: int = MAX_EXACT_COVERAGE_COMBINATIONS,
+) -> int | None:
+    """Count the exact union of six-number combinations covered by concrete bets.
+
+    ``None`` means that calculating the union would exceed the bounded preview
+    cost; it is deliberately not an estimate.
+    """
+    normalized_bets = [tuple(sorted(set(bet))) for bet in bets]
+    upper_bound = sum(math.comb(len(bet), 6) for bet in normalized_bets if len(bet) >= 6)
+    if upper_bound > maximum_combinations:
+        return None
+
+    return len(
+        {
+            combination
+            for bet in normalized_bets
+            if len(bet) >= 6
+            for combination in combinations(bet, 6)
+        }
+    )
+
+
 def build_combination_report(quantity: int = 6, filters: dict | None = None) -> dict:
     filters = coerce_generation_filters(filters)
     quantity = max(
         MIN_BET_NUMBERS,
         min(parse_int(quantity) or MIN_BET_NUMBERS, MAX_BET_NUMBERS),
     )
-    total = math.comb(60, 6)
+    total = TOTAL_DRAW_COMBINATIONS
     remaining = total
     steps = []
 
@@ -255,10 +286,13 @@ def build_combination_report(quantity: int = 6, filters: dict | None = None) -> 
         remaining = new_remaining
 
     covered_combinations = math.comb(quantity, 6)
-    chance = min(covered_combinations / remaining, 1.0) if remaining else 0
+    chance = covered_combinations / total
     return {
         "total": total,
         "total_formatted": format_int(total),
+        "real_draw_denominator": total,
+        "real_draw_denominator_formatted": format_int(total),
+        "filtered_universe_is_probability_denominator": False,
         "remaining": remaining,
         "remaining_formatted": format_int(remaining),
         "eliminated": total - remaining,
@@ -269,6 +303,12 @@ def build_combination_report(quantity: int = 6, filters: dict | None = None) -> 
         "chance_percent_formatted": format_percent(chance * 100),
         "chance_one_in": math.ceil(1 / chance) if chance else None,
         "chance_one_in_formatted": format_int(math.ceil(1 / chance)) if chance else "0",
+        "single_bet_probability_percent": chance * 100,
+        "single_bet_probability_percent_formatted": format_percent(chance * 100),
+        "single_bet_probability_one_in": math.ceil(1 / chance) if chance else None,
+        "single_bet_probability_one_in_formatted": (
+            format_int(math.ceil(1 / chance)) if chance else "0"
+        ),
         "steps": steps,
     }
 

@@ -46,14 +46,14 @@ def _normalize_config_values(values: dict[str, object]) -> dict[str, str]:
     return normalized
 
 
-def ensure_default_config() -> dict[str, str]:
+def ensure_default_config(*, commit: bool = True) -> dict[str, str]:
     existing = {row.key: row for row in Config.query.all()}
     changed = False
     for key, value in DEFAULT_CONFIG.items():
         if key not in existing:
             db.session.add(Config(key=key, value=value))
             changed = True
-    if changed:
+    if changed and commit:
         db.session.commit()
     return get_config_values()
 

@@ -158,8 +158,9 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
         from .draws.statistics import ensure_draw_parameters_current
         from .settings.service import ensure_default_config
 
-        ensure_default_config()
-        ensure_draw_parameters_current()
+        with db.session.begin():
+            ensure_default_config(commit=False)
+            ensure_draw_parameters_current(commit=False)
 
     return app
 

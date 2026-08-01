@@ -11,7 +11,15 @@ Este documento descreve o comportamento atual visível para quem usa o sistema.
 - Um concurso novo é incluído; um concurso existente é atualizado quando os
   dados importados mudam.
 - Data, ganhadores e valores de premiação são opcionais e dependem das colunas
-  reconhecidas no arquivo.
+  reconhecidas no arquivo. Quando uma dessas colunas estiver ausente, uma
+  reimportação preserva o metadado já armazenado; uma coluna presente pode
+  atualizá-lo, inclusive para zero ou vazio conforme o tipo do campo.
+- Uma célula monetária não vazia precisa conter um valor válido e não negativo.
+  Valor monetário malformado interrompe a importação inteira, sem substituir
+  valores existentes por zero.
+- Datas e quantidades de ganhadores não vazias também precisam ser válidas;
+  conteúdo malformado interrompe a importação atomicamente. Células realmente
+  vazias continuam representando ausência de data ou zero ganhadores.
 - A gravação é transacional: uma falha não deixa parte do arquivo aplicada.
 
 O upload é limitado a 10 MB e a importação a 10.000 linhas. O conteúdo interno
@@ -61,13 +69,18 @@ primeiras 200; ao gravar, o servidor recalcula e persiste o fechamento completo.
 
 ## Relatório combinatório
 
-O universo de referência tem `C(60, 6) = 50.063.860` resultados possíveis. O
-relatório conta quantas combinações permanecem após os filtros e estima quantas
-são cobertas pelas apostas selecionadas.
+O universo real de referência tem `C(60, 6) = 50.063.860` resultados possíveis
+e equiprováveis. O relatório também conta quantas combinações permanecem após
+os filtros, mas esse é um universo descritivo usado para explicar e controlar a
+geração, não o denominador da probabilidade de um sorteio futuro.
 
-A cobertura exibida é uma relação matemática no universo filtrado. Ela não
-significa que os resultados mantidos pelos filtros sejam mais prováveis em um
-sorteio futuro.
+Antes da geração, `C(quantidade, 6) × número de apostas` é apresentado apenas
+como limite superior teórico: apostas diferentes podem ter combinações internas
+em comum. Quando há apostas concretas e a união envolve até 250.000
+combinações internas, o relatório a conta exatamente; acima disso, mantém só o
+limite superior para não tornar a interface custosa. A probabilidade exata usa
+sempre `C(60, 6)` como denominador. Filtros não tornam os resultados mantidos
+mais prováveis em um sorteio futuro.
 
 ## Apostas gravadas
 

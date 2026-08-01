@@ -3,6 +3,11 @@
   {% if feedback %}<div class="flash">{{ feedback }}</div>{% endif %}
   {% if bets %}
     <div class="panel-header"><h2>{{ 'Prévia do fechamento' if closure_preview_truncated else 'Apostas geradas' }}</h2></div>
+    {% if coverage_metrics.exact_coverage_available %}
+    <p class="muted">{% if closure_preview_truncated %}Cobertura exata do fechamento completo que será recalculado ao gravar{% else %}Cobertura exata destas apostas{% endif %}: {{ coverage_metrics.exact_covered_combinations_formatted }} combinações distintas. Probabilidade real: {{ coverage_metrics.exact_probability_percent_formatted }}% (1 em {{ coverage_metrics.exact_probability_one_in_formatted }}), sobre C(60, 6).</p>
+    {% else %}
+    <p class="muted">A união exata não foi calculada para este volume. {{ coverage_metrics.theoretical_upper_combinations_formatted }} é apenas o limite superior teórico; a probabilidade real pode ser menor por sobreposição.</p>
+    {% endif %}
     {% if closure_preview_truncated %}<p class="muted">Exibindo as primeiras {{ bets|length }} de {{ closure_total_formatted }} apostas. Ao gravar, o fechamento completo será recalculado a partir das dezenas informadas.</p>{% endif %}
     <form method="post" action="{{ url_for('web.bet_generation') }}"
           hx-post="{{ url_for('web.bet_generation') }}" hx-target="#generation-result" hx-swap="outerHTML"
