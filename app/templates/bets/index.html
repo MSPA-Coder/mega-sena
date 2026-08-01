@@ -8,19 +8,21 @@
   <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="quantity" value="{{ selected_quantity }}">
   <label>Quantas apostas deseja gerar?<input id="generation-amount" type="number" name="amount" min="{{ generation_limits['amount'][0] }}" max="{{ generation_limits['amount'][1] }}" value="{{ selected_amount }}"></label>
-  <label>Maior sequência consecutiva permitida<input id="filter-consecutive-count" type="number" name="consecutive_count" min="0" max="6" placeholder="Opcional" value="{{ selected_filters.consecutive_count if selected_filters.consecutive_count is not none else '' }}"></label>
-  <label>Mínimo de números pares<input id="filter-even-min" type="number" name="even_min" min="0" max="6" placeholder="Opcional" value="{{ selected_filters.even_min if selected_filters.even_min is not none else '' }}"></label>
-  <label>Máximo de números pares<input id="filter-even-max" type="number" name="even_max" min="0" max="6" placeholder="Opcional" value="{{ selected_filters.even_max if selected_filters.even_max is not none else '' }}"></label>
-  <label>Soma inicial<input id="filter-sum-min" type="number" name="sum_min" min="0" max="345" placeholder="Opcional" value="{{ selected_filters.sum_min if selected_filters.sum_min is not none else '' }}"></label>
-  <label>Soma final<input id="filter-sum-max" type="number" name="sum_max" min="0" max="345" placeholder="Opcional" value="{{ selected_filters.sum_max if selected_filters.sum_max is not none else '' }}"></label>
-  <label>Mínimo de faixas ocupadas<input id="filter-range-min-occupied" type="number" name="range_min_occupied" min="1" max="6" placeholder="Opcional" value="{{ selected_filters.range_min_occupied if selected_filters.range_min_occupied is not none else '' }}"></label>
-  <label>Máximo de dezenas por faixa<input id="filter-range-max-per-band" type="number" name="range_max_per_band" min="1" max="6" placeholder="Opcional" value="{{ selected_filters.range_max_per_band if selected_filters.range_max_per_band is not none else '' }}"></label>
+  <div id="filter-target-fields" class="filter-target-fields">
+    <label>Maior sequência consecutiva permitida<input id="filter-consecutive-count" type="number" name="consecutive_count" min="0" max="6" placeholder="Opcional" value="{{ selected_filters.consecutive_count if selected_filters.consecutive_count is not none else '' }}"></label>
+    <label>Mínimo de números pares<input id="filter-even-min" type="number" name="even_min" min="0" max="6" placeholder="Opcional" value="{{ selected_filters.even_min if selected_filters.even_min is not none else '' }}"></label>
+    <label>Máximo de números pares<input id="filter-even-max" type="number" name="even_max" min="0" max="6" placeholder="Opcional" value="{{ selected_filters.even_max if selected_filters.even_max is not none else '' }}"></label>
+    <label>Soma inicial<input id="filter-sum-min" type="number" name="sum_min" min="0" max="345" placeholder="Opcional" value="{{ selected_filters.sum_min if selected_filters.sum_min is not none else '' }}"></label>
+    <label>Soma final<input id="filter-sum-max" type="number" name="sum_max" min="0" max="345" placeholder="Opcional" value="{{ selected_filters.sum_max if selected_filters.sum_max is not none else '' }}"></label>
+    <label>Mínimo de faixas ocupadas<input id="filter-range-min-occupied" type="number" name="range_min_occupied" min="1" max="6" placeholder="Opcional" value="{{ selected_filters.range_min_occupied if selected_filters.range_min_occupied is not none else '' }}"></label>
+    <label>Máximo de dezenas por faixa<input id="filter-range-max-per-band" type="number" name="range_max_per_band" min="1" max="6" placeholder="Opcional" value="{{ selected_filters.range_max_per_band if selected_filters.range_max_per_band is not none else '' }}"></label>
+  </div>
   <label>Dezenas do fechamento<input id="closure-numbers" type="text" name="closure_numbers" placeholder="Ex: 01 02 03 04 05 06 07 08 09 10" value="{{ closure_numbers }}"></label>
   <div class="target-row-separator" aria-hidden="true"></div>
   <div class="target-action-row">
     <label class="target-percentage-field">Percentual alvo individual (%)<input id="target-percentage" type="number" name="target_percentage" min="0" max="100" step="0.01" value="80"></label>
     <div class="form-actions">
-      <button type="button" class="secondary" hx-get="{{ url_for('web.filter_targets_fragment') }}" hx-include="#target-percentage" hx-target="#filter-target-status" hx-swap="outerHTML">Calcular parâmetros</button>
+      <button type="button" class="secondary" hx-get="{{ url_for('web.filter_targets_fragment') }}" hx-include="#target-percentage" hx-target="#filter-target-fields" hx-swap="outerHTML">Calcular parâmetros</button>
       <button type="submit" class="secondary" formmethod="get" formaction="{{ url_for('web.rationale') }}">Racional</button>
       <button type="submit" class="secondary" formmethod="post" formaction="{{ url_for('web.clear_bet_generation') }}">Limpar filtros</button>
       <button id="generate-bets" type="submit" name="action" value="generate"

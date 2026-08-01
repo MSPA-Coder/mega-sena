@@ -500,7 +500,7 @@ def filter_targets_fragment():
         target_percentage=target_percentage,
         targets=targets,
     )
-    response.headers["HX-Trigger"] = "bets-preview"
+    response.headers["HX-Trigger-After-Settle"] = "bets-preview"
     return response
 
 

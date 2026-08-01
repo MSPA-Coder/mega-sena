@@ -115,7 +115,7 @@ def test_bets_preview_is_one_server_rendered_fragment() -> None:
     assert "HX-Request" in response.headers["Vary"]
 
 
-def test_filter_targets_fragment_uses_oob_inputs_and_refresh_event() -> None:
+def test_filter_targets_fragment_updates_fields_before_refreshing_preview() -> None:
     app = make_app()
     with app.app_context():
         _add_draws()
@@ -127,9 +127,9 @@ def test_filter_targets_fragment_uses_oob_inputs_and_refresh_event() -> None:
     text = response.get_data(as_text=True)
 
     assert response.status_code == 200
+    assert 'id="filter-target-fields"' in text
     assert 'id="filter-even-min"' in text
-    assert 'hx-swap-oob="outerHTML"' in text
-    assert response.headers["HX-Trigger"] == "bets-preview"
+    assert response.headers["HX-Trigger-After-Settle"] == "bets-preview"
 
 
 def test_bets_htmx_generation_and_closure_keep_server_save_contract() -> None:
