@@ -11,7 +11,6 @@ from tests.support import make_app
 def test_contests_filters_by_dashboard_history_parameters() -> None:
     app = make_app()
     with app.app_context():
-        db.create_all()
         db.session.add_all(
             [
                 Draw(
@@ -81,7 +80,6 @@ def test_dashboard_history_filter_link_applies_filter_when_followed_from_other_t
 ):
     app = make_app()
     with app.app_context():
-        db.create_all()
         db.session.add_all(
             [
                 Draw(
@@ -139,9 +137,6 @@ def test_dashboard_history_filter_link_applies_filter_when_followed_from_other_t
 
 def test_bets_form_submits_generation_filters_to_rationale() -> None:
     app = make_app()
-    with app.app_context():
-        db.create_all()
-
     response = app.test_client().get("/bets")
     text = response.get_data(as_text=True)
 
@@ -183,7 +178,6 @@ def test_bets_form_submits_generation_filters_to_rationale() -> None:
 def test_contests_page_summarizes_filtered_results() -> None:
     app = make_app()
     with app.app_context():
-        db.create_all()
         db.session.add_all(
             [
                 Draw(
@@ -227,9 +221,6 @@ def test_contests_page_summarizes_filtered_results() -> None:
 
 def test_dashboard_renders_statistical_sections() -> None:
     app = make_app()
-    with app.app_context():
-        db.create_all()
-
     response = app.test_client().get("/dashboard")
     text = response.get_data(as_text=True)
 
@@ -246,7 +237,6 @@ def test_dashboard_renders_period_selector_buttons() -> None:
     """A página do dashboard deve exibir os botões de seleção de período."""
     app = make_app()
     with app.app_context():
-        db.create_all()
         db.session.add(
             Draw(
                 contest=1,
@@ -277,7 +267,6 @@ def test_dashboard_stats_endpoint_returns_full_payload_for_all_sections() -> Non
     """GET /api/dashboard-stats deve retornar todos os campos usados pelo dashboard."""
     app = make_app()
     with app.app_context():
-        db.create_all()
         for contest in range(1, 21):
             db.session.add(
                 Draw(
@@ -324,7 +313,6 @@ def test_dashboard_stats_endpoint_default_considers_all_draws() -> None:
     """GET /api/dashboard-stats sem `count` deve considerar todo o histórico."""
     app = make_app()
     with app.app_context():
-        db.create_all()
         for contest in range(1, 8):
             db.session.add(
                 Draw(
@@ -352,7 +340,6 @@ def test_dashboard_stats_endpoint_clamps_out_of_range_count() -> None:
     """`count` fora do intervalo 10-10000 deve ser ajustado, sem erro 400."""
     app = make_app()
     with app.app_context():
-        db.create_all()
         for contest in range(1, 4):
             db.session.add(
                 Draw(

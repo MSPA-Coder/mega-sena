@@ -1,5 +1,14 @@
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "critical: controles de alto risco para integridade, segurança ou operação essencial",
+    "business_rule: regras de domínio e cálculos",
+    "security: autenticação, autorização e cabeçalhos de segurança",
+    "migration: migrações Alembic, schema e segurança do banco de teste",
+    "persistence: persistência, transações e integração PostgreSQL",
+    "contract: contratos HTTP e comportamentos observáveis",
+    "ui_smoke: apresentação e interações de interface não críticas",
+]
 
 [tool.ruff]
 target-version = "py311"

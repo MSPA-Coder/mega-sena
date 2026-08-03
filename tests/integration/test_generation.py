@@ -92,7 +92,6 @@ def test_closure_accepts_official_twenty_number_limit_with_bounded_preview() -> 
 def test_twenty_number_closure_is_saved_as_one_complete_generation() -> None:
     app = make_app()
     with app.app_context():
-        db.create_all()
         saved, generation_id = save_closure_bets(range(1, 21))
         generations = list_recent_generations()
 
@@ -107,7 +106,6 @@ def test_twenty_number_closure_is_saved_as_one_complete_generation() -> None:
 def test_count_draws_matching_sum_interval_filter() -> None:
     app = make_app()
     with app.app_context():
-        db.create_all()
         db.session.add_all(
             [
                 Draw(
@@ -168,7 +166,6 @@ def test_count_draws_matching_sum_interval_filter() -> None:
 def test_bets_shows_draws_matching_current_filter_params() -> None:
     app = make_app()
     with app.app_context():
-        db.create_all()
         db.session.add_all(
             [
                 Draw(
@@ -228,7 +225,6 @@ def test_bets_shows_draws_matching_current_filter_params() -> None:
 def test_filter_targets_api_calculates_individual_thresholds() -> None:
     app = make_app()
     with app.app_context():
-        db.create_all()
         db.session.add_all(
             [
                 Draw(
@@ -296,7 +292,6 @@ def test_filter_targets_api_calculates_individual_thresholds() -> None:
 def test_contests_menu_item_opens_unfiltered_list_after_filtered_tab() -> None:
     app = make_app()
     with app.app_context():
-        db.create_all()
         db.session.add_all(
             [
                 Draw(
@@ -362,9 +357,6 @@ def test_contests_menu_item_opens_unfiltered_list_after_filtered_tab() -> None:
 
 def test_combinations_api_updates_from_generation_form_filters() -> None:
     app = make_app()
-    with app.app_context():
-        db.create_all()
-
     response = app.test_client().get(
         "/api/combinations?quantity=7&even_min=2&even_max=4"
     )
@@ -391,9 +383,6 @@ def test_combinations_api_updates_from_generation_form_filters() -> None:
 
 def test_combinations_api_uses_closure_numbers_for_coverage() -> None:
     app = make_app()
-    with app.app_context():
-        db.create_all()
-
     response = app.test_client().get(
         "/api/combinations?amount=3&quantity=6&closure_numbers=1+2+3+4+5+6+7"
     )
@@ -412,9 +401,6 @@ def test_combinations_api_uses_closure_numbers_for_coverage() -> None:
 
 def test_combinations_api_closure_accepts_space_or_comma_separators() -> None:
     app = make_app()
-    with app.app_context():
-        db.create_all()
-
     client = app.test_client()
     space_data = client.get(
         "/api/combinations",
@@ -443,9 +429,6 @@ def test_combinations_api_closure_accepts_space_or_comma_separators() -> None:
 
 def test_generation_url_is_authoritative_bookmarkable_and_can_be_cleared() -> None:
     app = make_app()
-    with app.app_context():
-        db.create_all()
-
     client = app.test_client()
     response = client.get(
         "/rationale?amount=9&consecutive_count=3&even_min=2&even_max=4"
@@ -501,9 +484,6 @@ def test_generation_url_is_authoritative_bookmarkable_and_can_be_cleared() -> No
 
 def test_generation_sum_and_integer_inputs_are_bounded() -> None:
     app = make_app()
-    with app.app_context():
-        db.create_all()
-
     client = app.test_client()
     response = client.get("/rationale?sum_min=999&sum_max=999")
     assert response.status_code == 200
@@ -518,9 +498,6 @@ def test_generation_sum_and_integer_inputs_are_bounded() -> None:
 
 def test_clear_generation_filters_overrides_config_defaults() -> None:
     app = make_app()
-    with app.app_context():
-        db.create_all()
-
     client = app.test_client()
     response = client.post(
         "/settings",
@@ -569,8 +546,6 @@ def test_clear_generation_filters_overrides_config_defaults() -> None:
 def test_saved_bets_are_grouped_by_generation() -> None:
     app = make_app()
     with app.app_context():
-        db.create_all()
-
         first_saved, first_generation = save_generated_bets(
             6, ["1,2,3,4,5,6", "7,8,9,10,11,12"]
         )
@@ -606,7 +581,6 @@ def test_saved_bets_are_deduplicated_and_have_a_hard_batch_limit(monkeypatch) ->
 
     app = make_app()
     with app.app_context():
-        db.create_all()
         saved, generation_id = save_generated_bets(6, ["1,2,3,4,5,6", "6,5,4,3,2,1"])
         assert (saved, generation_id) == (1, 1)
 
@@ -624,7 +598,6 @@ def test_persisted_generation_is_visible_as_a_group(monkeypatch) -> None:
     )
     app = make_app()
     with app.app_context():
-        db.create_all()
         bets = betting_service.generate_bets(6, 2, persist=True)
         generations = list_recent_generations_with_bets()
 
@@ -636,9 +609,6 @@ def test_persisted_generation_is_visible_as_a_group(monkeypatch) -> None:
 
 def test_bets_can_generate_mathematical_closure_from_base_numbers() -> None:
     app = make_app()
-    with app.app_context():
-        db.create_all()
-
     client = app.test_client()
     response = client.post(
         "/bets",
@@ -686,9 +656,6 @@ def test_bets_can_generate_mathematical_closure_from_base_numbers() -> None:
 
 def test_twenty_number_closure_renders_bounded_preview() -> None:
     app = make_app()
-    with app.app_context():
-        db.create_all()
-
     client = app.test_client()
     closure_numbers = " ".join(str(number) for number in range(1, 21))
     response = client.post(
@@ -718,7 +685,6 @@ def test_twenty_number_closure_renders_bounded_preview() -> None:
 def test_closure_bets_can_be_saved_when_default_quantity_is_greater_than_six() -> None:
     app = make_app()
     with app.app_context():
-        db.create_all()
         db.session.add(Config(key="bet_quantity", value="7"))
         db.session.commit()
 
@@ -745,9 +711,6 @@ def test_closure_bets_can_be_saved_when_default_quantity_is_greater_than_six() -
 
 def test_bets_summary_uses_closure_labels_when_closure_numbers_are_present() -> None:
     app = make_app()
-    with app.app_context():
-        db.create_all()
-
     response = app.test_client().get(
         "/bets?amount=3&quantity=6&closure_numbers=1+2+3+4+5+6+7"
     )
@@ -760,9 +723,6 @@ def test_bets_summary_uses_closure_labels_when_closure_numbers_are_present() -> 
 
 def test_rationale_uses_closure_numbers_and_preserves_field_on_return() -> None:
     app = make_app()
-    with app.app_context():
-        db.create_all()
-
     response = app.test_client().get(
         "/rationale?amount=3&quantity=6&even_min=2&closure_numbers=1+2+3+4+5+6+7"
     )

@@ -6,7 +6,6 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 import pytest
 
-from app import db
 from app.core.numbers import MAX_INT32
 from app.draws.importing import import_results_from_xlsx
 from app.models import Config, Draw
@@ -17,7 +16,6 @@ from tests.support import csrf_form_data, make_app, workbook_bytes
 def test_import_recalculates_bad_sheet_dimensions() -> None:
     app = make_app()
     with app.app_context():
-        db.create_all()
         first = import_results_from_xlsx(
             workbook_bytes(
                 [
@@ -96,7 +94,6 @@ def test_import_recalculates_bad_sheet_dimensions() -> None:
 def test_import_updates_existing_contest_when_stored_fields_change() -> None:
     app = make_app()
     with app.app_context():
-        db.create_all()
         import_results_from_xlsx(
             workbook_bytes(
                 [
@@ -157,7 +154,6 @@ def test_minimal_reimport_preserves_existing_optional_metadata() -> None:
 
     app = make_app()
     with app.app_context():
-        db.create_all()
         import_results_from_xlsx(
             workbook_bytes(
                 [
@@ -214,7 +210,6 @@ def test_minimal_reimport_preserves_existing_optional_metadata() -> None:
 def test_malformed_money_aborts_import_without_overwriting_existing_draws() -> None:
     app = make_app()
     with app.app_context():
-        db.create_all()
         import_results_from_xlsx(
             workbook_bytes(
                 [
@@ -352,9 +347,6 @@ def test_malformed_optional_metadata_aborts_without_overwriting_existing_draw(
 
 def test_import_settings_save_default_generation_parameters() -> None:
     app = make_app()
-    with app.app_context():
-        db.create_all()
-
     client = app.test_client()
     response = client.get("/settings")
     text = response.get_data(as_text=True)
@@ -423,9 +415,6 @@ def test_import_settings_save_default_generation_parameters() -> None:
 def test_import_rejects_non_xlsx_files() -> None:
     """Upload de arquivo com extensão não permitida deve ser rejeitado com flash."""
     app = make_app()
-    with app.app_context():
-        db.create_all()
-
     client = app.test_client()
     response = client.post(
         "/contests/import",
@@ -444,9 +433,6 @@ def test_import_rejects_non_xlsx_files() -> None:
 def test_import_rejects_missing_file() -> None:
     """POST sem arquivo deve redirecionar com flash de validação."""
     app = make_app()
-    with app.app_context():
-        db.create_all()
-
     client = app.test_client()
     response = client.post(
         "/contests/import",
@@ -462,9 +448,6 @@ def test_import_rejects_missing_file() -> None:
 def test_import_handles_corrupted_xlsx_gracefully() -> None:
     """Arquivo .xlsx corrompido deve ser tratado com flash amigável, sem exceção."""
     app = make_app()
-    with app.app_context():
-        db.create_all()
-
     client = app.test_client()
     response = client.post(
         "/contests/import",
@@ -508,7 +491,6 @@ def test_import_rejects_xlsx_with_excessive_uncompressed_size(monkeypatch) -> No
 def test_import_rejects_fractional_or_negative_contests_and_normalizes_money() -> None:
     app = make_app()
     with app.app_context():
-        db.create_all()
         result = import_results_from_xlsx(
             workbook_bytes(
                 [
@@ -585,7 +567,6 @@ def test_import_ignores_rows_beyond_postgres_integer_range() -> None:
     é inválido e interrompe atomicamente a importação."""
     app = make_app()
     with app.app_context():
-        db.create_all()
         with pytest.raises(RuntimeError, match="Quantidade inválida"):
             import_results_from_xlsx(
                 workbook_bytes(
@@ -637,7 +618,6 @@ def test_refresh_draw_parameters_skips_empty_database() -> None:
 
     app = make_app()
     with app.app_context():
-        db.create_all()
         result = refresh_draw_parameters()
 
     assert result == 0
@@ -645,9 +625,6 @@ def test_refresh_draw_parameters_skips_empty_database() -> None:
 
 def test_contests_page_exposes_xlsx_import_form() -> None:
     app = make_app()
-    with app.app_context():
-        db.create_all()
-
     text = app.test_client().get("/contests").get_data(as_text=True)
 
     assert "Importar resultados" in text

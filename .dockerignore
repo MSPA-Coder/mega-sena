@@ -11,3 +11,4 @@ __pycache__
 .certs
 instance
 migration_report.json
+migrations/archived_versions/

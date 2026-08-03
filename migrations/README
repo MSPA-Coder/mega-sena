@@ -5,6 +5,22 @@ O schema PostgreSQL é versionado por Flask-Migrate/Alembic. As revisões em
 somente na ferramenta explícita de importação de uma base legada, nunca como
 backend da aplicação ou da suíte de persistência.
 
+O baseline ativo é `20260803_baseline`. As revisões `0001` a `0005` foram
+movidas para `archived_versions/`: ficam preservadas como registro histórico,
+mas não fazem parte da cadeia Alembic ativa. Assim, bancos novos são criados
+diretamente pelo baseline e revisões futuras.
+
+Para adotar um banco existente que já estava nesse histórico, execute uma vez:
+
+```powershell
+.\scripts\adopt_alembic_baseline.ps1 -Confirm
+```
+
+O comando cria e valida um dump, verifica tabelas, índices, constraints e a
+sequence, e só então faz `alembic stamp --purge 20260803_baseline`. `stamp` atualiza
+somente `alembic_version`; não executa DDL, não recria tabelas e não modifica
+dados. Não o use em schema desconhecido ou sem backup recuperável.
+
 Para alterar o schema, gere a candidata no contêiner, revise-a e aplique-a:
 
 ```powershell

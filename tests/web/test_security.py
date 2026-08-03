@@ -11,9 +11,6 @@ from tests.support import csrf_form_data, get_test_database_url, make_app
 def test_mutating_forms_include_csrf_tokens_and_clear_uses_post() -> None:
     """Formulários que alteram estado devem levar token CSRF; limpar filtros não deve usar GET."""
     app = make_app()
-    with app.app_context():
-        db.create_all()
-
     client = app.test_client()
     settings_text = client.get("/settings").get_data(as_text=True)
     contests_text = client.get("/contests").get_data(as_text=True)
@@ -31,7 +28,6 @@ def test_post_without_csrf_token_is_rejected() -> None:
     """POST sem token não deve executar ação destrutiva."""
     app = make_app()
     with app.app_context():
-        db.create_all()
         db.session.add(
             Draw(
                 contest=1,
@@ -56,9 +52,6 @@ def test_post_without_csrf_token_is_rejected() -> None:
 def test_security_headers_are_applied() -> None:
     """Respostas HTML devem sair com cabeçalhos defensivos básicos."""
     app = make_app()
-    with app.app_context():
-        db.create_all()
-
     response = app.test_client().get("/dashboard")
 
     assert response.headers["X-Content-Type-Options"] == "nosniff"
@@ -81,7 +74,6 @@ def test_reset_logs_counts_and_clears_all_data() -> None:
     """Rota /reset deve apagar concursos e apostas e emitir flash de confirmação."""
     app = make_app()
     with app.app_context():
-        db.create_all()
         db.session.add(
             Draw(
                 contest=1,

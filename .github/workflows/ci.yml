@@ -78,6 +78,9 @@ jobs:
       - name: Lint
         run: python -m ruff check app migrations scripts tests run.py
 
+      - name: Test critical controls first
+        run: python -m pytest -m "critical or security or migration" -q
+
       - name: Test (suíte completa contra PostgreSQL descartável)
         run: python -m pytest -q
 

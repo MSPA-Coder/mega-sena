@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from app import db
 from tests.support import csrf_form_data, make_app
 
 
@@ -19,9 +18,6 @@ def test_css_manifest_references_existing_modules() -> None:
 
 def test_theme_toggle_is_available() -> None:
     app = make_app()
-    with app.app_context():
-        db.create_all()
-
     text = app.test_client().get("/dashboard").get_data(as_text=True)
 
     assert 'id="theme-toggle"' in text
@@ -30,9 +26,6 @@ def test_theme_toggle_is_available() -> None:
 
 def test_destructive_reset_requires_confirmation_and_danger_styling() -> None:
     app = make_app()
-    with app.app_context():
-        db.create_all()
-
     text = app.test_client().get("/settings").get_data(as_text=True)
     button_start = text.index("Apagar concursos e apostas")
     button_tag = text[max(0, button_start - 200) : button_start]
@@ -44,9 +37,6 @@ def test_destructive_reset_requires_confirmation_and_danger_styling() -> None:
 
 def test_static_css_url_changes_with_asset_version() -> None:
     app = make_app()
-    with app.app_context():
-        db.create_all()
-
     text = app.test_client().get("/dashboard").get_data(as_text=True)
 
     assert "style.css?v=" in text
@@ -54,9 +44,6 @@ def test_static_css_url_changes_with_asset_version() -> None:
 
 def test_primary_navigation_is_accessible_and_links_main_pages() -> None:
     app = make_app()
-    with app.app_context():
-        db.create_all()
-
     text = app.test_client().get("/dashboard").get_data(as_text=True)
 
     assert 'id="nav-toggle"' in text
@@ -70,9 +57,6 @@ def test_primary_navigation_is_accessible_and_links_main_pages() -> None:
 
 def test_settings_actions_return_to_settings_page() -> None:
     app = make_app()
-    with app.app_context():
-        db.create_all()
-
     client = app.test_client()
     response = client.post(
         "/settings",

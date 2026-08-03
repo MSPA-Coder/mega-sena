@@ -12,7 +12,8 @@ from app.draws.statistics import (
     build_stats,
     ensure_draw_parameters_current,
 )
-from app.models import Draw
+from app.models import Config, Draw
+from app.settings.service import get_config_values
 from tests.support import get_test_database_url, make_app
 
 
@@ -42,9 +43,6 @@ def test_range_band_metrics_count_occupied_bands_and_max_concentration() -> None
 
 def test_even_max_lower_than_even_min_is_equalized_to_minimum() -> None:
     app = make_app()
-    with app.app_context():
-        db.create_all()
-
     response = app.test_client().get("/rationale?even_min=5&even_max=2")
     text = response.get_data(as_text=True)
 
@@ -56,9 +54,6 @@ def test_even_max_lower_than_even_min_is_equalized_to_minimum() -> None:
 
 def test_scripts_are_external_and_event_attributes_are_absent() -> None:
     app = make_app()
-    with app.app_context():
-        db.create_all()
-
     response = app.test_client().get("/settings")
     text = response.get_data(as_text=True)
     assert '<script src="/static/base.js?v=' in text
@@ -79,7 +74,6 @@ def test_formatters_use_brazilian_number_separators() -> None:
 def test_draw_parameters_refresh_runs_only_once_per_version() -> None:
     app = make_app()
     with app.app_context():
-        db.create_all()
         db.session.add(
             Draw(
                 contest=1,
@@ -115,11 +109,18 @@ def test_create_app_accepts_configuration_overrides() -> None:
     assert app.config["SQLALCHEMY_DATABASE_URI"] == database_url
 
 
+def test_reading_missing_config_uses_defaults_without_writing() -> None:
+    app = make_app()
+
+    with app.app_context():
+        assert get_config_values()["bet_quantity"] == "6"
+        assert Config.query.count() == 0
+
+
 def test_build_stats_with_no_count_considers_full_history() -> None:
     """Sem período informado, as estatísticas consideram todos os concursos."""
     app = make_app()
     with app.app_context():
-        db.create_all()
         for contest in range(1, 11):
             db.session.add(
                 Draw(
@@ -146,7 +147,6 @@ def test_build_stats_with_count_limits_to_recent_draws() -> None:
     """build_stats(count) deve considerar apenas os N concursos mais recentes."""
     app = make_app()
     with app.app_context():
-        db.create_all()
         # 5 concursos com números pares "1-6", 5 concursos mais recentes com números "10-15"
         for contest in range(1, 6):
             db.session.add(

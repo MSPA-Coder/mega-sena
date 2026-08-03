@@ -60,12 +60,6 @@ def ensure_default_config(*, commit: bool = True) -> dict[str, str]:
 
 def get_config_values() -> dict[str, str]:
     rows = {row.key: row.value for row in Config.query.all()}
-    missing = [key for key in DEFAULT_CONFIG if key not in rows]
-    if missing:
-        for key in missing:
-            db.session.add(Config(key=key, value=DEFAULT_CONFIG[key]))
-        db.session.commit()
-        rows = {row.key: row.value for row in Config.query.all()}
     return _normalize_config_values(
         {key: rows.get(key, DEFAULT_CONFIG[key]) for key in DEFAULT_CONFIG}
     )

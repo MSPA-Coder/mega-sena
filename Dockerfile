@@ -62,7 +62,7 @@ USER mega_sena
 
 EXPOSE 5001
 ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["gunicorn", "--bind", "0.0.0.0:5001", "--workers", "2", "--threads", "4", "--timeout", "60", "run:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5001", "--workers", "2", "--threads", "4", "--timeout", "60", "--worker-tmp-dir", "/tmp", "--no-control-socket", "run:app"]
 
 # -----------------------------------------------------------------------
 # dev: imagem de desenvolvimento — ferramentas de teste/lint; o código real

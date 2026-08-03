@@ -43,7 +43,7 @@ O banco `mega_sena_test` é descartável: a suíte o limpa antes de cada teste.
 A auditoria de dependências de runtime é:
 
 ```powershell
-python scripts/audit_dependencies.py
+docker compose --env-file .env.docker run --rm --no-deps app python scripts/audit_dependencies.py
 ```
 
 O CI executa Ruff e a suíte completa em Python 3.11 e 3.13 contra PostgreSQL
@@ -91,6 +91,15 @@ upgrade`), nunca automaticamente pela aplicação — veja
 [Arquitetura](architecture.md). A suíte de testes aplica o schema uma única
 vez por processo contra o PostgreSQL descartável via Alembic. `create_all()`
 não substitui esse bootstrap.
+
+### Baseline consolidado
+
+O baseline ativo é `20260803_baseline`; as revisões anteriores foram
+arquivadas fora da cadeia ativa. Um banco existente validado no histórico
+arquivado deve ser adotado uma única vez por
+`.\scripts\adopt_alembic_baseline.ps1 -Confirm`. O procedimento faz backup e
+verificação estrutural antes de atualizar somente `alembic_version`, sem DDL
+ou mudança de dados. Bancos novos continuam usando `flask db upgrade`.
 
 ## Alterações nos critérios de geração
 
