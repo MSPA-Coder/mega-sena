@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "31 3 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Qualidade
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Generate ephemeral local CA
+        run: |
+          mkdir -p .certs
+          openssl req -x509 -newkey rsa:2048 -nodes \
+            -keyout /tmp/mega-sena-ci-ca.key \
+            -out .certs/local-root-ca.crt \
+            -days 1 \
+            -subj "/CN=MegaSena CI Local CA"
+          rm -f /tmp/mega-sena-ci-ca.key
+      - name: Validate Compose
+        run: docker compose config --quiet
+      - name: Build quality image without cache
+        run: docker compose --profile quality build --no-cache quality
+      - name: Run quality checks
+        run: docker compose --profile quality run --rm quality

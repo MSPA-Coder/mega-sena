@@ -63,13 +63,23 @@ concursos, apostas e configurações.
 
 ## Manutenção
 
-O projeto é de uso individual. Não mantém uma suíte de regressão nem CI. Mantém o Ruff e a suíte mínima de segurança e fumaça, que rodam juntos no estágio `quality` da imagem:
+O projeto é de uso individual. Não mantém uma suíte ampla de regressão,
+cobertura, análise estática de tipos ou `pip-audit` dentro da imagem. Mantém
+Ruff e a suíte mínima de segurança e fumaça, que rodam juntos no estágio
+`quality` da imagem:
 
 ```powershell
 docker compose --env-file .env.docker --profile quality run --rm quality
 ```
 
 Para alterações relevantes, valide o fluxo afetado no navegador e, quando houver mudança no banco, faça backup e confira a criação de um PostgreSQL vazio pela baseline.
+
+O workflow de CI executa essa validação enxuta em push e pull request para
+`main`, além de uma rodada semanal: gera uma CA local efêmera, valida o Compose,
+reconstrói a imagem `quality` sem cache e a executa sem segredos de runtime.
+CodeQL e Dependabot acompanham código, dependências Python, imagens Docker e
+GitHub Actions; as atualizações minor/patch são agrupadas semanalmente. Esses controles não substituem
+o percurso manual nem o bootstrap PostgreSQL exigidos para mudanças persistentes.
 
 - [Arquitetura](docs/architecture.md)
 - [Regras funcionais](docs/business-rules.md)
