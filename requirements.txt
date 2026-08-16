@@ -3,7 +3,7 @@ Flask-Limiter>=3.0,<4
 Flask-Login>=0.6.3,<1
 Flask-Migrate>=4.1.0,<5
 Flask-SQLAlchemy>=3.1.1,<4
-Flask-WTF>=1.2.2,<2
+Flask-WTF>=1.3.0,<2
 # Sem import direto: openpyxl detecta e usa defusedxml automaticamente para
 # blindar a leitura de .xlsx contra XML malicioso (bomb/entity expansion).
 defusedxml>=0.7.1,<1
