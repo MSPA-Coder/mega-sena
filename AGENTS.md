@@ -67,8 +67,9 @@ versione a pasta e trate `-Force` como rotação coordenada.
 
 O Compose publica serviços apenas em loopback. Exposição externa requer HTTPS,
 `FORCE_HTTPS`, revisão de hosts confiáveis, segredo estável e estratégia de
-proxy. A imagem `runtime` usa gunicorn e usuário não-root; o override local só
-monta código para desenvolvimento.
+proxy. A imagem `runtime` usa gunicorn e usuário não-root. O modo padrão é
+imutável, com somente `compose.yaml`; inclua `compose.dev.yaml` explicitamente
+para montar código durante desenvolvimento.
 
 ## Operação, riscos e validação
 
@@ -76,8 +77,8 @@ Use Docker Compose; não dependa de Python, banco ou ferramentas do projeto no
 host. Comandos atuais:
 
 ```powershell
-docker compose --env-file .env.docker up --build -d
-docker compose --env-file .env.docker --profile quality run --rm quality
+docker compose --env-file .env.docker -f compose.yaml up --build -d
+docker compose --env-file .env.docker -f compose.yaml --profile quality run --rm quality
 ```
 
 O estágio `quality` executa Ruff e a suíte mínima de segurança/fumaça. Não há

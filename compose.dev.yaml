@@ -1,0 +1,7 @@
+# Desenvolvimento explícito: este arquivo só é aplicado junto de
+# `compose.yaml` para montar o código editável no contêiner da aplicação.
+
+services:
+  app:
+    volumes:
+      - .:/app

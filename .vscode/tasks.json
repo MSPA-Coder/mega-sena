@@ -4,19 +4,19 @@
     {
       "label": "Docker: subir ambiente",
       "type": "shell",
-      "command": "docker compose --env-file .env.docker up --build -d",
+      "command": "docker compose --env-file .env.docker -f compose.yaml up --build -d",
       "problemMatcher": []
     },
     {
       "label": "Docker: ver logs",
       "type": "shell",
-      "command": "docker compose --env-file .env.docker logs -f app",
+      "command": "docker compose --env-file .env.docker -f compose.yaml logs -f app",
       "problemMatcher": []
     },
     {
       "label": "Docker: parar ambiente",
       "type": "shell",
-      "command": "docker compose --env-file .env.docker down",
+      "command": "docker compose --env-file .env.docker -f compose.yaml down",
       "problemMatcher": []
     }
   ]

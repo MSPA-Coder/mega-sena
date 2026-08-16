@@ -6,7 +6,7 @@ O projeto roda em Docker. O host precisa apenas de Docker Desktop, Git e um edit
 Copy-Item .env.docker.example .env.docker
 .\scripts\provision_secrets.ps1
 .\scripts\export_local_ca.ps1
-docker compose --env-file .env.docker up --build -d
+docker compose --env-file .env.docker -f compose.yaml up --build -d
 ```
 
 O provisionamento cria `.secrets/postgres_password.txt` e
@@ -16,10 +16,12 @@ mesmo comando e, só após validar a subida, repita com `-RemoveLegacyValues`.
 Não use `-Force` sem tratar a rotação da senha no PostgreSQL e a invalidação de
 sessões causada por trocar a chave.
 
-A aplicação estará em <http://127.0.0.1:5001>. O `compose.override.yaml` adiciona o bind mount para edição local; para subir sem ele use:
+A aplicação estará em <http://127.0.0.1:5001>. O modo padrão é imutável, sem
+bind mount. Para edição local com código montado, inclua explicitamente o arquivo
+de desenvolvimento:
 
 ```powershell
-docker compose -f compose.yaml --env-file .env.docker up --build -d
+docker compose --env-file .env.docker -f compose.yaml -f compose.dev.yaml up --build -d
 ```
 
 ## Validação manual

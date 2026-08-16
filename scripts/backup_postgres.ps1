@@ -32,29 +32,58 @@ New-Item -ItemType Directory -Path $resolvedOutput -Force | Out-Null
 $timestamp = Get-Date -Format "yyyyMMddTHHmmss"
 $fileName = "mega_sena-postgres-$timestamp.dump"
 $outputFile = Join-Path $resolvedOutput $fileName
-$containerFile = "/tmp/$fileName"
+$temporaryFile = "$outputFile.partial"
 
-Push-Location $projectRoot
 try {
-    & $docker compose --env-file .env.docker exec -T postgres `
-        pg_dump -U $user -d $database -Fc -f $containerFile
-    if ($LASTEXITCODE -ne 0) {
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo.FileName = $docker
+    $process.StartInfo.WorkingDirectory = $projectRoot
+    $process.StartInfo.UseShellExecute = $false
+    $process.StartInfo.RedirectStandardOutput = $true
+    $process.StartInfo.RedirectStandardError = $true
+
+    foreach ($argument in @(
+        "compose", "--env-file", ".env.docker", "exec", "-T", "postgres",
+        "pg_dump", "-U", $user, "-d", $database, "-Fc"
+    )) {
+        [void] $process.StartInfo.ArgumentList.Add($argument)
+    }
+
+    if (-not $process.Start()) {
+        throw "Não foi possível iniciar pg_dump no contêiner."
+    }
+
+    $errorTask = $process.StandardError.ReadToEndAsync()
+    $output = [System.IO.File]::Open(
+        $temporaryFile,
+        [System.IO.FileMode]::CreateNew,
+        [System.IO.FileAccess]::Write,
+        [System.IO.FileShare]::None
+    )
+    try {
+        $process.StandardOutput.BaseStream.CopyTo($output)
+    } finally {
+        $output.Dispose()
+    }
+    $process.WaitForExit()
+    [void] $errorTask.GetAwaiter().GetResult()
+
+    if ($process.ExitCode -ne 0) {
         throw "pg_dump falhou."
     }
-    & $docker compose --env-file .env.docker cp `
-        "postgres:$containerFile" $outputFile
-    if ($LASTEXITCODE -ne 0) {
-        throw "Não foi possível copiar o backup do contêiner."
+
+    $backup = Get-Item -LiteralPath $temporaryFile
+    if ($backup.Length -eq 0) {
+        throw "O arquivo de backup foi criado vazio."
     }
-    & $docker compose --env-file .env.docker exec -T postgres `
-        rm -f $containerFile
+
+    Move-Item -LiteralPath $temporaryFile -Destination $outputFile
 } finally {
-    Pop-Location
+    if (Test-Path -LiteralPath $temporaryFile) {
+        Remove-Item -LiteralPath $temporaryFile -Force
+    }
 }
 
 $backup = Get-Item -LiteralPath $outputFile
-if ($backup.Length -eq 0) {
-    throw "O arquivo de backup foi criado vazio."
-}
 Write-Output "Backup PostgreSQL criado em $($backup.FullName)"
 Write-Output "Tamanho: $($backup.Length) bytes"

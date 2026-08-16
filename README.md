@@ -10,7 +10,7 @@ Flask, HTMX e PostgreSQL. A interface é HTML renderizado no servidor.
 Copy-Item .env.docker.example .env.docker
 .\scripts\provision_secrets.ps1
 .\scripts\export_local_ca.ps1
-docker compose --env-file .env.docker up --build -d
+docker compose --env-file .env.docker -f compose.yaml up --build -d
 ```
 
 A aplicação fica em <http://127.0.0.1:5001>. Os dados ficam no volume `postgres_data`; `docker compose down` não os remove. Use `down -v` apenas para descartar deliberadamente o banco local.
@@ -23,6 +23,13 @@ em um `.env.docker` antigo, ele os migra para os arquivos. Depois de confirmar
 a subida, use `-RemoveLegacyValues` para remover esses valores legados do
 arquivo de ambiente. Arquivos existentes são preservados, salvo `-Force`, que
 é uma rotação deliberada.
+
+O comando padrão usa a imagem imutável. Para editar código com bind mount,
+inclua explicitamente o arquivo de desenvolvimento:
+
+```powershell
+docker compose --env-file .env.docker -f compose.yaml -f compose.dev.yaml up --build -d
+```
 
 Ao iniciar, o contêiner aplica a baseline de schema com `flask db upgrade`. Um banco novo não precisa de seed: as configurações usam valores padrão até a primeira gravação.
 
@@ -48,7 +55,7 @@ A aplicação exige login. Não há tela pública de cadastro: o primeiro usuár
 criado pela linha de comando, dentro do contêiner.
 
 ```powershell
-docker compose --env-file .env.docker exec app flask --app run.py criar-usuario
+docker compose --env-file .env.docker -f compose.yaml exec app flask --app run.py criar-usuario
 ```
 
 O comando pergunta usuário e senha (mínimo de 2 caracteres) sem ecoar a senha.
@@ -69,7 +76,7 @@ Ruff e a suíte mínima de segurança e fumaça, que rodam juntos no estágio
 `quality` da imagem:
 
 ```powershell
-docker compose --env-file .env.docker --profile quality run --rm quality
+docker compose --env-file .env.docker -f compose.yaml --profile quality run --rm quality
 ```
 
 Para alterações relevantes, valide o fluxo afetado no navegador e, quando houver mudança no banco, faça backup e confira a criação de um PostgreSQL vazio pela baseline.

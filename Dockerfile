@@ -5,7 +5,7 @@
 # docker-entrypoint.sh aplica `flask db upgrade` antes do servidor iniciar.
 
 # -----------------------------------------------------------------------
-# base: dependências de sistema comuns a build e runtime
+# base: certificados locais opcionais, sem ferramentas de banco no runtime.
 # -----------------------------------------------------------------------
 FROM python:3.13-slim AS base
 
@@ -18,11 +18,8 @@ WORKDIR /app
 RUN --mount=type=secret,id=local_ca,required=false \
     if [ -f /run/secrets/local_ca ]; then \
         cp /run/secrets/local_ca /usr/local/share/ca-certificates/local-root-ca.crt; \
-    fi \
-    && apt-get update \
-    && apt-get install --no-install-recommends -y postgresql-client \
-    && update-ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+        update-ca-certificates; \
+    fi
 
 # -----------------------------------------------------------------------
 # builder: instala as dependências Python em um venv isolado.
@@ -45,7 +42,9 @@ RUN groupadd --system mega_sena \
     && useradd --system --gid mega_sena --home-dir /app --no-create-home mega_sena
 
 COPY --from=builder /opt/venv /opt/venv
-COPY --chown=mega_sena:mega_sena . .
+COPY --chown=mega_sena:mega_sena app ./app
+COPY --chown=mega_sena:mega_sena migrations ./migrations
+COPY --chown=mega_sena:mega_sena run.py ./
 COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 USER mega_sena
@@ -62,7 +61,8 @@ CMD ["gunicorn", "--bind", "0.0.0.0:5001", "--workers", "2", "--threads", "4", "
 FROM runtime AS quality
 
 USER root
-COPY requirements-dev.txt ./
+COPY --chown=mega_sena:mega_sena requirements.txt requirements-dev.txt pyproject.toml ./
+COPY --chown=mega_sena:mega_sena tests ./tests
 RUN pip install --no-cache-dir -r requirements-dev.txt
 USER mega_sena
 
