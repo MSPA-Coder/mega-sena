@@ -1,4 +1,5 @@
 .git
+.github
 .idea
 .venv
 .htmx-venv
@@ -7,6 +8,13 @@ __pycache__
 .pytest_cache
 .ruff_cache
 *.pyc
-.env.docker
+.env
+.env.*
 .certs
+.secrets
 instance
+backups
+logs
+.codex
+.agents
+.claude
