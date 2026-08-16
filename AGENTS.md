@@ -81,11 +81,13 @@ docker compose --env-file .env.docker --profile quality run --rm quality
 ```
 
 O estágio `quality` executa Ruff e a suíte mínima de segurança/fumaça. Não há
-suíte ampla, cobertura, análise estática de tipos, auditoria de dependências ou
-CI; isso não dispensa a validação proporcional. Percorra manualmente o fluxo
-alterado. Mudanças de autenticação, sessão, CSRF ou autorização executam o
-comando `quality`; mudanças de Docker ou dependências também exigem rebuild e
-subida da pilha.
+suíte ampla, cobertura, análise estática de tipos ou `pip-audit` dentro da
+imagem. O CI executa o Compose e esse estágio em mudanças para `main` e
+semanalmente; CodeQL e Dependabot cobrem análise de código e dependências no
+GitHub. Isso não dispensa a
+validação proporcional: percorra manualmente o fluxo alterado. Mudanças de
+autenticação, sessão, CSRF ou autorização executam o comando `quality`; mudanças
+de Docker ou dependências também exigem rebuild e subida da pilha.
 
 Antes de manutenção de dados ou schema, gere e confira backup com
 `./scripts/backup_postgres.ps1`. Mudança de schema exige ainda bootstrap em
