@@ -11,4 +11,4 @@ defusedxml>=0.7.1,<1
 # controle no runtime; a faixa precisa refletir a CLI realmente usada.
 gunicorn>=25.1,<27
 openpyxl>=3.1.5,<4
-psycopg[binary]>=3.2.9,<4
+psycopg[binary]>=3.3.4,<4
