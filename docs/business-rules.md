@@ -118,3 +118,7 @@ o acesso de todo mundo. A senha mínima (`MIN_PASSWORD_LENGTH` em
 "quem tem a URL e uma conta", não uma barreira contra força bruta — isso já
 é coberto pelo rate limit do login. Expor o serviço em rede exige, além
 disso, HTTPS e revisão de hosts confiáveis.
+
+Após o login, o parâmetro `next` só aceita caminhos locais. URLs com esquema ou
+host externo, barras invertidas e formas percent-encoded que possam ser
+normalizadas para um host externo são ignoradas.
