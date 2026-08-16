@@ -8,6 +8,8 @@ de rotas públicas envelhece bem, porque a rota nova nasce protegida.
 
 from __future__ import annotations
 
+from urllib.parse import unquote, urlsplit
+
 from flask import flash, redirect, render_template, request, url_for
 from flask.typing import ResponseReturnValue
 from flask_login import current_user, login_required, login_user, logout_user
@@ -21,11 +23,31 @@ def _safe_next_url() -> str | None:
     """Devolve o destino pós-login apenas quando ele é interno.
 
     Sem esta checagem, `?next=https://outro.site` transformaria a tela de login
-    em um redirecionador aberto.
+    em um redirecionador aberto. A validação usa a forma percent-decodificada
+    para recusar barras invertidas e caminhos que um navegador possa normalizar
+    como URL com host externo.
     """
     next_url = request.args.get("next")
-    if next_url and next_url.startswith("/") and not next_url.startswith("//"):
-        return next_url
+    if not next_url:
+        return None
+
+    normalized = next_url
+    for _ in range(8):
+        decoded = unquote(normalized)
+        if decoded == normalized:
+            break
+        normalized = decoded
+    else:
+        return None
+
+    if "\\" in normalized or any(ord(char) < 32 or ord(char) == 127 for char in normalized):
+        return None
+    try:
+        parsed = urlsplit(normalized)
+    except ValueError:
+        return None
+    if normalized.startswith("/") and not normalized.startswith("//") and not parsed.scheme and not parsed.netloc:
+        return normalized
     return None
 
 

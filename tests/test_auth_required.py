@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 
 from app import PUBLIC_ENDPOINTS
+from app.web.auth import _safe_next_url
 
 
 def _rotas_get_registradas(app):
@@ -56,8 +57,25 @@ def test_htmx_sem_sessao_recebe_redirect_de_pagina_inteira(client):
     assert resposta.headers.get("HX-Redirect", "").endswith("/login")
 
 
-@pytest.mark.parametrize("destino", ["https://exemplo.invalido", "//exemplo.invalido"])
-def test_next_externo_nao_e_aceito(client, destino):
-    # Sem esta recusa, a tela de login viraria um redirecionador aberto.
-    resposta = client.get(f"/login?next={destino}")
-    assert resposta.status_code == 200
+@pytest.mark.parametrize(
+    "destino",
+    [
+        "https://exemplo.invalido",
+        "//exemplo.invalido",
+        r"/\exemplo.invalido",
+        "/%5cexemplo.invalido",
+        "/%255cexemplo.invalido",
+        "/%2f%2fexemplo.invalido",
+        "/%252f%252fexemplo.invalido",
+    ],
+)
+def test_next_externo_ou_normalizavel_nao_e_aceito(app, destino):
+    # Barras invertidas e suas formas percent-encoded podem ser normalizadas
+    # pelos navegadores para um URL com host externo.
+    with app.test_request_context("/login", query_string={"next": destino}):
+        assert _safe_next_url() is None
+
+
+def test_next_interno_e_preservado(app):
+    with app.test_request_context("/login", query_string={"next": "/apostas?periodo=recente"}):
+        assert _safe_next_url() == "/apostas?periodo=recente"
