@@ -1,0 +1,78 @@
+<section id="dashboard-content" aria-live="polite">
+  <div class="page-title-row">
+    <h2>Dashboard</h2>
+    <p class="muted">Estatísticas dos concursos importados e dos números sorteados.</p>
+  </div>
+  <section class="cards">
+    <div class="card metric-card">
+      <span>Concursos</span>
+      <strong>{{ stats.total_draws }}</strong>
+      <p><small>Com acertadores</small><b>{{ stats.mega_sena_games_with_winners }}</b><em>{{ stats.mega_sena_games_with_winners_pct }}%</em></p>
+      <p><small>Sem acertadores</small><b>{{ stats.mega_sena_games_without_winners }}</b><em>{{ stats.mega_sena_games_without_winners_pct }}%</em></p>
+    </div>
+    <div class="card metric-card winners-card tint-gold">
+      <span>Acertadores</span>
+      <p><small>Mega Sena</small><b>{{ stats.prize_cards.mega_sena.winners }}</b></p>
+      <p><small>Quina</small><b>{{ stats.prize_cards.quina.winners }}</b></p>
+      <p><small>Quadra</small><b>{{ stats.prize_cards.quadra.winners }}</b></p>
+    </div>
+    <div class="card metric-card period-card">
+      <span>Período de análise</span>
+      <div class="period-selector" role="group" aria-label="Período de análise">
+        {% for period, label in periods %}
+          {% set period_url = url_for('web.dashboard', count=period) if period else url_for('web.dashboard') %}
+          <a class="period-btn {{ 'active' if selected_count == period else '' }}" href="{{ period_url }}"
+             hx-get="{{ period_url }}" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="true"
+             aria-current="{{ 'true' if selected_count == period else 'false' }}">{{ label }}</a>
+        {% endfor %}
+      </div>
+      <span class="period-label">{% if selected_count %}últimos {{ stats.actual_count }} concursos{% else %}{{ stats.total_draws }} concursos{% endif %}</span>
+    </div>
+  </section>
+
+  <section class="dashboard-card-row">
+    <div class="dashboard-top-grid">
+      <div class="card compact-stats history-card">
+        <h3>Quantidade de números pares</h3>
+        <div>
+          {% for qtd, total in stats.even_distribution.items() %}
+            <p><a class="history-filter-link" href="{{ url_for('web.contests', even_count=qtd) }}"><b>{{ qtd }}</b></a><strong>{{ total }}</strong><em>concursos</em><em>{{ (total / stats.total_draws * 100)|round(1) if stats.total_draws else 0 }}%</em></p>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="dashboard-stacked-cards">
+        <div class="card compact-stats history-card compact-half-card">
+          <h3>Maior sequência consecutiva</h3>
+          <div>
+            {% for qtd, total in stats.consecutive_distribution.items() %}
+              <p><a class="history-filter-link" href="{{ url_for('web.contests', consecutive_count=qtd) }}"><b>{{ qtd }}</b></a><strong>{{ total }}</strong><em>concursos</em><em>{{ (total / stats.total_draws * 100)|round(1) if stats.total_draws else 0 }}%</em></p>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="card range-distribution-card compact-half-card">
+          <h3>Distribuição por faixas</h3>
+          <div class="range-band-list">
+            {% for faixa, total in stats.ranges.items() %}
+              <p><span>{{ faixa }}</span><strong>{{ total }}</strong><em>{{ (total / (stats.total_draws * 6) * 100)|round(1) if stats.total_draws else 0 }}%</em></p>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      <div class="dashboard-stacked-cards dashboard-frequency-stacked">
+        <div class="card grouped-frequency-card compact-half-card tint-positive"><h3>Mais frequentes</h3><div class="frequency-sequence">{% for n, c in stats.most_frequent %}<span class="frequency-item"><b class="ball">{{ '%02d'|format(n) }}</b><strong>{{ c }}x</strong></span>{% endfor %}</div></div>
+        <div class="card grouped-frequency-card compact-half-card tint-warm"><h3>Menos frequentes</h3><div class="frequency-sequence">{% for n, c in stats.least_frequent %}<span class="frequency-item"><b class="ball warn">{{ '%02d'|format(n) }}</b><strong>{{ c }}x</strong></span>{% endfor %}</div></div>
+      </div>
+    </div>
+
+    <div class="panel chart-panel dashboard-chart-panel">
+      <h2>Frequência x Soma dos Números Sorteados</h2>
+      <div class="sum-histogram-frame"><div id="sum-y-axis" class="sum-y-axis">{% for tick in stats.sum_histogram.y_ticks|reverse %}<span>{{ tick }}</span>{% endfor %}</div><div id="sum-histogram" class="sum-histogram" data-css-var="--max-frequency" data-css-value="{{ stats.sum_histogram.max_frequency or 1 }}">{% for tick in stats.sum_histogram.y_ticks %}<span class="sum-gridline" data-css-var="--tick" data-css-value="{{ tick }}"></span>{% endfor %}{% for bin in stats.sum_histogram.bins %}<div class="sum-histogram-bar" title="{{ bin.start }}-{{ bin.end }}: {{ bin.count }} concursos" data-css-var="--count" data-css-value="{{ bin.count }}"><span></span><small>{{ bin.x_label }}</small></div>{% endfor %}</div></div>
+    </div>
+
+    <div class="panel chart-panel dashboard-chart-panel">
+      <h2>Frequência X Número Sorteado</h2>
+      {% set max_frequency = stats.frequency.values()|max if stats.frequency else 0 %}
+      <div class="frequency-chart-frame"><div class="frequency-y-axis"><span>{{ max_frequency }}</span><span>{{ (max_frequency * 0.75)|round|int }}</span><span>{{ (max_frequency * 0.5)|round|int }}</span><span>{{ (max_frequency * 0.25)|round|int }}</span><span>0</span></div><div id="freq-chart" class="frequency-chart" data-css-var="--max-frequency" data-css-value="{{ max_frequency or 1 }}">{% for tick in [max_frequency, (max_frequency * 0.75)|round|int, (max_frequency * 0.5)|round|int, (max_frequency * 0.25)|round|int] %}<span class="frequency-gridline" data-css-var="--tick" data-css-value="{{ tick }}"></span>{% endfor %}{% for n, c in stats.frequency.items() %}<div class="frequency-bar" title="{{ '%02d'|format(n) }}: {{ c }}x" data-css-var="--count" data-css-value="{{ c }}"><div class="frequency-bar-track"><span></span></div><small>{{ '%02d'|format(n) }}</small></div>{% endfor %}</div></div>
+    </div>
+  </section>
+</section>

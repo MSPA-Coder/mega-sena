@@ -1,0 +1,112 @@
+name: mega-sena
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
+# Base de produção-símile: imagem imutável (`Dockerfile` estágio `runtime`),
+# gunicorn como servidor WSGI, sem bind mount de código. Migrações e seed de
+# dados são aplicados por docker-entrypoint.sh como etapa controlada, antes
+# do processo do servidor iniciar — nunca dentro de `create_app()`.
+#
+# Uso em desenvolvimento: `docker compose up` já mescla automaticamente
+# `compose.override.yaml` (convenção do Docker Compose), adicionando o bind
+# mount de código.
+#
+# Uso sem bind mount: `docker compose -f compose.yaml up`.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    mem_limit: 512m
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mega_sena}
+      POSTGRES_USER: ${POSTGRES_USER:-mega_sena}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      TZ: America/Sao_Paulo
+    secrets:
+      - postgres_password
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mega_sena} -d ${POSTGRES_DB:-mega_sena}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    stop_grace_period: 60s
+
+  app:
+    build:
+      context: .
+      target: runtime
+      secrets:
+        - local_ca
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=64m
+    pids_limit: 256
+    mem_limit: 512m
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: ${POSTGRES_DB:-mega_sena}
+      DB_USER: ${POSTGRES_USER:-mega_sena}
+      DB_PASSWORD_FILE: /run/secrets/postgres_password
+      SECRET_KEY_FILE: /run/secrets/secret_key
+      MEGA_SENA_HOST: 0.0.0.0
+      MEGA_SENA_PORT: "5001"
+      MEGA_SENA_SESSION_COOKIE_NAME: ${MEGA_SENA_SESSION_COOKIE_NAME:-mega_sena_session}
+      TZ: America/Sao_Paulo
+    secrets:
+      - postgres_password
+      - secret_key
+    ports:
+      - "127.0.0.1:${APP_PORT:-5001}:5001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5001/', timeout=3)"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    stop_grace_period: 60s
+    logging: *default-logging
+
+  # Ruff e a suíte mínima de segurança. Fica atrás de um perfil para não subir
+  # junto com a aplicação: `docker compose --profile quality run --rm quality`.
+  quality:
+    build:
+      context: .
+      target: quality
+      secrets:
+        - local_ca
+    profiles: ["quality"]
+
+volumes:
+  postgres_data:
+
+secrets:
+  local_ca:
+    file: .certs/local-root-ca.crt
+  postgres_password:
+    file: .secrets/postgres_password.txt
+  secret_key:
+    file: .secrets/secret_key.txt

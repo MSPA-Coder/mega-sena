@@ -1,0 +1,103 @@
+:root {
+  color-scheme: light;
+  /* Fontes do sistema. As familias web (Space Grotesk, Inter, JetBrains Mono)
+     vinham de um CDN do Google e foram removidas: a linha de base de seguranca
+     nao admite origem externa, que alem de terceiro em cada carregamento
+     obrigaria a CSP a abrir style-src e font-src. Os nomes ficam na frente da
+     lista para o caso de a familia existir localmente na maquina. */
+  --font-display: "Space Grotesk", "Segoe UI", system-ui, Arial, sans-serif;
+  --font-body: Inter, "Segoe UI", system-ui, Arial, sans-serif;
+  --font-mono: "JetBrains Mono", Consolas, Monaco, monospace;
+  font-family: var(--font-body);
+  --sticky-header-reserve: 118px;
+  --form-scrollbar-space: 14px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-pill: 999px;
+  /* Paleta "Mega Sena": verde-tinta profundo do volante, dourado do prêmio,
+     fundo em tom de bilhete com textura sutil. */
+  --page-bg: #eef4ea;
+  --surface: #ffffff;
+  --surface-subtle: #e6efe1;
+  --surface-info: #eff6ff;
+  --text: #11281b;
+  --text-muted: #4f6354;
+  --text-inverted: #ffffff;
+  --border: #cdddc6;
+  --border-strong: #a8c4a0;
+  --shadow: 0 12px 36px rgba(6, 78, 46, .12);
+  --shadow-sm: 0 2px 10px rgba(6, 78, 46, .08);
+  --topbar-bg: linear-gradient(135deg, #06442a 0%, #0a5e3c 50%, #06442a 100%);
+  --topbar-active-bg: rgba(255, 255, 255, .16);
+  --topbar-active-border: rgba(255, 255, 255, .28);
+  --primary: #0c6e49;
+  --primary-strong: #084a32;
+  --accent-gold: #d4a017;
+  --accent-gold-bright: #f0c040;
+  --warning: #c2541e;
+  --chart-secondary: #4f9c7c;
+  --axis: #4f6354;
+  --gridline: rgba(79, 99, 84, .22);
+  --button-bg: linear-gradient(135deg, #0c6e49 0%, #084a32 100%);
+  --button-text: var(--text-inverted);
+  --button-border: var(--primary);
+  --button-hover-bg: linear-gradient(135deg, #084a32 0%, #063d28 100%);
+  --flash-bg: #e0f3e6;
+  --flash-border: #8cc7a3;
+  --row-hover: #d6eadd;
+  --surface-tint-positive: #dff1e5;
+  --surface-tint-warm: #f7e8e1;
+  --surface-tint-gold: #faf0d4;
+  --info-bg: #eff6ff;
+  --info-border: #bfdbfe;
+  --info-text: #1e3a8a;
+  --focus-ring: 0 0 0 3px rgba(12, 110, 73, .30);
+  --ball-bg: radial-gradient(circle at 32% 26%, rgba(255, 255, 255, .42), rgba(255, 255, 255, 0) 58%), linear-gradient(135deg, #0c6e49 0%, #084a32 100%);
+  --ball-warn-bg: radial-gradient(circle at 32% 26%, rgba(255, 255, 255, .42), rgba(255, 255, 255, 0) 58%), linear-gradient(135deg, #e0703d 0%, #c2541e 100%);
+  --brand-mark-bg: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, .55), rgba(255, 255, 255, 0) 60%), linear-gradient(135deg, #f0c040 0%, #d4a017 100%);
+  color: var(--text);
+  background: var(--page-bg);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page-bg: #0a1a12;
+  --surface: #142a1f;
+  --surface-subtle: #1a3327;
+  --surface-info: #172554;
+  --text: #e8f1e9;
+  --text-muted: #8da89a;
+  --text-inverted: #ffffff;
+  --border: #284a38;
+  --border-strong: #3d6b52;
+  --shadow: 0 12px 36px rgba(0, 0, 0, .40);
+  --shadow-sm: 0 2px 12px rgba(0, 0, 0, .32);
+  --topbar-bg: linear-gradient(135deg, #031a10 0%, #06442a 50%, #031a10 100%);
+  --topbar-active-bg: rgba(255, 255, 255, .12);
+  --topbar-active-border: rgba(255, 255, 255, .22);
+  --primary: #28a06a;
+  --primary-strong: #1f7e54;
+  --accent-gold: #e0a93b;
+  --accent-gold-bright: #f5cb55;
+  --warning: #e0703d;
+  --chart-secondary: #5fd9a4;
+  --axis: #8da89a;
+  --gridline: rgba(141, 168, 154, .20);
+  --button-bg: linear-gradient(135deg, #28a06a 0%, #1f7e54 100%);
+  --button-text: #06120c;
+  --button-hover-bg: linear-gradient(135deg, #1f7e54 0%, #166344 100%);
+  --flash-bg: #14321f;
+  --flash-border: #2f6b46;
+  --row-hover: #1f3a2c;
+  --surface-tint-positive: #1d3a2a;
+  --surface-tint-warm: #3a2620;
+  --surface-tint-gold: #3a2f18;
+  --info-bg: #172554;
+  --info-border: #2563eb;
+  --info-text: #bfdbfe;
+  --focus-ring: 0 0 0 3px rgba(40, 160, 106, .38);
+  --ball-bg: radial-gradient(circle at 32% 26%, rgba(255, 255, 255, .42), rgba(255, 255, 255, 0) 58%), linear-gradient(135deg, #28a06a 0%, #1f7e54 100%);
+  --ball-warn-bg: radial-gradient(circle at 32% 26%, rgba(255, 255, 255, .42), rgba(255, 255, 255, 0) 58%), linear-gradient(135deg, #e0703d 0%, #c2541e 100%);
+  --brand-mark-bg: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, .55), rgba(255, 255, 255, 0) 60%), linear-gradient(135deg, #f5cb55 0%, #e0a93b 100%);
+}

@@ -1,0 +1,23 @@
+{% macro render_filter_summary_step(step) %}<p><span>{{ step.label }} = {{ step.value }}</span><strong>{{ step.eliminated_formatted }}</strong><em>eliminadas</em><strong>{{ step.remaining_formatted }}</strong><em>restantes</em></p>{% endmacro %}
+<section id="bets-preview" aria-live="polite">
+  <div class="panel form-grid generator-preview-fields">
+    <label>Concursos no BD que passariam<input type="text" readonly data-filter-preview-count value="{{ filter_preview.count }}"></label>
+    <label>Percentual de jogos que passariam<input type="text" readonly data-filter-preview-percent value="{{ filter_preview.percentage_text }}"></label>
+  </div>
+  <section class="panel combinations-panel">
+    <div class="panel-header"><div><h2>Universo do sorteio e filtros</h2><p class="panel-header-caption">Os filtros descrevem um universo filtrado, mas não mudam a probabilidade real de cada resultado do sorteio.</p></div></div>
+    <div class="combination-summary">
+      <div><span>Universo real do sorteio</span><strong>{{ combination_report.total_formatted }}</strong><small>C(60, 6) resultados equiprováveis</small></div>
+      <div><span>Fora do universo filtrado</span><strong>{{ combination_report.eliminated_formatted }}</strong><small>descrição dos filtros, não da chance</small></div>
+      <div><span>No universo filtrado</span><strong>{{ combination_report.remaining_formatted }}</strong><small>combinações que passam pelos critérios</small></div>
+      {% if coverage_metrics.exact_coverage_available %}
+      <div><span>{{ 'Combinações distintas no fechamento' if closure_mode else 'Cobertura exata das apostas geradas' }}</span><strong>{{ coverage_metrics.exact_covered_combinations_formatted }}</strong><small>{% if closure_mode %}C({{ closure_base_count }}, 6) com {{ closure_base_count }} dezenas-base{% else %}união das combinações internas das apostas concretas{% endif %}</small></div>
+      <div><span>Probabilidade real do conjunto</span><strong>{{ coverage_metrics.exact_probability_percent_formatted }}%</strong><small>1 em {{ coverage_metrics.exact_probability_one_in_formatted }}, sobre C(60, 6)</small></div>
+      {% else %}
+      <div><span>Limite superior teórico</span><strong>{{ coverage_metrics.theoretical_upper_combinations_formatted }}</strong><small>C({{ selected_quantity }}, 6) x {{ selected_amount }}; apostas ainda não concretas</small></div>
+      <div><span>Limite superior da probabilidade</span><strong>{{ coverage_metrics.theoretical_upper_probability_percent_formatted }}%</strong><small>pode ser menor por sobreposição; denominador C(60, 6)</small></div>
+      {% endif %}
+    </div>
+    <div class="combination-filter-list">{% if combination_report.steps %}{% for step in combination_report.steps %}{{ render_filter_summary_step(step) }}{% endfor %}{% else %}<p class="muted">Nenhum filtro aplicado. O universo filtrado coincide com as {{ combination_report.total_formatted }} combinações do sorteio.</p>{% endif %}</div>
+  </section>
+</section>

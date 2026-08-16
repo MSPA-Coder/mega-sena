@@ -1,0 +1,64 @@
+/* Tela de login e o botao de sair do cabecalho.
+ *
+ * Reaproveita os tokens de tokens.css e os estilos de `input`, `button` e
+ * `.panel` que ja existem: aqui so entra o que e proprio da autenticacao. */
+
+.auth-page main.container {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 8vh;
+}
+
+.auth-panel {
+  width: 100%;
+  max-width: 380px;
+  padding: 28px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.auth-panel h1 {
+  margin: 0 0 20px;
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.auth-form label {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.auth-form label + input {
+  margin-bottom: 10px;
+}
+
+.auth-form button {
+  margin-top: 8px;
+}
+
+/* O cabecalho da tela de login nao tem navegacao; sem isto o `justify-content`
+   da topbar deixaria a marca centralizada de forma estranha. */
+.topbar-bare {
+  justify-content: flex-start;
+}
+
+.logout-form {
+  display: inline;
+  margin: 0;
+}
+
+.logout-button {
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: inherit;
+  font-size: 0.85rem;
+  padding: 6px 12px;
+}

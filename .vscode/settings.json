@@ -1,0 +1,6 @@
+{
+  "files.encoding": "utf8",
+  "files.eol": "\n",
+  "containers.containerClient": "com.microsoft.visualstudio.containers.docker",
+  "containers.orchestratorClient": "com.microsoft.visualstudio.orchestrators.dockercompose"
+}

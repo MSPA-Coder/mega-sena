@@ -1,0 +1,1 @@
+"""Configuracoes persistidas da aplicacao."""

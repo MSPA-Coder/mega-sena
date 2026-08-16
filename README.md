@@ -1,0 +1,77 @@
+# Mega Sena AI
+
+Aplicação local para importar resultados da Mega-Sena, consultar estatísticas e organizar apostas. Frequências e filtros descrevem somente o histórico importado; não preveem sorteios nem aumentam a probabilidade matemática de uma combinação.
+
+Flask, HTMX e PostgreSQL. A interface é HTML renderizado no servidor.
+
+## Início rápido
+
+```powershell
+Copy-Item .env.docker.example .env.docker
+.\scripts\provision_secrets.ps1
+.\scripts\export_local_ca.ps1
+docker compose --env-file .env.docker up --build -d
+```
+
+A aplicação fica em <http://127.0.0.1:5001>. Os dados ficam no volume `postgres_data`; `docker compose down` não os remove. Use `down -v` apenas para descartar deliberadamente o banco local.
+
+O Compose lê a senha do PostgreSQL e a chave de sessão dos arquivos
+`.secrets/postgres_password.txt` e `.secrets/secret_key.txt`, nunca de
+variáveis de ambiente do contêiner. O script de provisionamento cria os dois
+arquivos sem exibir valores; quando houver `POSTGRES_PASSWORD` ou `SECRET_KEY`
+em um `.env.docker` antigo, ele os migra para os arquivos. Depois de confirmar
+a subida, use `-RemoveLegacyValues` para remover esses valores legados do
+arquivo de ambiente. Arquivos existentes são preservados, salvo `-Force`, que
+é uma rotação deliberada.
+
+Ao iniciar, o contêiner aplica a baseline de schema com `flask db upgrade`. Um banco novo não precisa de seed: as configurações usam valores padrão até a primeira gravação.
+
+## Uso
+
+1. Importe a planilha em **Concursos**.
+2. Consulte o dashboard ou filtre os concursos.
+3. Em **Apostas**, gere jogos ou informe dezenas para um fechamento.
+4. Revise e grave somente os lotes desejados.
+5. Ajuste os valores padrão em **Configurações**.
+
+Para criar um backup antes de mudanças de schema ou manutenção:
+
+```powershell
+.\scripts\backup_postgres.ps1
+```
+
+Os arquivos são gravados em `instance/backups/`.
+
+## Acesso
+
+A aplicação exige login. Não há tela pública de cadastro: o primeiro usuário é
+criado pela linha de comando, dentro do contêiner.
+
+```powershell
+docker compose --env-file .env.docker exec app flask --app run.py criar-usuario
+```
+
+O comando pergunta usuário e senha (mínimo de 2 caracteres) sem ecoar a senha.
+Rodar de novo com um usuário existente redefine a senha dele. Usuários
+seguintes podem ser criados pela própria interface, em **Usuários**
+(`/usuarios`) — qualquer conta autenticada pode criar, redefinir senha e
+ativar/desativar outras contas por lá; a linha de comando continua útil só
+para o primeiro acesso, antes de existir sessão.
+
+Login não separa dados: qualquer usuário autenticado vê e altera todos os
+concursos, apostas e configurações.
+
+## Manutenção
+
+O projeto é de uso individual. Não mantém uma suíte de regressão nem CI. Mantém o Ruff e a suíte mínima de segurança e fumaça, que rodam juntos no estágio `quality` da imagem:
+
+```powershell
+docker compose --env-file .env.docker --profile quality run --rm quality
+```
+
+Para alterações relevantes, valide o fluxo afetado no navegador e, quando houver mudança no banco, faça backup e confira a criação de um PostgreSQL vazio pela baseline.
+
+- [Arquitetura](docs/architecture.md)
+- [Regras funcionais](docs/business-rules.md)
+- [Desenvolvimento](docs/development.md)
+- [Schema](migrations/README)

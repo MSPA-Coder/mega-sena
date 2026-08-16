@@ -1,0 +1,11 @@
+{% set fields = [('consecutive_count', 'Maior sequência consecutiva permitida', 'filter-consecutive-count', 0, 6), ('even_min', 'Mínimo de números pares', 'filter-even-min', 0, 6), ('even_max', 'Máximo de números pares', 'filter-even-max', 0, 6), ('sum_min', 'Soma inicial', 'filter-sum-min', 0, 345), ('sum_max', 'Soma final', 'filter-sum-max', 0, 345), ('range_min_occupied', 'Mínimo de faixas ocupadas', 'filter-range-min-occupied', 1, 6), ('range_max_per_band', 'Máximo de dezenas por faixa', 'filter-range-max-per-band', 1, 6)] %}
+<div id="filter-target-fields" class="filter-target-fields">
+  {% for name, label, element_id, minimum, maximum in fields %}
+    <label>{{ label }}<input id="{{ element_id }}" type="number" name="{{ name }}" min="{{ minimum }}" max="{{ maximum }}" placeholder="Opcional" value="{{ targets.parameters[name].value if targets.total and targets.parameters[name].value is not none else '' }}"></label>
+  {% endfor %}
+</div>
+{% if targets.total %}
+  <p id="filter-target-status" class="form-note" aria-live="polite" hx-swap-oob="outerHTML">Parâmetros preenchidos para pelo menos {{ target_percentage|round(2) }}% em cada critério isolado.</p>
+{% else %}
+  <p id="filter-target-status" class="form-note" aria-live="polite" hx-swap-oob="outerHTML">Importe concursos para calcular os parâmetros.</p>
+{% endif %}

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% from "components/balls.html" import render_balls %}
+{% block content %}
+<form id="generation-form" method="post" class="panel form-grid generator-form"
+      hx-get="{{ url_for('web.bet_preview') }}" hx-trigger="input changed delay:300ms from:input, bets-preview from:body"
+      hx-target="#bets-preview" hx-swap="outerHTML" hx-sync="this:replace">
+  <h2 class="form-title">Parâmetros para a Geração das Apostas</h2>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="quantity" value="{{ selected_quantity }}">
+  <label>Quantas apostas deseja gerar?<input id="generation-amount" type="number" name="amount" min="{{ generation_limits['amount'][0] }}" max="{{ generation_limits['amount'][1] }}" value="{{ selected_amount }}"></label>
+  <div id="filter-target-fields" class="filter-target-fields">
+    <label>Maior sequência consecutiva permitida<input id="filter-consecutive-count" type="number" name="consecutive_count" min="0" max="6" placeholder="Opcional" value="{{ selected_filters.consecutive_count if selected_filters.consecutive_count is not none else '' }}"></label>
+    <label>Mínimo de números pares<input id="filter-even-min" type="number" name="even_min" min="0" max="6" placeholder="Opcional" value="{{ selected_filters.even_min if selected_filters.even_min is not none else '' }}"></label>
+    <label>Máximo de números pares<input id="filter-even-max" type="number" name="even_max" min="0" max="6" placeholder="Opcional" value="{{ selected_filters.even_max if selected_filters.even_max is not none else '' }}"></label>
+    <label>Soma inicial<input id="filter-sum-min" type="number" name="sum_min" min="0" max="345" placeholder="Opcional" value="{{ selected_filters.sum_min if selected_filters.sum_min is not none else '' }}"></label>
+    <label>Soma final<input id="filter-sum-max" type="number" name="sum_max" min="0" max="345" placeholder="Opcional" value="{{ selected_filters.sum_max if selected_filters.sum_max is not none else '' }}"></label>
+    <label>Mínimo de faixas ocupadas<input id="filter-range-min-occupied" type="number" name="range_min_occupied" min="1" max="6" placeholder="Opcional" value="{{ selected_filters.range_min_occupied if selected_filters.range_min_occupied is not none else '' }}"></label>
+    <label>Máximo de dezenas por faixa<input id="filter-range-max-per-band" type="number" name="range_max_per_band" min="1" max="6" placeholder="Opcional" value="{{ selected_filters.range_max_per_band if selected_filters.range_max_per_band is not none else '' }}"></label>
+  </div>
+  <label>Dezenas do fechamento<input id="closure-numbers" type="text" name="closure_numbers" placeholder="Ex: 01 02 03 04 05 06 07 08 09 10" value="{{ closure_numbers }}"></label>
+  <div class="target-row-separator" aria-hidden="true"></div>
+  <div class="target-action-row">
+    <label class="target-percentage-field">Percentual alvo individual (%)<input id="target-percentage" type="number" name="target_percentage" min="0" max="100" step="0.01" value="80"></label>
+    <div class="form-actions">
+      <button type="button" class="secondary" hx-get="{{ url_for('web.filter_targets_fragment') }}" hx-include="#target-percentage" hx-target="#filter-target-fields" hx-swap="outerHTML">Calcular parâmetros</button>
+      <button type="submit" class="secondary" formmethod="get" formaction="{{ url_for('web.rationale') }}">Racional</button>
+      <button type="submit" class="secondary" formmethod="post" formaction="{{ url_for('web.clear_bet_generation') }}">Limpar filtros</button>
+      <button id="generate-bets" type="submit" name="action" value="generate"
+              hx-post="{{ url_for('web.bet_generation') }}" hx-include="#generation-form"
+              hx-target="#generation-result" hx-swap="outerHTML" hx-disabled-elt="#generate-bets"
+              hx-indicator="#generation-indicator">Gerar Apostas</button>
+      <span id="generation-indicator" class="htmx-indicator" role="status">Gerando…</span>
+    </div>
+  </div>
+  <p id="filter-target-status" class="form-note" aria-live="polite"></p>
+  <p class="muted form-help">As apostas são geradas com gerador aleatório seguro do Python e validadas contra os filtros informados. Os filtros não aumentam a probabilidade matemática do sorteio; eles apenas controlam o perfil das apostas.</p>
+</form>
+
+{% include "bets/_preview.html" %}
+
+<section class="panel" id="recent-generations">
+  <div class="panel-header"><h2>Últimas apostas geradas</h2></div>
+  {% if recent_generations %}
+    <div class="generation-list">
+      {% for generation in recent_generations %}
+        <div class="generation-group"><div class="generation-line"><strong>Geração #{{ generation.generation_id }}</strong><span>{{ generation.bet_count }} {{ 'aposta' if generation.bet_count == 1 else 'apostas' }}</span><span>{{ generation.quantity }} {{ 'número' if generation.quantity == 1 else 'números' }}</span><small>{{ generation.created_at.strftime('%d/%m/%Y %H:%M') if generation.created_at else '' }}</small><button type="button" class="secondary generation-toggle" data-generation-toggle="{{ generation.generation_id }}">Ver</button></div><div class="generation-bets-inline" data-generation-bets="{{ generation.generation_id }}" hidden><h3>Apostas da geração #{{ generation.generation_id }}</h3><div class="generated-bets-grid">{% for bet in generation.bets %}<div class="bet-line">{{ render_balls(bet.numbers) }}<small>Diversidade {{ "%.2f"|format(bet.score) }}</small></div>{% else %}<p>Nenhuma aposta encontrada para esta geração.</p>{% endfor %}</div></div></div>
+      {% endfor %}
+    </div>
+  {% else %}<p>Nenhuma aposta foi gerada ainda.</p>{% endif %}
+</section>
+
+{% include "bets/_generation_result.html" %}
+{% endblock %}
+
+{% block scripts %}<script src="{{ url_for('static', filename='bets.js') }}?v={{ asset_version }}" defer></script>{% endblock %}

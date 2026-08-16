@@ -1,0 +1,23 @@
+/* Tela de gerenciamento de usuarios.
+ *
+ * Reaproveita `.card`, `.panel-header`, `.form-grid`, `table` e `.danger` que
+ * ja existem: aqui so entra o que e proprio desta tela. */
+
+.users-form-card {
+  margin-bottom: 24px;
+}
+
+.users-grid {
+  grid-template-columns: 1fr 1fr auto;
+}
+
+.inline-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.inline-form input {
+  min-width: 140px;
+}

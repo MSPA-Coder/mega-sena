@@ -1,0 +1,74 @@
+@media (max-width: 1050px) {
+  .form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 850px) {
+  :root {
+    --sticky-header-reserve: 176px;
+  }
+
+  .cards,
+  .grid.two,
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar {
+    flex-wrap: wrap;
+    padding: 14px 18px;
+  }
+
+  .brand {
+    min-width: 0;
+  }
+
+  .topbar.nav-ready .nav-toggle {
+    display: inline-flex;
+  }
+
+  .topbar nav {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, .14);
+  }
+
+  .topbar.nav-ready nav {
+    display: none;
+  }
+
+  .topbar.nav-ready.nav-open nav {
+    display: flex;
+  }
+
+  .topbar a {
+    display: block;
+    margin: 0;
+    padding: 12px 10px;
+  }
+
+  .theme-toggle {
+    align-self: flex-start;
+    margin: 10px 0 0;
+  }
+
+  .generator-form .form-actions {
+    flex-wrap: wrap;
+  }
+
+  .target-action-row {
+    grid-template-columns: 1fr;
+  }
+
+  .target-action-row .form-actions {
+    justify-content: flex-start;
+  }
+
+  .frequency-chart {
+    grid-auto-columns: 14px;
+  }
+}

@@ -1,0 +1,58 @@
+# Arquivos que nunca devem ocupar espaco nem gerar trafego de sincronizacao no
+# Dropbox. Cobre o que e reconstruivel localmente (ambientes virtuais, caches,
+# artefatos de build) e o que e sensivel (certificados, .env).
+#
+# `instance/` e `instance/backups/` NAO estao aqui de proposito: guardam os
+# dumps do PostgreSQL e a copia historica do projeto, que devem continuar com
+# copia no Dropbox.
+
+.git/
+
+# Ambientes virtuais
+.venv/
+venv/
+.htmx-venv/
+env/
+ENV/
+
+# Caches de ferramentas
+__pycache__/
+*.pyc
+*.pyo
+.cache/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Artefatos de build
+build/
+dist/
+*.egg
+*.egg-info/
+
+# Segredos e certificados
+.env
+.env.docker
+!.env.docker.example
+.certs/
+
+# Ferramentas de agente
+.codex/
+.agents/
+.claude/
+*.mdc
+
+# Editor e sistema operacional
+.idea/
+*.code-workspace
+*.swp
+*.swo
+.dropbox
+.dropbox.cache/
+.dropbox.attr
+
+# Temporarios
+*.log
+*.tmp
+*.bak
+*.orig

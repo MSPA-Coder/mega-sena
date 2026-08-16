@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Entrar · Mega Sena AI{% endblock %}
+{% block body_class %}auth-page{% endblock %}
+
+{# A tela de login nao mostra a navegacao: nenhum destino dela e alcancavel
+   sem sessao, e exibir os links so ofereceria caminhos que respondem com um
+   redirecionamento de volta para ca. #}
+{% block header %}
+<header class="topbar topbar-bare">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <div class="brand-text">
+      <strong>Mega Sena</strong>
+      <span>AI · análise estatística</span>
+    </div>
+  </div>
+</header>
+{% endblock %}
+
+{% block content %}
+<section class="panel auth-panel">
+  <h1>Entrar</h1>
+
+  <form method="post" action="{{ url_for('web.login') }}" class="auth-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <label for="username">Usuário</label>
+    <input type="text" id="username" name="username" value="{{ username }}"
+           autocomplete="username" required autofocus maxlength="80">
+
+    <label for="password">Senha</label>
+    <input type="password" id="password" name="password"
+           autocomplete="current-password" required>
+
+    <button type="submit" class="btn-primary">Entrar</button>
+  </form>
+</section>
+{% endblock %}

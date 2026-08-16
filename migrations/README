@@ -1,0 +1,9 @@
+# Schema PostgreSQL
+
+`20260803_baseline` descreve o schema atual completo e é o ponto de partida de um banco novo:
+
+```powershell
+docker compose --env-file .env.docker exec app flask --app run.py db upgrade
+```
+
+O banco operacional existente foi conferido contra essa baseline e marcado na mesma revisão durante a consolidação. Antes de qualquer alteração futura de schema ou dados, execute `scripts/backup_postgres.ps1` e verifique o arquivo gerado. Uma mudança de schema futura deve ser uma migration nova; não reescreva esta baseline depois que ela estiver em uso.

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card users-form-card">
+    <div class="panel-header">
+      <h2>Novo usuário</h2>
+    </div>
+    <form method="post" action="{{ url_for('web.create_user') }}" class="form-grid users-grid"
+          hx-post="{{ url_for('web.create_user') }}" hx-target="#users-feedback" hx-swap="outerHTML"
+          hx-disabled-elt="find button" hx-indicator="#users-creating">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label>Usuário<input type="text" name="username" maxlength="80" required autocomplete="off"></label>
+        <label>Senha<input type="password" name="password" minlength="{{ min_password_length }}" required autocomplete="new-password"></label>
+        <div class="form-actions">
+            <button type="submit">Criar usuário</button>
+            <span id="users-creating" class="htmx-indicator" role="status">Criando…</span>
+        </div>
+    </form>
+    <div id="users-feedback" aria-live="polite"></div>
+</section>
+{% include "users/_table.html" %}
+{% endblock %}

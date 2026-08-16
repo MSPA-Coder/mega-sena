@@ -1,0 +1,3 @@
+<section id="generation-result" class="panel" aria-live="polite"><div class="flash">{{ feedback }}</div><p class="muted">A geração foi salva. Ela aparece na lista de últimas apostas.</p></section>
+<div id="flash-feedback" class="flash-list" hx-swap-oob="outerHTML" aria-live="polite" aria-atomic="true"><div class="flash">{{ feedback }}</div></div>
+{% set oob = true %}{% include "bets/_recent_generations.html" %}
