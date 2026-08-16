@@ -20,6 +20,16 @@ x-logging: &default-logging
 services:
   postgres:
     image: postgres:17-alpine
+    user: postgres
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,mode=1777,size=64m
+      - /var/run/postgresql:rw,nosuid,nodev,noexec,mode=1777,size=16m
+    pids_limit: 256
     mem_limit: 512m
     restart: unless-stopped
     environment:

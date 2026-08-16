@@ -177,9 +177,14 @@ script `scripts/provision_secrets.ps1` cria-os a partir de valores legados do
 Cabeçalhos de cliente como `HX-Request` são sinal de negociação de apresentação,
 nunca prova de autorização ou origem confiável.
 
-A imagem roda sob gunicorn, com usuário não-root. `compose.override.yaml`,
-mesclado automaticamente no uso local, só adiciona o bind mount de código; use
-`docker compose -f compose.yaml ...` quando quiser iniciar sem esse mount.
+A imagem roda sob gunicorn, com usuário não-root e só recebe os arquivos
+necessários para servir a aplicação; testes, requisitos de desenvolvimento,
+segredos e certificados locais não entram no estágio `runtime`. PostgreSQL roda
+como `postgres`, com filesystem raiz somente leitura, capabilities removidas e
+diretórios transitórios em `tmpfs`; o volume de dados permanece gravável. O
+`compose.override.yaml`, mesclado automaticamente no uso local, só adiciona o
+bind mount de código; use `docker compose -f compose.yaml ...` quando quiser
+iniciar sem esse mount.
 
 Esse conjunto não substitui TLS nem proxy reverso. Qualquer exposição fora de
 `localhost` exige chave de sessão estável, revisão de `TRUSTED_HOSTS`, HTTPS e
