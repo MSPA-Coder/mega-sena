@@ -182,9 +182,9 @@ necessários para servir a aplicação; testes, requisitos de desenvolvimento,
 segredos e certificados locais não entram no estágio `runtime`. PostgreSQL roda
 como `postgres`, com filesystem raiz somente leitura, capabilities removidas e
 diretórios transitórios em `tmpfs`; o volume de dados permanece gravável. O
-`compose.override.yaml`, mesclado automaticamente no uso local, só adiciona o
-bind mount de código; use `docker compose -f compose.yaml ...` quando quiser
-iniciar sem esse mount.
+Compose padrão usa somente `compose.yaml`, sem bind mount e com limites de 1
+vCPU para PostgreSQL e 2 vCPU para a aplicação. Desenvolvimento com código
+montado exige incluir explicitamente `compose.dev.yaml` junto do arquivo base.
 
 Esse conjunto não substitui TLS nem proxy reverso. Qualquer exposição fora de
 `localhost` exige chave de sessão estável, revisão de `TRUSTED_HOSTS`, HTTPS e

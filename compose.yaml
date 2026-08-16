@@ -11,11 +11,9 @@ x-logging: &default-logging
 # dados são aplicados por docker-entrypoint.sh como etapa controlada, antes
 # do processo do servidor iniciar — nunca dentro de `create_app()`.
 #
-# Uso em desenvolvimento: `docker compose up` já mescla automaticamente
-# `compose.override.yaml` (convenção do Docker Compose), adicionando o bind
-# mount de código.
-#
-# Uso sem bind mount: `docker compose -f compose.yaml up`.
+# Uso padrão: `docker compose -f compose.yaml up` usa a imagem imutável, sem
+# bind mount de código. Desenvolvimento com edição ao vivo exige incluir
+# explicitamente `-f compose.dev.yaml`.
 
 services:
   postgres:
@@ -31,6 +29,7 @@ services:
       - /var/run/postgresql:rw,nosuid,nodev,noexec,mode=1777,size=16m
     pids_limit: 256
     mem_limit: 512m
+    cpus: "1.0"
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-mega_sena}
@@ -68,6 +67,7 @@ services:
       - /tmp:rw,nosuid,nodev,noexec,size=64m
     pids_limit: 256
     mem_limit: 512m
+    cpus: "2.0"
     environment:
       DB_HOST: postgres
       DB_PORT: "5432"
@@ -109,6 +109,7 @@ services:
       secrets:
         - local_ca
     profiles: ["quality"]
+    cpus: "2.0"
 
 volumes:
   postgres_data:
