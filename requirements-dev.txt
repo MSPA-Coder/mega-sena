@@ -7,7 +7,7 @@
 -r requirements.txt
 
 ruff>=0.12,<1
-pytest>=8.3,<9
+pytest>=9.1.1,<10
 
 # Usa o armazenamento de certificados do Windows ao rodar fora do container.
 truststore>=0.10.4,<1
