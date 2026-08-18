@@ -16,7 +16,7 @@ mesmo comando e, só após validar a subida, repita com `-RemoveLegacyValues`.
 Não use `-Force` sem tratar a rotação da senha no PostgreSQL e a invalidação de
 sessões causada por trocar a chave.
 
-A aplicação estará em <http://127.0.0.1:5001>. O modo padrão é imutável, sem
+A aplicação estará em <http://127.0.0.1:5101>. O modo padrão é imutável, sem
 bind mount. Para edição local com código montado, inclua explicitamente o arquivo
 de desenvolvimento:
 
