@@ -39,7 +39,7 @@ services:
     secrets:
       - postgres_password
     ports:
-      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5102}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     logging: *default-logging
@@ -78,12 +78,14 @@ services:
       MEGA_SENA_HOST: 0.0.0.0
       MEGA_SENA_PORT: "5001"
       MEGA_SENA_SESSION_COOKIE_NAME: ${MEGA_SENA_SESSION_COOKIE_NAME:-mega_sena_session}
+      MEGA_SENA_TRUSTED_HOSTS: ${MEGA_SENA_TRUSTED_HOSTS:-localhost,127.0.0.1,[::1]}
+      MEGA_SENA_TRUST_PROXY_HEADERS: ${MEGA_SENA_TRUST_PROXY_HEADERS:-false}
       TZ: America/Sao_Paulo
     secrets:
       - postgres_password
       - secret_key
     ports:
-      - "127.0.0.1:${APP_PORT:-5001}:5001"
+      - "127.0.0.1:${APP_PORT:-5101}:5001"
     depends_on:
       postgres:
         condition: service_healthy

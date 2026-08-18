@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from ..bets.criteria import GENERATION_FILTER_KEYS, GenerationCriteria
 from ..core.numbers import parse_int
+from ..draws.downloading import DEFAULT_RESULTS_SOURCE_URL, normalize_results_source_url
 from ..extensions import db
 from ..models import Config, Draw, GeneratedBet
 
@@ -15,6 +16,7 @@ DEFAULT_CONFIG = {
     "sum_max": "",
     "range_min_occupied": "",
     "range_max_per_band": "",
+    "results_source_url": DEFAULT_RESULTS_SOURCE_URL,
 }
 
 
@@ -42,6 +44,9 @@ def _normalize_config_values(values: dict[str, object]) -> dict[str, str]:
             key: "" if value is None else str(value)
             for key, value in criteria.filters(include_empty=True).items()
         }
+    )
+    normalized["results_source_url"] = normalize_results_source_url(
+        values.get("results_source_url", DEFAULT_CONFIG["results_source_url"])
     )
     return normalized
 
@@ -83,6 +88,10 @@ def get_generation_defaults() -> dict[str, int | None]:
         "range_min_occupied": parse_int(values["range_min_occupied"]),
         "range_max_per_band": parse_int(values["range_max_per_band"]),
     }
+
+
+def get_results_source_url() -> str:
+    return get_config_values()["results_source_url"]
 
 
 def reset_all_data() -> tuple[int, int]:

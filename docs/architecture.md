@@ -84,10 +84,10 @@ valores compõe o ambiente do contêiner. `DATABASE_URL` e `SECRET_KEY` diretos
 continuam aceitos somente para execução manual compatível e injeção de teste;
 não são o contrato do Compose.
 
-Não há etapa de seed. A tela de Configurações lê os padrões da geração de
-`app/settings/service.py::DEFAULT_CONFIG` quando a linha correspondente não
-existe no banco; a primeira gravação do usuário é que cria as linhas. Um banco
-recém-migrado é legitimamente vazio e a aplicação funciona assim.
+Não há etapa de seed. A tela de Configurações lê os valores padrão de geração e
+da fonte da planilha em `app/settings/service.py::DEFAULT_CONFIG` quando a linha
+correspondente não existe no banco; a primeira gravação do usuário é que cria as
+linhas. Um banco recém-migrado é legitimamente vazio e a aplicação funciona assim.
 
 ## Módulos
 
@@ -188,7 +188,10 @@ montado exige incluir explicitamente `compose.dev.yaml` junto do arquivo base.
 
 Esse conjunto não substitui TLS nem proxy reverso. Qualquer exposição fora de
 `localhost` exige chave de sessão estável, revisão de `TRUSTED_HOSTS`, HTTPS e
-uma estratégia de implantação apropriada.
+uma estratégia de implantação apropriada. Para o piloto HTTP por DuckDNS, a
+lista de hosts e a confiança nos cabeçalhos do Nginx são configuradas por
+`MEGA_SENA_TRUSTED_HOSTS` e `MEGA_SENA_TRUST_PROXY_HEADERS`; veja
+`docs/deployment-vps.md`.
 
 ## Critérios para evolução
 

@@ -13,7 +13,7 @@ Copy-Item .env.docker.example .env.docker
 docker compose --env-file .env.docker -f compose.yaml up --build -d
 ```
 
-A aplicação fica em <http://127.0.0.1:5001>. Os dados ficam no volume `postgres_data`; `docker compose down` não os remove. Use `down -v` apenas para descartar deliberadamente o banco local.
+A aplicação fica em <http://127.0.0.1:5101>. Os dados ficam no volume `postgres_data`; `docker compose down` não os remove. Use `down -v` apenas para descartar deliberadamente o banco local.
 
 O Compose lê a senha do PostgreSQL e a chave de sessão dos arquivos
 `.secrets/postgres_password.txt` e `.secrets/secret_key.txt`, nunca de

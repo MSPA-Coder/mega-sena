@@ -4,7 +4,9 @@ Este documento descreve o comportamento atual visível para quem usa o sistema.
 
 ## Concursos e importação
 
-- A importação recebe um arquivo `.xlsx` e lê a primeira planilha.
+- A importação recebe um arquivo `.xlsx` escolhido pelo usuário ou baixa a
+  planilha pelo link HTTPS salvo em **Configurações**; nos dois casos lê a
+  primeira planilha e não armazena o arquivo.
 - Cada linha válida precisa ter um número de concurso e seis dezenas distintas
   entre 1 e 60.
 - Linhas inválidas ou repetidas no mesmo arquivo são ignoradas.
@@ -22,10 +24,11 @@ Este documento descreve o comportamento atual visível para quem usa o sistema.
   vazias continuam representando ausência de data ou zero ganhadores.
 - A gravação é transacional: uma falha não deixa parte do arquivo aplicada.
 
-O upload é limitado a 10 MB e a importação a 10.000 linhas. O conteúdo interno
-do XLSX também é verificado quanto a criptografia, quantidade de arquivos,
-tamanho descompactado e taxa de compressão. São proteções contra arquivos
-corrompidos ou consumo excessivo de recursos, não regras da loteria.
+O upload e o download remoto são limitados a 10 MB e a importação a 10.000
+linhas. O link configurado precisa usar HTTPS e apontar para servidor público.
+O conteúdo interno do XLSX também é verificado quanto a criptografia, quantidade
+de arquivos, tamanho descompactado e taxa de compressão. São proteções contra
+arquivos corrompidos ou consumo excessivo de recursos, não regras da loteria.
 
 ## Estatísticas
 

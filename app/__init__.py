@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from flask import Flask, flash, make_response, redirect, render_template, request, url_for
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .core.formatting import format_brl_without_cents
 from .extensions import csrf, db, limiter, login_manager, migrate
@@ -19,6 +20,27 @@ PUBLIC_ENDPOINTS = frozenset({"web.login", "static"})
 _log = logging.getLogger(__name__)
 
 _SUPPORTED_DIALECTS = ("postgresql://", "postgresql+psycopg://")
+_DEFAULT_TRUSTED_HOSTS = ("localhost", "127.0.0.1", "[::1]")
+
+
+def _trusted_hosts_from_environment() -> list[str]:
+    configured = os.environ.get("MEGA_SENA_TRUSTED_HOSTS", "").strip()
+    if not configured:
+        return list(_DEFAULT_TRUSTED_HOSTS)
+
+    hosts = [host.strip() for host in configured.split(",")]
+    if not all(hosts):
+        raise RuntimeError("MEGA_SENA_TRUSTED_HOSTS não pode conter hosts vazios.")
+    return hosts
+
+
+def _environment_flag(name: str) -> bool:
+    value = os.environ.get(name, "false").strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"", "0", "false", "no", "off"}:
+        return False
+    raise RuntimeError(f"{name} deve ser true ou false.")
 
 
 def _ler_segredo_por_arquivo(nome_variavel: str) -> str:
@@ -86,10 +108,13 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
         or "mega_sena_session",
         SESSION_COOKIE_SAMESITE="Lax",
         SESSION_COOKIE_HTTPONLY=True,
-        TRUSTED_HOSTS=["localhost", "127.0.0.1", "[::1]"],
+        TRUSTED_HOSTS=_trusted_hosts_from_environment(),
     )
     if config:
         app.config.update(config)
+
+    if _environment_flag("MEGA_SENA_TRUST_PROXY_HEADERS"):
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_host=1, x_proto=1)
 
     # ------------------------------------------------------------------
     # Banco de dados: PostgreSQL é o único backend suportado, na aplicação e
