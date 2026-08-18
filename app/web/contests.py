@@ -6,8 +6,10 @@ import logging
 
 from flask import flash, redirect, request, url_for
 
+from ..draws.downloading import ResultsDownloadError, fetch_results_xlsx
 from ..draws.importing import import_results_from_xlsx
 from ..draws.service import search_contests
+from ..settings.service import get_results_source_url
 from . import bp
 from .helpers import is_htmx_request, optional_int, plural, render_vary
 
@@ -48,6 +50,18 @@ def _import_feedback(message: str):
     return redirect(url_for("web.contests"))
 
 
+def _import_result_feedback(result: dict[str, int], *, source: str) -> object:
+    imported = result["imported"]
+    updated = result["updated"]
+    ignored = result["ignored"]
+    return _import_feedback(
+        f"Importação {source} concluída: "
+        f"{imported} {plural(imported, 'novo', 'novos')}, "
+        f"{updated} {plural(updated, 'atualizado', 'atualizados')}, "
+        f"{ignored} {plural(ignored, 'ignorado', 'ignorados')}."
+    )
+
+
 @bp.post("/contests/import")
 def import_upload():
     file = request.files.get("file")
@@ -71,15 +85,25 @@ def import_upload():
             "Erro inesperado ao processar o arquivo. Verifique se é uma planilha válida."
         )
 
-    imported = result["imported"]
-    updated = result["updated"]
-    ignored = result["ignored"]
-    return _import_feedback(
-        "Importação concluída: "
-        f"{imported} {plural(imported, 'novo', 'novos')}, "
-        f"{updated} {plural(updated, 'atualizado', 'atualizados')}, "
-        f"{ignored} {plural(ignored, 'ignorado', 'ignorados')}."
-    )
+    return _import_result_feedback(result, source="manual")
+
+
+@bp.post("/contests/import-link")
+def import_from_link():
+    try:
+        source = fetch_results_xlsx(get_results_source_url())
+        result = import_results_from_xlsx(source)
+    except ResultsDownloadError as exc:
+        return _import_feedback(str(exc))
+    except RuntimeError as exc:
+        return _import_feedback(str(exc))
+    except Exception as exc:
+        _log.exception("Erro inesperado na importação pelo link: %s", exc)
+        return _import_feedback(
+            "Erro inesperado ao obter a planilha. Verifique o link configurado."
+        )
+
+    return _import_result_feedback(result, source="pelo link")
 
 
 @bp.route("/contests")

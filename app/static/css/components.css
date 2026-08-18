@@ -282,6 +282,10 @@ a:focus-visible {
   grid-column: 1 / -1;
 }
 
+.settings-grid .settings-source-url {
+  grid-column: span 2;
+}
+
 .actions {
   display: flex;
   gap: 10px;

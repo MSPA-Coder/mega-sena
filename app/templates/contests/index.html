@@ -2,14 +2,22 @@
 {% block content %}
 <section class="card import-card">
   <div class="panel-header"><h2>Importar resultados</h2></div>
-  <p class="muted">Selecione uma planilha .xlsx. O arquivo será lido somente para a importação e não será armazenado no projeto.</p>
+  <p class="muted">Escolha uma fonte. A planilha é lida somente para a importação e não fica armazenada no projeto.</p>
   <form method="post" action="{{ url_for('web.import_upload') }}" enctype="multipart/form-data" class="form import-form"
         hx-post="{{ url_for('web.import_upload') }}" hx-encoding="multipart/form-data"
         hx-target="#import-feedback" hx-swap="outerHTML" hx-disabled-elt="find button" hx-indicator="#import-indicator">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label>Planilha<input type="file" name="file" accept=".xlsx" required></label>
-    <button type="submit">Importar</button>
+    <label>Escolher planilha<input type="file" name="file" accept=".xlsx" required></label>
+    <button type="submit">Importar arquivo</button>
     <span id="import-indicator" class="htmx-indicator" role="status">Importando…</span>
+  </form>
+  <form method="post" action="{{ url_for('web.import_from_link') }}" class="form import-form import-link-form"
+        hx-post="{{ url_for('web.import_from_link') }}" hx-target="#import-feedback" hx-swap="outerHTML"
+        hx-disabled-elt="find button" hx-indicator="#import-link-indicator">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p class="form-help">Baixa a planilha pelo link salvo em Configurações.</p>
+    <button type="submit" class="secondary">Baixar e importar pelo link</button>
+    <span id="import-link-indicator" class="htmx-indicator" role="status">Baixando e importando…</span>
   </form>
   <div id="import-feedback" aria-live="polite"></div>
 </section>

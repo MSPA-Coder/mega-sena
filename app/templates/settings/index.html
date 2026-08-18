@@ -4,7 +4,7 @@
     <div class="panel-header">
       <h2>Configurações</h2>
     </div>
-    <p>Valores padrão usados ao abrir a geração e o racional.</p>
+    <p>Valores padrão usados ao abrir a geração, o racional e a importação de resultados.</p>
     <form method="post" action="{{ url_for('web.save_settings') }}" class="form-grid settings-grid"
           hx-post="{{ url_for('web.save_settings') }}" hx-target="#settings-feedback" hx-swap="outerHTML"
           hx-disabled-elt="find button" hx-indicator="#settings-saving">
@@ -18,6 +18,7 @@
         <label>Soma final<input type="number" name="sum_max" min="0" max="345" placeholder="Opcional" value="{{ config_values.sum_max }}"></label>
         <label>Mínimo de faixas ocupadas<input type="number" name="range_min_occupied" min="1" max="6" placeholder="Opcional" value="{{ config_values.range_min_occupied }}"></label>
         <label>Máximo de dezenas por faixa<input type="number" name="range_max_per_band" min="1" max="6" placeholder="Opcional" value="{{ config_values.range_max_per_band }}"></label>
+        <label class="settings-source-url">Link da planilha de resultados<input type="url" name="results_source_url" maxlength="200" value="{{ config_values.results_source_url }}" required></label>
         <div class="form-actions">
             <button type="submit">Salvar configurações</button>
             <span id="settings-saving" class="htmx-indicator" role="status">Salvando…</span>

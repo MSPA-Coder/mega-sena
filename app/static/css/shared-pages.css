@@ -68,6 +68,16 @@
   min-width: 220px;
 }
 
+.import-link-form {
+  border-top: 1px solid var(--border);
+  margin-top: 16px;
+  padding-top: 16px;
+}
+
+.import-link-form .form-help {
+  flex: 1 1 220px;
+}
+
 .formula {
   background: var(--surface-subtle);
   border: 1px solid var(--border);
@@ -89,4 +99,3 @@
   font-size: 16px;
   margin: 0 0 8px;
 }
-

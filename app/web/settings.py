@@ -25,8 +25,14 @@ def settings_page():
 
 @bp.post("/settings")
 def save_settings():
-    update_config_values(request.form)
-    _log.info("Configuracoes de geracao atualizadas.")
+    try:
+        update_config_values(request.form)
+    except ValueError as exc:
+        if is_htmx_request():
+            return render_vary("settings/_feedback.html", message=str(exc))
+        flash(str(exc))
+        return redirect(url_for("web.settings_page"))
+    _log.info("Configuracoes atualizadas.")
     if is_htmx_request():
         return render_vary(
             "settings/_feedback.html", message="Configurações salvas."
