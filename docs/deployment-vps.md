@@ -20,7 +20,15 @@ umask 077
 openssl rand -hex 32 > .secrets/postgres_password.txt
 openssl rand -hex 48 > .secrets/secret_key.txt
 touch .certs/local-root-ca.crt
+sudo chown root:root .secrets/postgres_password.txt
+sudo chmod 0444 .secrets/postgres_password.txt
+sudo chown 999:999 .secrets/secret_key.txt
+sudo chmod 0400 .secrets/secret_key.txt
 ```
+
+O diretório `.secrets/` continua privado para `ubuntu`; a senha do PostgreSQL
+é montada de forma somente leitura em dois contêineres, por isso precisa ser
+legível por ambos. A chave de sessão é legível somente pelo usuário da aplicação.
 
 Instale a configuração do proxy e valide o Nginx antes de ativá-la:
 
