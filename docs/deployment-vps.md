@@ -1,7 +1,7 @@
-# Implantação de teste no VPS
+# Implantação no VPS
 
-Esta implantação publica o MegaSena somente pelo Nginx em
-`http://megasena-mspa.duckdns.org`. O Docker publica a aplicação apenas em
+Esta implantação publica o MegaSena pelo Nginx em
+`https://megasena-mspa.duckdns.org`. O Docker publica a aplicação apenas em
 `127.0.0.1:5101` e o PostgreSQL apenas em `127.0.0.1:5102`; não abra essas
 portas no firewall ou na OCI.
 
@@ -30,7 +30,16 @@ O diretório `.secrets/` continua privado para `ubuntu`; a senha do PostgreSQL
 é montada de forma somente leitura em dois contêineres, por isso precisa ser
 legível por ambos. A chave de sessão é legível somente pelo usuário da aplicação.
 
-Instale a configuração do proxy e valide o Nginx antes de ativá-la:
+Instale Certbot e emita o certificado. A porta 80 precisa estar acessível pela
+internet para a validação HTTP inicial:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d megasena-mspa.duckdns.org
+```
+
+Instale a configuração TLS do proxy e valide o Nginx antes de ativá-la:
 
 ```bash
 sudo install -m 0644 deploy/nginx/megasena.conf /etc/nginx/sites-available/megasena
@@ -52,6 +61,8 @@ Confira os serviços e a URL pública:
 sudo docker compose --env-file .env.vps -f compose.yaml ps
 curl -I http://127.0.0.1:5101/
 curl -I http://megasena-mspa.duckdns.org/
+curl -I https://megasena-mspa.duckdns.org/
+sudo systemctl status certbot.timer
 ```
 
 ## Atualização e rollback

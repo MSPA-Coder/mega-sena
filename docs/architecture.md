@@ -188,10 +188,10 @@ montado exige incluir explicitamente `compose.dev.yaml` junto do arquivo base.
 
 Esse conjunto não substitui TLS nem proxy reverso. Qualquer exposição fora de
 `localhost` exige chave de sessão estável, revisão de `TRUSTED_HOSTS`, HTTPS e
-uma estratégia de implantação apropriada. Para o piloto HTTP por DuckDNS, a
-lista de hosts e a confiança nos cabeçalhos do Nginx são configuradas por
-`MEGA_SENA_TRUSTED_HOSTS` e `MEGA_SENA_TRUST_PROXY_HEADERS`; veja
-`docs/deployment-vps.md`.
+uma estratégia de implantação apropriada. No VPS, a lista de hosts, a
+confiança nos cabeçalhos do Nginx e os cookies Secure são configurados por
+`MEGA_SENA_TRUSTED_HOSTS`, `MEGA_SENA_TRUST_PROXY_HEADERS` e
+`MEGA_SENA_FORCE_HTTPS`; veja `docs/deployment-vps.md`.
 
 ## Critérios para evolução
 

@@ -97,6 +97,7 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
 
     app = Flask(__name__)
     base_dir = Path(__file__).resolve().parent.parent
+    force_https = _environment_flag("MEGA_SENA_FORCE_HTTPS")
 
     app.config.from_mapping(
         SQLALCHEMY_ENGINE_OPTIONS={"pool_pre_ping": True},
@@ -108,6 +109,7 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
         or "mega_sena_session",
         SESSION_COOKIE_SAMESITE="Lax",
         SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SECURE=force_https,
         TRUSTED_HOSTS=_trusted_hosts_from_environment(),
     )
     if config:
