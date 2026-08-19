@@ -99,9 +99,10 @@ Para alterações relevantes, valide o fluxo afetado no navegador e, quando houv
 O workflow de CI executa essa validação enxuta em push e pull request para
 `main`, além de uma rodada semanal: gera uma CA local efêmera, valida o Compose,
 reconstrói a imagem `quality` sem cache e a executa sem segredos de runtime.
-CodeQL e Dependabot acompanham código, dependências Python, imagens Docker e
-GitHub Actions; as atualizações minor/patch são agrupadas semanalmente. Esses controles não substituem
-o percurso manual nem o bootstrap PostgreSQL exigidos para mudanças persistentes.
+O Dependabot acompanha dependências Python, imagens Docker e GitHub Actions; as
+atualizações minor/patch são agrupadas semanalmente. Não há varredura de código
+de segurança (CodeQL). Esses controles não substituem o percurso manual nem o
+bootstrap PostgreSQL exigidos para mudanças persistentes.
 
 - [Arquitetura](docs/architecture.md)
 - [Regras funcionais](docs/business-rules.md)
