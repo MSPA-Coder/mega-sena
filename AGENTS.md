@@ -97,6 +97,23 @@ revisão os alterar. `docker compose down` preserva dados; `down -v` remove o
 volume e só cabe com autorização explícita. Preserve alterações locais não
 relacionadas e não imprima segredos.
 
+## Implantação em produção
+
+O sistema roda em um VPS Oracle atrás de Nginx com TLS, em
+`https://megasena-mspa.duckdns.org`, a partir de `/home/ubuntu/apps/mega-sena`.
+
+O código do servidor é espelho do `main`, em sentido único: desenvolvimento na
+máquina local, commit, push ao GitHub, e só então implantação. **Não edite
+código, não commite e não faça merge no VPS** — `~/deploy.sh megasena` aborta ao
+encontrar árvore suja, e a *deploy key* do servidor é somente leitura, então um
+push de lá falharia de qualquer forma.
+
+`.secrets/` e `.certs/` não são versionados e vivem apenas no servidor; um
+reclone precisa restaurá-los, ou o build falha e o banco fica inacessível. Os
+dados ficam no volume `mega-sena_postgres_data`, fora da pasta do código:
+substituir o diretório do projeto não os afeta. Consulte
+`docs/deployment-vps.md` antes de qualquer operação no VPS.
+
 ## Evolução de versões e compatibilidade
 
 Mantenha dependências em faixas limitadas e atualize-as deliberadamente. Para

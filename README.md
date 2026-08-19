@@ -33,6 +33,21 @@ docker compose --env-file .env.docker -f compose.yaml -f compose.dev.yaml up --b
 
 Ao iniciar, o contêiner aplica a baseline de schema com `flask db upgrade`. Um banco novo não precisa de seed: as configurações usam valores padrão até a primeira gravação.
 
+## Produção
+
+O sistema roda em um VPS Oracle (Ubuntu 24.04), publicado pelo Nginx com
+certificado Let's Encrypt em <https://megasena-mspa.duckdns.org>. O contêiner
+escuta apenas em `127.0.0.1:5101`; só 80 e 443 ficam abertos na internet.
+
+O fluxo de mudança tem um sentido único: **máquina de desenvolvimento → GitHub →
+VPS**. O código no servidor é um espelho do `main` e nunca a origem de uma
+alteração; a implantação é feita por `~/deploy.sh megasena`, que recusa rodar se
+encontrar alteração não commitada no servidor. O repositório é privado e o VPS o
+lê por uma *deploy key* somente-leitura.
+
+Detalhes de instalação, atualização e rollback estão em
+[Implantação no VPS](docs/deployment-vps.md).
+
 ## Uso
 
 1. Importe a planilha em **Concursos**.
