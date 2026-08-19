@@ -116,6 +116,15 @@ substituir o diretório do projeto não os afeta. Consulte
 
 ## Evolução de versões e compatibilidade
 
+**Faixas de dependência: alargue o teto, mantenha o piso.** O Dependabot roda
+com `versioning-strategy: widen`. Quando ele propuser elevar o mínimo, aproveite
+apenas a parte que alarga o teto e recuse a que sobe o piso. O piso registra a
+compatibilidade mínima efetivamente verificada, não a versão mais nova
+disponível: elevá-lo declara uma incompatibilidade que ninguém comprovou e não
+muda nada do que é instalado, porque o pip já resolve para a versão mais nova
+permitida pela faixa.
+
+
 Mantenha dependências em faixas limitadas e atualize-as deliberadamente. Para
 atualização mínima/patch, execute a validação proporcional e registre impacto
 na documentação quando houver. Para mudança de versão menor ou maior, confirme
