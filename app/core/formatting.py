@@ -1,22 +1,39 @@
-"""Formatadores usados pela camada de apresentacao."""
+"""Formatadores usados pela camada de apresentacao.
+
+A conta em si mora em `sharedauth.formatting`: era a mesma rotina de milhar e
+decimal em pt-BR escrita tres vezes entre os projetos do mantenedor, duas
+delas identicas caractere por caractere. Estas funcoes continuam existindo
+porque sao a assinatura que as rotas e os templates deste projeto ja usam --
+e porque cada uma fixa uma escolha de apresentacao que e deste app, nao da
+biblioteca (o que mostrar quando nao ha valor).
+"""
 
 from __future__ import annotations
+
+from sharedauth.formatting import inteiro, moeda, percentual
 
 
 def format_int(value: int) -> str:
     """Formata inteiro com separador de milhar brasileiro."""
-    return f"{value:,}".replace(",", ".")
+    return inteiro(value)
 
 
 def format_percent(value: float) -> str:
-    """Formata percentual com ate oito casas e virgula decimal."""
-    return f"{value:.8f}".rstrip("0").rstrip(".").replace(".", ",")
+    """Formata percentual com ate oito casas e virgula decimal.
+
+    Oito casas, e nao duas: uma chance de 1 em 50 milhoes some inteira com
+    duas. Os zeros a direita saem para a coluna nao ficar ilegivel.
+    """
+    return percentual(value, casas=8, remover_decimal_zero=True, simbolo=False)
 
 
 def format_brl_without_cents(cents: int | None) -> str:
-    """Formata centavos como reais inteiros."""
+    """Formata centavos como reais inteiros; premio ausente ou zero fica vazio.
+
+    Vazio, e nao "-": esta funcao alimenta o filtro `brl0` numa coluna onde a
+    ausencia de premio e o caso comum, e um traco repetido em toda linha
+    poluiria mais que o branco.
+    """
     if not cents:
         return ""
-    value = round(cents / 100)
-    formatted = f"{value:,}".replace(",", ".")
-    return f"R$ {formatted}"
+    return moeda(round(cents / 100), casas=0, ausente="")

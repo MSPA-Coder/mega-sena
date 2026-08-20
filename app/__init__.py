@@ -10,8 +10,10 @@ from flask import Flask, flash, make_response, redirect, render_template, reques
 from flask_login import current_user
 from sharedauth.access import requer_login
 from sharedauth.csrf import iniciar_csrf
+from sharedauth.health import registrar_health
 from sharedauth.ratelimit import LIMITE_LOGIN_PADRAO, iniciar_limiter
 from sharedauth.session import configurar_sessao
+from sqlalchemy import select
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .core.formatting import format_brl_without_cents
@@ -20,7 +22,11 @@ from .extensions import db, login_manager, migrate
 # Endpoints alcançáveis sem sessão. Mantida deliberadamente curta: a lista é de
 # rotas **públicas**, não de rotas protegidas, para que uma rota nova nasça
 # protegida em vez de nascer aberta.
-PUBLIC_ENDPOINTS = frozenset({"web.login", "static"})
+#
+# `health` é público porque quem consulta é o Docker, de dentro da rede do
+# Compose, sem sessão nenhuma. Ele não expõe dado: responde `ok` ou `erro` e
+# mais nada — nem versão, nem nome de banco, nem contagem de registros.
+PUBLIC_ENDPOINTS = frozenset({"web.login", "static", "health"})
 
 _log = logging.getLogger(__name__)
 
@@ -200,6 +206,22 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
     # sem limite nenhum.
     app.view_functions["web.login"] = limiter.limit(LIMITE_LOGIN_PADRAO)(
         app.view_functions["web.login"]
+    )
+
+    # ------------------------------------------------------------------
+    # Sonda de saúde. Antes desta rota existir, o `healthcheck:` do Compose
+    # batia na raiz do site — que sem sessão redireciona para `/login`. O
+    # Docker via 200 e declarava o container saudável mesmo com o banco fora,
+    # que é exatamente a situação que o health check deveria detectar.
+    #
+    # `limiter=` isenta a rota do limite global: uma sonda a cada 60s não pode
+    # competir com o orçamento de requisições de quem está usando o sistema.
+    # ------------------------------------------------------------------
+    registrar_health(
+        app,
+        servico="mega-sena",
+        verificar=lambda: db.session.execute(select(1)),
+        limiter=limiter,
     )
 
     # ------------------------------------------------------------------
