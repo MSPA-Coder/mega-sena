@@ -154,8 +154,8 @@ A regra vive no banco, e não só no Python, porque uma linha inconsistente fari
 toda estatística derivada mentir sem que nada falhasse.
 
 Alterações de schema são feitas em revisões de `migrations/versions/`, aplicadas
-por `flask db upgrade`. Backups são uma responsabilidade operacional separada
-(`scripts/backup_postgres.ps1`).
+por `flask db upgrade`. Backups são uma responsabilidade operacional separada,
+do BackupRestore (projeto irmão, fora deste repositório).
 
 ## Segurança e implantação
 

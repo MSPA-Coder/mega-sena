@@ -56,13 +56,14 @@ Detalhes de instalação, atualização e rollback estão em
 4. Revise e grave somente os lotes desejados.
 5. Ajuste os valores padrão em **Configurações**.
 
-Para criar um backup antes de mudanças de schema ou manutenção:
+O backup diário roda pelo BackupRestore, projeto irmão que centraliza dump e
+ensaio de restauração dos quatro projetos com catálogo e verificação próprios.
+Para um backup avulso antes de mudanças de schema ou manutenção, no diretório
+do BackupRestore:
 
 ```powershell
-.\scripts\backup_postgres.ps1
+python cli.py backup --projeto mega_sena --tipos banco
 ```
-
-Os arquivos são gravados em `instance/backups/`.
 
 ## Acesso
 
