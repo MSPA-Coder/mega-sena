@@ -7,10 +7,15 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from flask import Flask, flash, make_response, redirect, render_template, request, url_for
+from flask_login import current_user
+from sharedauth.access import requer_login
+from sharedauth.csrf import iniciar_csrf
+from sharedauth.ratelimit import LIMITE_LOGIN_PADRAO, iniciar_limiter
+from sharedauth.session import configurar_sessao
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .core.formatting import format_brl_without_cents
-from .extensions import csrf, db, limiter, login_manager, migrate
+from .extensions import db, login_manager, migrate
 
 # Endpoints alcançáveis sem sessão. Mantida deliberadamente curta: a lista é de
 # rotas **públicas**, não de rotas protegidas, para que uma rota nova nasça
@@ -103,17 +108,17 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
         SQLALCHEMY_ENGINE_OPTIONS={"pool_pre_ping": True},
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         MAX_CONTENT_LENGTH=10 * 1024 * 1024,
-        SESSION_COOKIE_NAME=os.environ.get(
-            "MEGA_SENA_SESSION_COOKIE_NAME", "mega_sena_session"
-        ).strip()
-        or "mega_sena_session",
-        SESSION_COOKIE_SAMESITE="Lax",
-        SESSION_COOKIE_HTTPONLY=True,
-        SESSION_COOKIE_SECURE=force_https,
         TRUSTED_HOSTS=_trusted_hosts_from_environment(),
     )
     if config:
         app.config.update(config)
+
+    configurar_sessao(
+        app,
+        nome_cookie=os.environ.get("MEGA_SENA_SESSION_COOKIE_NAME", "mega_sena_session").strip()
+        or "mega_sena_session",
+        https_obrigatorio=force_https,
+    )
 
     if _environment_flag("MEGA_SENA_TRUST_PROXY_HEADERS"):
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_host=1, x_proto=1)
@@ -171,9 +176,9 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
         directory=str(base_dir / "migrations"),
         compare_type=True,
     )
-    csrf.init_app(app)
+    iniciar_csrf(app)
     login_manager.init_app(app)
-    limiter.init_app(app)
+    limiter = iniciar_limiter(app)
 
     from .models import User
 
@@ -185,25 +190,31 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
 
     app.register_blueprint(bp)
 
+    # O limiter só existe depois de `iniciar_limiter(app)` (uma instância por
+    # `create_app()`, não um singleton de módulo — ver extensions.py), então a
+    # rota de login não pode carregar `@limiter.limit(...)` no import de
+    # auth.py; ela é aplicada aqui, depois que a rota já está registrada.
+    # `RouteLimit.__call__` devolve uma função *nova*, embrulhada — descartar
+    # o retorno (não reatribuir a `view_functions`) deixaria o limite
+    # decorado e nunca aplicado, com toda requisição chamando a view original
+    # sem limite nenhum.
+    app.view_functions["web.login"] = limiter.limit(LIMITE_LOGIN_PADRAO)(
+        app.view_functions["web.login"]
+    )
+
     # ------------------------------------------------------------------
     # Nega por padrão: toda requisição exige sessão, exceto os endpoints
     # listados em PUBLIC_ENDPOINTS. Ficar do lado de "listar o que é público"
     # é o que garante que uma rota acrescentada amanhã já nasça protegida.
     # ------------------------------------------------------------------
-    @app.before_request
-    def _require_login():
-        from flask_login import current_user
-
-        if request.endpoint in PUBLIC_ENDPOINTS or current_user.is_authenticated:
-            return None
-        if request.headers.get("HX-Request", "").lower() == "true":
-            # Uma sessão expirada durante uma troca do HTMX não pode devolver a
-            # tela de login dentro de um fragmento: o HX-Redirect faz o
-            # navegador recarregar a página inteira no lugar certo.
-            response = make_response("", 401)
-            response.headers["HX-Redirect"] = url_for("web.login")
-            return response
-        return redirect(url_for("web.login", next=request.full_path))
+    requer_login(
+        app,
+        endpoints_publicos=PUBLIC_ENDPOINTS,
+        endpoint_login="web.login",
+        esta_autenticado=lambda: current_user.is_authenticated,
+        prefixo_api=None,
+        usar_hx_redirect=True,
+    )
 
     # ------------------------------------------------------------------
     # Cache-busting de assets estáticos: evita que o navegador continue
@@ -245,7 +256,7 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
             )
             response.vary.add("HX-Request")
             return response
-        flash("O arquivo enviado ultrapassa o limite de 10 MB.")
+        flash("O arquivo enviado ultrapassa o limite de 10 MB.", "error")
         return redirect(url_for("web.contests")), 413
 
     from . import models  # noqa: F401  (garante que os modelos sejam registrados)

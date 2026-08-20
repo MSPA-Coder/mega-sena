@@ -50,7 +50,7 @@
 <script src="{{ url_for('static', filename='vendor/htmx-2.0.10.min.js') }}?v={{ asset_version }}" defer></script>
 <script src="{{ url_for('static', filename='base.js') }}?v={{ asset_version }}" defer></script>
 <main class="container">
-  {% with messages = get_flashed_messages() %}
+  {% with messages = get_flashed_messages(with_categories=True) %}
     {% include "components/flash_messages.html" %}
   {% endwith %}
   {% block content %}{% endblock %}

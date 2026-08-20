@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from flask_login import UserMixin
+from sharedauth.passwords import conferir_hash, gerar_hash
 from sqlalchemy import CheckConstraint
-from werkzeug.security import check_password_hash, generate_password_hash
 
 from .extensions import db
 
@@ -147,10 +147,10 @@ class User(UserMixin, db.Model):
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
 
     def set_password(self, password: str) -> None:
-        self.password_hash = generate_password_hash(password)
+        self.password_hash = gerar_hash(password)
 
     def check_password(self, password: str) -> bool:
-        return check_password_hash(self.password_hash, password)
+        return conferir_hash(self.password_hash, password)
 
     @property
     def is_active(self) -> bool:

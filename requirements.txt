@@ -12,3 +12,8 @@ defusedxml>=0.7.1,<1
 gunicorn>=25.1,<27
 openpyxl>=3.1.5,<4
 psycopg[binary]>=3.2.9,<4
+# Sessão, CSRF, rate-limit no login, controle de acesso e hash de senha
+# compartilhados com os outros apps Flask do mantenedor -- ver
+# PLANO_UNIFICAR_AUTENTICACAO.md no repositório _manutencao. Tag fixada
+# manualmente; nunca aponta para branch.
+sharedauth @ git+https://github.com/MSPA-Coder/SharedAuth.git@v0.1.1

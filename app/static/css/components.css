@@ -102,6 +102,23 @@ a:focus-visible {
   margin-bottom: 18px;
 }
 
+/* Categorias do flash (`error`/`warning`/`info`); sem categoria conhecida ou
+   "success" mantém o verde padrão acima -- era a cor usada para tudo antes de
+   `get_flashed_messages` passar a receber `with_categories=True`. */
+.flash-error,
+.flash-warning {
+  background: var(--surface-tint-warm);
+  border-color: var(--warning);
+  border-left-color: var(--warning);
+}
+
+.flash-info {
+  background: var(--info-bg);
+  border-color: var(--info-border);
+  border-left-color: var(--info-border);
+  color: var(--info-text);
+}
+
 .frequency-chart-frame {
   display: grid;
   grid-template-columns: 38px minmax(0, 1fr);
@@ -476,8 +493,13 @@ tbody tr:hover {
   opacity: .45;
   pointer-events: none;
 }
-/* Feedback de requisições HTMX: oculto até que o elemento origine uma chamada. */
-.htmx-indicator {
+/* Feedback de requisições HTMX: oculto até que o elemento origine uma chamada.
+   Seletor `span.htmx-indicator` (não só `.htmx-indicator`) de propósito: os
+   indicadores são sempre `<span>`, e `.card span { display: block }` (acima,
+   em base.css) tem especificidade maior que uma classe sozinha -- ficava
+   sempre visível dentro de qualquer `.card` (ex.: "Criando…" ao lado do botão
+   em /usuarios), mesmo sem requisição em andamento. */
+span.htmx-indicator {
   display: none;
 }
 

@@ -7,17 +7,17 @@ lugares.
 
 from __future__ import annotations
 
+from sharedauth.passwords import MIN_PASSWORD_LENGTH, validar_tamanho  # noqa: F401 (reexportado)
 from sqlalchemy import func
 
 from ..extensions import db
 from ..models import User
 
-MIN_PASSWORD_LENGTH = 8
-
 
 def _validate_password(password: str) -> None:
-    if len(password) < MIN_PASSWORD_LENGTH:
-        raise ValueError(f"A senha deve ter pelo menos {MIN_PASSWORD_LENGTH} caracteres.")
+    # `SenhaMuitoCurtaError` é um `ValueError`, então quem já captura
+    # `ValueError` aqui (rota, CLI) continua funcionando sem mudança.
+    validar_tamanho(password)
 
 
 def list_users() -> list[User]:

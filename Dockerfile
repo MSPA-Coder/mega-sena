@@ -23,13 +23,27 @@ RUN --mount=type=secret,id=local_ca,required=false \
 
 # -----------------------------------------------------------------------
 # builder: instala as dependências Python em um venv isolado.
+#
+# `requirements.txt` inclui `sharedauth` de um repositório Git privado
+# (github.com/MSPA-Coder/SharedAuth) — pip precisa de `git` no PATH e de
+# credencial para HTTPS. O secret `github_token` (BuildKit, nunca vira
+# camada da imagem) autentica só para este RUN; `git config --unset` no
+# fim da mesma instrução remove o token do `.gitconfig` antes de commitar
+# a camada.
 # -----------------------------------------------------------------------
 FROM base AS builder
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt ./
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:${PATH}"
-RUN pip install --no-cache-dir -r requirements.txt
+RUN --mount=type=secret,id=github_token \
+    git config --global url."https://x-access-token:$(cat /run/secrets/github_token)@github.com/".insteadOf "https://github.com/" && \
+    pip install --no-cache-dir -r requirements.txt && \
+    git config --global --unset url."https://x-access-token:$(cat /run/secrets/github_token)@github.com/".insteadOf
 
 # -----------------------------------------------------------------------
 # runtime: usuário não-root; o override local pode montar o código.
@@ -61,9 +75,15 @@ CMD ["gunicorn", "--bind", "0.0.0.0:5001", "--workers", "2", "--threads", "4", "
 FROM runtime AS quality
 
 USER root
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
 COPY --chown=mega_sena:mega_sena requirements.txt requirements-dev.txt pyproject.toml ./
 COPY --chown=mega_sena:mega_sena tests ./tests
-RUN pip install --no-cache-dir -r requirements-dev.txt
+RUN --mount=type=secret,id=github_token \
+    git config --global url."https://x-access-token:$(cat /run/secrets/github_token)@github.com/".insteadOf "https://github.com/" && \
+    pip install --no-cache-dir -r requirements-dev.txt && \
+    git config --global --unset url."https://x-access-token:$(cat /run/secrets/github_token)@github.com/".insteadOf
 USER mega_sena
 
 ENV RUFF_CACHE_DIR=/tmp/ruff-cache \
