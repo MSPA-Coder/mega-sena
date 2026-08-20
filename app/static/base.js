@@ -52,35 +52,3 @@
       });
     });
   });
-
-  // Custom properties dos gráficos do dashboard.
-  //
-  // Os valores vêm do servidor em `data-css-var` / `data-css-value` em vez de
-  // um atributo `style=` porque a Content-Security-Policy é `style-src 'self'`
-  // sem exceção. A alternativa seria abrir `style-src-attr 'unsafe-inline'`,
-  // que o Firefox não implementa — lá a política cairia de volta para
-  // `style-src` e as barras ficariam sem altura.
-  //
-  // Roda no carregamento e depois de cada troca do HTMX, porque o conteúdo do
-  // dashboard é substituído por fragmento.
-  (function () {
-    "use strict";
-    function applyTo(element) {
-      var name = element.dataset.cssVar;
-      var value = element.dataset.cssValue;
-      if (name && value !== undefined) element.style.setProperty(name, value);
-    }
-    function applyChartVariables(scope) {
-      var root = scope || document;
-      // O proprio alvo da troca pode carregar o atributo; `querySelectorAll` so
-      // enxerga descendentes.
-      if (root.dataset && root.dataset.cssVar) applyTo(root);
-      root.querySelectorAll("[data-css-var]").forEach(applyTo);
-    }
-    document.addEventListener("DOMContentLoaded", function () {
-      applyChartVariables(document);
-    });
-    document.body.addEventListener("htmx:afterSwap", function (event) {
-      applyChartVariables(event.target);
-    });
-  }());
