@@ -12,7 +12,7 @@ from sqlalchemy import func
 from ..extensions import db
 from ..models import User
 
-MIN_PASSWORD_LENGTH = 2
+MIN_PASSWORD_LENGTH = 8
 
 
 def _validate_password(password: str) -> None:
