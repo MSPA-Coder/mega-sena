@@ -90,8 +90,11 @@ não dispensa a validação proporcional: percorra manualmente o fluxo alterado.
 autenticação, sessão, CSRF ou autorização executam o comando `quality`; mudanças
 de Docker ou dependências também exigem rebuild e subida da pilha.
 
-Antes de manutenção de dados ou schema, gere e confira backup com
-`./scripts/backup_postgres.ps1`. Mudança de schema exige ainda bootstrap em
+Antes de manutenção de dados ou schema, gere e confira backup pelo
+BackupRestore, projeto irmão (`python cli.py backup --projeto mega_sena
+--tipos banco`); ele centraliza dump, catálogo e verificação dos quatro
+projetos, e este repositório não tem rotina própria. Mudança de schema exige
+ainda bootstrap em
 PostgreSQL vazio, pela baseline Alembic, e teste de upgrade/downgrade quando a
 revisão os alterar. `docker compose down` preserva dados; `down -v` remove o
 volume e só cabe com autorização explícita. Preserve alterações locais não

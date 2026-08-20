@@ -30,7 +30,7 @@ Como o produto é de uso individual, a validação é deliberadamente curta:
 
 1. Suba a aplicação e abra as telas afetadas.
 2. Em alterações de schema, execute `flask db upgrade` em um PostgreSQL vazio e confirme que a aplicação inicia.
-3. Antes de qualquer manutenção de dados ou schema aplicado, crie e confira um backup com `scripts/backup_postgres.ps1`.
+3. Antes de qualquer manutenção de dados ou schema aplicado, crie e confira um backup pelo BackupRestore, projeto irmão (`python cli.py backup --projeto mega_sena --tipos banco`).
 
 ## Alterações de schema
 
