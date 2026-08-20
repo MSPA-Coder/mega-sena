@@ -13,11 +13,14 @@ from flask import Blueprint
 # A política é fechada em 'self', sem nenhuma exceção: nenhuma origem externa,
 # nenhum estilo ou script inline.
 #
-# Os gráficos do dashboard chegavam a precisar de `style="--count: N"` para dar
-# altura às barras. Os valores passaram a viajar em `data-css-var` /
-# `data-css-value`, aplicados por `app/static/base.js`. A alternativa seria
-# abrir `style-src-attr 'unsafe-inline'`, que o Firefox não implementa — lá a
-# política cairia de volta para `style-src` e as barras ficariam sem altura.
+# Os gráficos do dashboard precisam da altura de cada barra proporcional ao
+# valor. Nem `style="--count: N"` nem `element.style.setProperty()` via JS
+# funcionam sob essa política — os dois caem na mesma restrição do atributo
+# `style` inline (a segunda também falhava, de forma intermitente, quando
+# chamada de dentro de um handler de `htmx:afterSwap`). A altura vem de uma
+# classe `.pct-N` estática em `dashboard-charts.css`/`components.css`, uma
+# por porcentagem inteira de 0 a 100 — o servidor calcula a porcentagem e
+# escolhe a classe; nada muda estilo em runtime.
 _CONTENT_SECURITY_POLICY = (
     "default-src 'self'; "
     "base-uri 'self'; "

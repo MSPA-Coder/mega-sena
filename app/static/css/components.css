@@ -157,7 +157,7 @@ a:focus-visible {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: calc((var(--tick) / var(--max-frequency)) * (100% - 20px) + 20px);
+  bottom: calc(var(--pct) * (100% - 20px) / 100 + 20px);
   border-top: 1px solid var(--gridline);
   pointer-events: none;
 }
@@ -183,7 +183,7 @@ a:focus-visible {
 .frequency-bar-track span {
   display: block;
   width: min(10px, 100%);
-  height: calc((var(--count) / var(--max-frequency)) * 100%);
+  height: calc(var(--pct) * 1%);
   min-height: 2px;
   background: linear-gradient(180deg, var(--primary) 0%, var(--primary-strong) 100%);
   border: 1px solid var(--primary-strong);
