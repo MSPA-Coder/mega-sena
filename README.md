@@ -74,12 +74,18 @@ criado pela linha de comando, dentro do contêiner.
 docker compose --env-file .env.docker -f compose.yaml exec app flask --app run.py criar-usuario
 ```
 
-O comando pergunta usuário e senha (mínimo de 2 caracteres) sem ecoar a senha.
+O comando pergunta usuário e senha (mínimo de 8 caracteres) sem ecoar a senha.
 Rodar de novo com um usuário existente redefine a senha dele. Usuários
 seguintes podem ser criados pela própria interface, em **Usuários**
 (`/usuarios`) — qualquer conta autenticada pode criar, redefinir senha e
 ativar/desativar outras contas por lá; a linha de comando continua útil só
 para o primeiro acesso, antes de existir sessão.
+
+Sessão, CSRF, limite de tentativas de login, controle de acesso e hash de
+senha vêm de [SharedAuth](https://github.com/MSPA-Coder/SharedAuth), biblioteca
+compartilhada com os outros apps Flask do mantenedor (privada, instalada via
+`requirements.txt` fixada em tag). O modelo de usuário e a tela de
+administração continuam próprios deste projeto.
 
 Login não separa dados: qualquer usuário autenticado vê e altera todos os
 concursos, apostas e configurações.

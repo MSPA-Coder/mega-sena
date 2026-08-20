@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import click
 from flask import Flask
+from sharedauth.passwords import SenhaMuitoCurtaError, validar_tamanho
 
-from .accounts.service import MIN_PASSWORD_LENGTH
 from .extensions import db
 from .models import User
 
@@ -30,10 +30,14 @@ def register_commands(app: Flask) -> None:
         usuario = usuario.strip()
         if not usuario:
             raise click.ClickException("O nome de usuario nao pode ser vazio.")
-        if len(senha) < MIN_PASSWORD_LENGTH:
-            raise click.ClickException(
-                f"A senha deve ter pelo menos {MIN_PASSWORD_LENGTH} caracteres."
-            )
+        try:
+            validar_tamanho(senha)
+        except SenhaMuitoCurtaError as erro:
+            # `gerar_hash` (chamado por `User.set_password`) levanta a mesma
+            # exceção, mas ela não é um `click.ClickException` -- sem esta
+            # checagem antecipada o operador veria um traceback cru em vez da
+            # mensagem limpa.
+            raise click.ClickException(str(erro)) from erro
 
         existente = db.session.scalar(db.select(User).where(User.username == usuario))
         if existente is None:

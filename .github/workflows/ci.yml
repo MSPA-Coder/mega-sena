@@ -32,6 +32,13 @@ jobs:
             -days 1 \
             -subj "/CN=MegaSena CI Local CA"
           rm -f /tmp/mega-sena-ci-ca.key
+      - name: Write SharedAuth read token
+        # PAT de acesso restrito, somente-leitura, só no repositório
+        # SharedAuth -- usado apenas para o `pip install` do requirements.txt
+        # baixar essa dependência privada durante o build da imagem `quality`.
+        run: |
+          mkdir -p .secrets
+          printf '%s' "${{ secrets.SHAREDAUTH_READ_TOKEN }}" > .secrets/github_token.txt
       - name: Validate Compose
         run: docker compose config --quiet
       - name: Build quality image without cache

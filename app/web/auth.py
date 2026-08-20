@@ -14,7 +14,7 @@ from flask import flash, redirect, render_template, request, url_for
 from flask.typing import ResponseReturnValue
 from flask_login import current_user, login_required, login_user, logout_user
 
-from ..extensions import db, limiter
+from ..extensions import db
 from ..models import User
 from . import bp
 
@@ -52,7 +52,6 @@ def _safe_next_url() -> str | None:
 
 
 @bp.route("/login", methods=["GET", "POST"])
-@limiter.limit("10 per minute")
 def login() -> ResponseReturnValue:
     if current_user.is_authenticated:
         return redirect(url_for("web.dashboard"))
