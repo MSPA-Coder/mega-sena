@@ -1,3 +1,11 @@
+// O indicador de requisição HTMX já tem CSS próprio em components.css
+// (span.htmx-indicator / .htmx-request .htmx-indicator) cobrindo o mesmo
+// show/hide. O <style> que o HTMX injetaria por padrão é redundante e
+// viola `style-src 'self'` (sem nonce) — aparece só como ruído no console,
+// sem efeito visível, mas desligar evita o aviso de CSP. Roda antes de
+// DOMContentLoaded, quando o HTMX de fato aplica o config (init adiado até lá).
+htmx.config.includeIndicatorStyles = false;
+
 (function () {
     "use strict";
     var root = document.documentElement;
