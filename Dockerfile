@@ -15,6 +15,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+RUN python -m pip install --no-cache-dir --upgrade pip
+
 RUN --mount=type=secret,id=local_ca,required=false \
     if [ -f /run/secrets/local_ca ]; then \
         cp /run/secrets/local_ca /usr/local/share/ca-certificates/local-root-ca.crt; \
