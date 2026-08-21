@@ -51,6 +51,12 @@ services:
     stop_grace_period: 60s
 
   app:
+    # Nome fixo em vez do derivado do diretorio. Sem isto o Compose batiza a
+    # imagem a partir do nome da pasta, que muda conforme onde o repositorio
+    # foi clonado -- no CI seria um nome, no VPS outro. A varredura de
+    # vulnerabilidade precisa apontar para uma imagem por NOME, e nome que
+    # depende do caminho do checkout nao serve de alvo.
+    image: mega-sena:local
     build:
       context: .
       target: runtime
