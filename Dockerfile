@@ -124,7 +124,8 @@ USER root
 #
 # A imagem SERVIDA continua sem `pip`: `quality` está atrás do profile do mesmo
 # nome e nunca vai para produção.
-RUN python -m ensurepip --upgrade
+RUN python -m ensurepip --upgrade \
+    && python -m pip --version
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
@@ -132,7 +133,7 @@ COPY --chown=mega_sena:mega_sena requirements.txt requirements-dev.txt pyproject
 COPY --chown=mega_sena:mega_sena tests ./tests
 RUN --mount=type=secret,id=github_token \
     git config --global url."https://x-access-token:$(cat /run/secrets/github_token)@github.com/".insteadOf "https://github.com/" && \
-    pip install --no-cache-dir -r requirements-dev.txt && \
+    python -m pip install --no-cache-dir -r requirements-dev.txt && \
     git config --global --unset url."https://x-access-token:$(cat /run/secrets/github_token)@github.com/".insteadOf
 USER mega_sena
 
