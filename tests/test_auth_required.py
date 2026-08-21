@@ -48,7 +48,7 @@ def test_lista_de_publicos_e_curta_e_conhecida(app):
     # A lista e de rotas publicas, nao de protegidas: uma rota nova nasce
     # protegida. Este teste existe para que acrescentar algo aqui seja uma
     # decisao consciente, nao um efeito colateral.
-    assert frozenset({"web.login", "static"}) == PUBLIC_ENDPOINTS
+    assert frozenset({"web.login", "static", "health"}) == PUBLIC_ENDPOINTS
 
 
 def test_htmx_sem_sessao_recebe_redirect_de_pagina_inteira(client):

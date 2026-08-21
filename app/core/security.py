@@ -4,61 +4,36 @@ O CSRF nao mora mais aqui: `Flask-WTF` (`csrf` em `app/extensions.py`) verifica
 todo metodo mutante e expoe `csrf_token()` aos templates. Uma implementacao
 propria de CSRF e exatamente o tipo de codigo de seguranca que nao compensa
 manter quando existe uma biblioteca estabelecida fazendo o mesmo.
+
+Os cabecalhos defensivos e a CSP tambem sairam daqui, pela mesma razao e um
+passo adiante: os valores vinham de um dicionario mantido igual a mao em dois
+projetos -- com o comentario "manter igual em todos" copiado junto -- e mesmo
+assim as copias divergiram. Agora vem de `sharedauth.security`, e o unico
+detalhe que continua sendo decisao deste projeto e a excecao de `img-src`.
 """
 
 from __future__ import annotations
 
 from flask import Blueprint
+from sharedauth.security import SECURITY_HEADERS, montar_csp, registrar_cabecalhos
 
-# A política é fechada em 'self', sem nenhuma exceção: nenhuma origem externa,
-# nenhum estilo ou script inline.
-#
-# Os gráficos do dashboard precisam da altura de cada barra proporcional ao
-# valor. Nem `style="--count: N"` nem `element.style.setProperty()` via JS
-# funcionam sob essa política — os dois caem na mesma restrição do atributo
-# `style` inline (a segunda também falhava, de forma intermitente, quando
-# chamada de dentro de um handler de `htmx:afterSwap`). A altura vem de uma
-# classe `.pct-N` estática em `dashboard-charts.css`/`components.css`, uma
-# por porcentagem inteira de 0 a 100 — o servidor calcula a porcentagem e
-# escolhe a classe; nada muda estilo em runtime.
-_CONTENT_SECURITY_POLICY = (
-    "default-src 'self'; "
-    "base-uri 'self'; "
-    "form-action 'self'; "
-    "frame-ancestors 'none'; "
-    "img-src 'self' data:; "
-    "font-src 'self'; "
-    "style-src 'self'; "
-    "connect-src 'self'; "
-    "object-src 'none'"
-)
+__all__ = ["SECURITY_HEADERS", "register_security_hooks"]
 
-# Conjunto defensivo comum aos quatro projetos do mantenedor. Manter igual em
-# todos é o que permite auditar um e confiar nos demais.
+# A politica da biblioteca fecha `img-src` em 'self'. Este projeto precisa de
+# `data:` por um motivo unico e verificavel: o favicon do `base.html` e um SVG
+# embutido no proprio `<link rel="icon">`, nao um arquivo estatico.
 #
-# `Referrer-Policy` é `same-origin`, não `no-referrer`: sob `no-referrer` o
-# navegador serializa o cabeçalho `Origin` como `null` também em POST de mesma
-# origem (Fetch spec), e qualquer verificação de CSRF que consulte `Origin` —
-# como a do Django, no projeto irmão — passa a recusar a requisição com o token
-# correto. `same-origin` não vaza referrer para fora da origem, que é o que
-# importa, e preserva o `Origin`.
-SECURITY_HEADERS = {
-    "X-Content-Type-Options": "nosniff",
-    "X-Frame-Options": "DENY",
-    "Referrer-Policy": "same-origin",
-    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
-    "Cross-Origin-Opener-Policy": "same-origin",
-    "X-Permitted-Cross-Domain-Policies": "none",
-}
+# Os graficos do dashboard NAO precisam de folga nenhuma: a altura de cada
+# barra vem de uma classe `.pct-N` estatica em `dashboard-charts.css`/
+# `components.css`, uma por porcentagem inteira de 0 a 100 -- o servidor
+# calcula a porcentagem e escolhe a classe; nada muda estilo em runtime. Nem
+# `style="--count: N"` nem `element.style.setProperty()` via JS funcionariam
+# sob `style-src 'self'`, e foi assim que o dashboard quebrou uma vez.
+_IMAGENS_DATA_URI = True
+
+CONTENT_SECURITY_POLICY = montar_csp(imagens_data_uri=_IMAGENS_DATA_URI)
 
 
 def register_security_hooks(blueprint: Blueprint) -> None:
     """Registra os cabecalhos defensivos no blueprint principal."""
-
-    @blueprint.after_app_request
-    def _set_security_headers(response):
-        csp = f"{_CONTENT_SECURITY_POLICY}; script-src 'self'"
-        response.headers.setdefault("Content-Security-Policy", csp)
-        for header, value in SECURITY_HEADERS.items():
-            response.headers.setdefault(header, value)
-        return response
+    registrar_cabecalhos(blueprint, imagens_data_uri=_IMAGENS_DATA_URI)
