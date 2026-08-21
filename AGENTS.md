@@ -57,10 +57,13 @@ Toda rota nasce protegida por sessão, exceto a lista pública explícita em
 `PUBLIC_ENDPOINTS`. Escritas exigem CSRF. Preserve CSP, limites de upload e
 requisição, hosts confiáveis e cookies `HttpOnly`/`SameSite`; `SECRET_KEY` é
 obrigatória e não tem fallback. Sessão, CSRF, limite de tentativas de login,
-controle de acesso e hash de senha vêm de
+controle de acesso, hash de senha, cabeçalhos de segurança e CSP, formatação
+de números em pt-BR e a rota `/health` vêm de
 [SharedAuth](https://github.com/MSPA-Coder/SharedAuth), biblioteca
-compartilhada com os outros dois apps Flask do mantenedor (ver README.md);
-não reimplemente esse mecanismo localmente. O sistema autentica, mas não particiona dados:
+compartilhada com os outros apps do mantenedor (ver README.md);
+não reimplemente esse mecanismo localmente. `core/security.py` e
+`core/formatting.py` são adaptadores finos sobre ela: mudança de
+comportamento sobe para a biblioteca, com tag nova, não para cá. O sistema autentica, mas não particiona dados:
 qualquer conta autenticada acessa o acervo comum. Não introduza propriedade de
 dados ou papéis como efeito colateral de uma refatoração.
 

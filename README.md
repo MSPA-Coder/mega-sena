@@ -81,11 +81,14 @@ seguintes podem ser criados pela própria interface, em **Usuários**
 ativar/desativar outras contas por lá; a linha de comando continua útil só
 para o primeiro acesso, antes de existir sessão.
 
-Sessão, CSRF, limite de tentativas de login, controle de acesso e hash de
-senha vêm de [SharedAuth](https://github.com/MSPA-Coder/SharedAuth), biblioteca
-compartilhada com os outros apps Flask do mantenedor (privada, instalada via
-`requirements.txt` fixada em tag). O modelo de usuário e a tela de
-administração continuam próprios deste projeto.
+Sessão, CSRF, limite de tentativas de login, controle de acesso, hash de
+senha, cabeçalhos de segurança e CSP, formatação de números em pt-BR e a rota
+`/health` vêm de [SharedAuth](https://github.com/MSPA-Coder/SharedAuth),
+biblioteca compartilhada com os outros apps do mantenedor (privada, instalada
+via `requirements.txt` fixada em tag, com o extra `[flask]`). O modelo de
+usuário e a tela de administração continuam próprios deste projeto, e a única
+folga de política pedida aqui é `img-src data:`, para o favicon SVG embutido
+no `base.html`.
 
 Login não separa dados: qualquer usuário autenticado vê e altera todos os
 concursos, apostas e configurações.
