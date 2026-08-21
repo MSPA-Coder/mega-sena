@@ -75,6 +75,35 @@ COPY --chown=mega_sena:mega_sena migrations ./migrations
 COPY --chown=mega_sena:mega_sena run.py ./
 COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
+# Tira `pip` e `setuptools` da imagem SERVIDA.
+#
+# Sao ferramenta de build e nao tem uso aqui -- e o mesmo raciocinio que ja
+# mantem `gcc`, `make` e `wget` fora do runtime, o que os testes de contrato
+# deste projeto verificam.
+#
+# Nao e higiene abstrata: a varredura de vulnerabilidade que entrou nesta fase
+# acusou CVE-2025-47273 no `setuptools` e GHSA-6v7p-g79w-8964 no `msgpack` que
+# o `pip` carrega vendorizado em `pip/_vendor/`. Nenhum dos dois chega a ser
+# executado nesta imagem. Remover apaga as duas descobertas E a superficie,
+# em vez de ficar perseguindo versao de pacote que ninguem invoca.
+#
+# Seguro por medicao, nao por suposicao: os quatro conteineres em producao ja
+# rodavam sem `setuptools` antes desta mudanca.
+#
+# A ultima linha e a propria verificacao: se `pip` continuar no PATH, o build
+# falha aqui em vez de entregar uma imagem que so parece limpa.
+RUN set -eu; \
+    for raiz in /usr/local/lib/python*/site-packages /opt/venv/lib/python*/site-packages; do \
+      [ -d "$raiz" ] || continue; \
+      rm -rf "$raiz"/pip "$raiz"/pip-*.dist-info \
+             "$raiz"/setuptools "$raiz"/setuptools-*.dist-info \
+             "$raiz"/pkg_resources "$raiz"/_distutils_hack \
+             "$raiz"/wheel "$raiz"/wheel-*.dist-info; \
+    done; \
+    rm -f /usr/local/bin/pip /usr/local/bin/pip3 /usr/local/bin/pip3.* \
+          /opt/venv/bin/pip /opt/venv/bin/pip3 /opt/venv/bin/pip3.*; \
+    ! command -v pip
+
 USER mega_sena
 
 EXPOSE 5001
@@ -89,6 +118,13 @@ CMD ["gunicorn", "--bind", "0.0.0.0:5001", "--workers", "2", "--threads", "4", "
 FROM runtime AS quality
 
 USER root
+# O estágio `runtime` acima remove o `pip` da imagem. Este estágio herda dela e
+# precisa dele de volta para instalar as dependências de teste. `ensurepip` é o
+# mecanismo do próprio Python para isso, não uma gambiarra.
+#
+# A imagem SERVIDA continua sem `pip`: `quality` está atrás do profile do mesmo
+# nome e nunca vai para produção.
+RUN python -m ensurepip --upgrade
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
