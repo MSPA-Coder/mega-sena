@@ -2,8 +2,8 @@
 
 A suite nao toca o banco. Isso e desenho, nao limitacao: as quatro coisas que
 ela protege -- cabecalhos, negacao por padrao, CSRF e integridade do grafo de
-migracoes -- sao decididas antes de qualquer consulta, e mante-la sem banco e o
-que faz caber no orcamento de 30 segundos sem infraestrutura de teste.
+migracoes -- sao decididas antes de qualquer consulta. Isso mantem a execucao
+rapida e sem infraestrutura de banco para teste.
 
 O bootstrap do schema em PostgreSQL vazio continua sendo verificacao manual
 obrigatoria para mudanca de schema, como a base registra.

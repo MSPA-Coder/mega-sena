@@ -1,9 +1,21 @@
-# Schema PostgreSQL
+# Migrations PostgreSQL
 
-`20260803_baseline` descreve o schema atual completo e é o ponto de partida de um banco novo:
+Alembic é a única fonte de evolução do schema. A cadeia atual começa em
+`20260803_baseline` e segue por `20260814_0002_users`; um banco novo precisa
+receber a cadeia completa até a revisão mais recente.
+
+No Compose, `docker-entrypoint.sh` executa o upgrade antes de iniciar a
+aplicação. Para aplicá-lo explicitamente em uma pilha já iniciada:
 
 ```powershell
 docker compose --env-file .env.docker -f compose.yaml exec app flask --app run.py db upgrade
 ```
 
-O banco operacional existente foi conferido contra essa baseline e marcado na mesma revisão durante a consolidação. Antes de qualquer alteração futura de schema ou dados, execute `scripts/backup_postgres.ps1` e verifique o arquivo gerado. Uma mudança de schema futura deve ser uma migration nova; não reescreva esta baseline depois que ela estiver em uso.
+Antes de alterar schema ou dados, gere e confira o backup pelo projeto irmão
+BackupRestore, conforme [`docs/deployment-vps.md`](../docs/deployment-vps.md).
+Toda mudança de schema deve criar uma nova revision. Não reescreva revisions já
+aplicáveis e não use `stamp` ou `db.create_all()` como bootstrap.
+
+Valide a cadeia em PostgreSQL vazio e confira que existe uma única base, uma
+única cabeça e nenhum elo quebrado. Quando uma revision mudar, teste também seu
+upgrade e downgrade em dados descartáveis.

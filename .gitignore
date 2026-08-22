@@ -75,7 +75,7 @@ Thumbs.db
 # Especifico do MegaSena
 # ---------------------------------------------------------------------------
 
-# Ambiente virtual usado durante a migracao para HTMX.
+# Ambiente virtual local, se criado por ferramentas auxiliares.
 .htmx-venv/
 
 # Planilhas de resultados importadas manualmente.

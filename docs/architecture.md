@@ -26,12 +26,12 @@ Toda a interface é HTML montado no servidor. As interações incrementais usam
 HTMX: o servidor devolve um fragmento do próprio template, e o navegador o
 troca no lugar certo.
 
-Não existe endpoint JSON. Isso é uma decisão, não uma lacuna: um segundo
-formato de resposta significaria montar a mesma tela duas vezes — uma em Jinja
-e outra em JavaScript — e as duas versões divergem com o tempo. Cada rota que
-serve fragmento compartilha a URL da página completa e responde de acordo com o
-cabeçalho `HX-Request`, de modo que a navegação sem JavaScript continua sendo
-um caminho completo:
+Não há API JSON de negócio ou de interface. A exceção é `/health`, endpoint
+operacional que responde JSON mínimo para as sondas. Um segundo formato para as
+telas significaria montá-las duas vezes — uma em Jinja e outra em JavaScript —
+e as versões divergiriam com o tempo. Cada rota que serve fragmento compartilha
+a URL da página completa e responde de acordo com o cabeçalho `HX-Request`, de
+modo que a navegação sem JavaScript continua sendo um caminho completo:
 
 | Página | Fragmento devolvido a `HX-Request` |
 |---|---|
@@ -96,9 +96,10 @@ linhas. Um banco recém-migrado é legitimamente vazio e a aplicação funciona 
 Recebe requisições, interpreta formulários e parâmetros, chama os serviços e
 monta a resposta — página inteira ou fragmento. As rotas estão agrupadas em
 login/autenticação, dashboard, concursos, apostas, configurações e usuários.
-`app/web/auth.py` cuida de login/logout; `_require_login` (`app/__init__.py`)
-nega por padrão toda requisição sem sessão, com `PUBLIC_ENDPOINTS` como a
-lista curta e explícita do que fica de fora.
+`app/web/auth.py` cuida de login/logout; `requer_login`, fornecido pelo
+SharedAuth e configurado em `app/__init__.py`, nega por padrão toda requisição
+sem sessão, com `PUBLIC_ENDPOINTS` como a lista curta e explícita do que fica
+de fora.
 
 ### `app/bets`
 
@@ -146,7 +147,8 @@ própria conta — nenhuma outra ordem além dessas duas existe hoje.
 
 - `Draw`, para concursos e seus valores derivados;
 - `GeneratedBet`, para apostas agrupadas por geração;
-- `Config`, para preferências persistidas.
+- `Config`, para preferências persistidas;
+- `User`, para credenciais e estado de acesso das contas.
 
 As colunas derivadas de `Draw` (`total_sum`, `even_count`, `consecutive_count`)
 são protegidas por CHECK constraints que as comparam com as próprias dezenas.
@@ -161,10 +163,10 @@ do BackupRestore (projeto irmão, fora deste repositório).
 
 O escopo padrão é local:
 
-- autenticação é obrigatória: `_require_login` nega por padrão, com
-  `PUBLIC_ENDPOINTS` como lista curta e explícita do que é público (login e
-  estáticos) — mas não há dono de dado, qualquer usuário autenticado vê e
-  altera o acervo inteiro;
+- autenticação é obrigatória: `requer_login` nega por padrão, com
+  `PUBLIC_ENDPOINTS` como lista curta e explícita do que é público (login,
+  health check e estáticos) — mas não há dono de dado, qualquer usuário
+  autenticado vê e altera o acervo inteiro;
 - hosts aceitos são `localhost`, `127.0.0.1` e `[::1]`;
 - operações de escrita exigem token CSRF;
 - as respostas recebem CSP e outros cabeçalhos defensivos;
@@ -173,6 +175,20 @@ O escopo padrão é local:
 Os arquivos de segredo locais ficam em `.secrets/`, ignorados pelo Git. O
 script `scripts/provision_secrets.ps1` cria-os a partir de valores legados do
 `.env.docker` quando existirem, ou gera valores aleatórios novos, sem imprimi-los.
+
+O limite de tentativas de login fornecido pelo SharedAuth usa armazenamento em
+memória. Cada processo Gunicorn mantém seus próprios contadores: eles não são
+compartilhados entre os dois workers atuais ou entre instâncias e são zerados
+quando o processo reinicia. Ele é somente uma defesa local por processo, não
+uma proteção de produção coordenada.
+
+No VPS, a proteção coordenada fica na borda: a configuração Nginx mantida em
+`_manutencao/vps/nginx` aplica uma zona `limit_req` compartilhada ao
+`POST /login`. Esse controle é requisito da implantação atual e deve ser
+preservado junto com HTTPS e hosts confiáveis. Outra topologia precisa manter
+uma proteção equivalente na borda ou adotar armazenamento compartilhado para o
+limitador da aplicação; o armazenamento em memória, sozinho, não satisfaz esse
+contrato.
 
 Cabeçalhos de cliente como `HX-Request` são sinal de negociação de apresentação,
 nunca prova de autorização ou origem confiável.

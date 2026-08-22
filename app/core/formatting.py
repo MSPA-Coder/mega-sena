@@ -1,11 +1,8 @@
 """Formatadores usados pela camada de apresentacao.
 
-A conta em si mora em `sharedauth.formatting`: era a mesma rotina de milhar e
-decimal em pt-BR escrita tres vezes entre os projetos do mantenedor, duas
-delas identicas caractere por caractere. Estas funcoes continuam existindo
-porque sao a assinatura que as rotas e os templates deste projeto ja usam --
-e porque cada uma fixa uma escolha de apresentacao que e deste app, nao da
-biblioteca (o que mostrar quando nao ha valor).
+A formatação de milhar e decimal em pt-BR mora em `sharedauth.formatting`.
+Estas funções preservam a assinatura usada pelas rotas e pelos templates e
+fixam escolhas de apresentação locais, como o que mostrar quando não há valor.
 """
 
 from __future__ import annotations

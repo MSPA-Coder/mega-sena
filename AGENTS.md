@@ -2,18 +2,20 @@
 
 ## Escopo e fontes de verdade
 
-Aplicação Flask local para importar resultados da Mega-Sena, consultar
-estatísticas e organizar apostas. Frequências, filtros e relatórios descrevem
-somente os concursos carregados: não são previsão nem aumentam a probabilidade
-de uma combinação.
+Aplicação Flask para importar resultados da Mega-Sena, consultar estatísticas e
+organizar apostas. O uso é individual pelo mantenedor, em ambiente local e no
+VPS documentado. Frequências, filtros e relatórios descrevem somente os
+concursos carregados: não são previsão nem aumentam a probabilidade de uma
+combinação.
 
 Antes de mudar comportamento, consulte nesta ordem o código, as migrações e os
 testes afetados, e depois os documentos vivos:
 
-- `README.md`: instalação, acesso e operação;
+- `README.md`: finalidade, início rápido e índice;
 - `docs/business-rules.md`: contrato visível de concursos, apostas e fechamentos;
 - `docs/architecture.md`: limites entre interface, serviços e persistência;
 - `docs/development.md`: ciclo de desenvolvimento, schema e validação;
+- `docs/deployment-vps.md`: operação, dados, backup e implantação;
 - `migrations/README`: estado e procedimento das migrações.
 
 Atualize o documento que representa o contrato alterado na mesma mudança. Não
@@ -88,21 +90,22 @@ docker compose --env-file .env.docker -f compose.yaml up --build -d
 docker compose --env-file .env.docker -f compose.yaml --profile quality run --rm quality
 ```
 
-O estágio `quality` executa Ruff e a suíte mínima de segurança/fumaça. Não há
-suíte ampla, cobertura, análise estática de tipos ou `pip-audit` dentro da
-imagem. O CI executa o Compose e esse estágio em mudanças para `main` e
-semanalmente; o Dependabot cobre dependências Python, imagens Docker e GitHub
-Actions. Não há varredura de código de segurança (CodeQL) neste projeto. Isso
-não dispensa a validação proporcional: percorra manualmente o fluxo alterado. Mudanças de
+O estágio `quality` executa Ruff e toda a suíte pytest, incluindo os contratos
+de domínio de geração, fechamento e importação. O CI executa o Compose e esse
+estágio em mudanças para `main` e semanalmente, audita as dependências Python
+instaladas com `pip-audit` e a imagem servida com Trivy. O Dependabot cobre
+dependências Python, imagens Docker e GitHub Actions. Não há análise estática de
+tipos nem varredura CodeQL. Isso não dispensa a validação proporcional:
+percorra manualmente o fluxo alterado. Mudanças de
 autenticação, sessão, CSRF ou autorização executam o comando `quality`; mudanças
 de Docker ou dependências também exigem rebuild e subida da pilha.
 
 Antes de manutenção de dados ou schema, gere e confira backup pelo
 BackupRestore, projeto irmão (`python cli.py backup --projeto mega_sena
 --tipos banco`); ele centraliza dump, catálogo e verificação dos quatro
-projetos, e este repositório não tem rotina própria. Mudança de schema exige
-ainda bootstrap em
-PostgreSQL vazio, pela baseline Alembic, e teste de upgrade/downgrade quando a
+projetos mantidos por ele, e este repositório não tem rotina própria. Mudança de
+schema exige ainda bootstrap em
+PostgreSQL vazio, pela cadeia Alembic, e teste de upgrade/downgrade quando a
 revisão os alterar. `docker compose down` preserva dados; `down -v` remove o
 volume e só cabe com autorização explícita. Preserve alterações locais não
 relacionadas e não imprima segredos.
@@ -144,10 +147,9 @@ interfaces exigem decisão explícita, migração/rollback, consumidores atualiz
 e uma nova revisão Alembic quando houver persistência. Compatibilidade só é
 mantida enquanto houver consumidor conhecido.
 
-## Barreiras de segurança no CI (desde 2026-08-21)
+## Barreiras de segurança no CI
 
-Duas verificações novas reprovam o PR, e as duas respondem perguntas
-diferentes:
+Duas verificações reprovam o PR e respondem perguntas diferentes:
 
 - **`pip-audit`** roda dentro da imagem `quality` e pergunta se alguma
   dependência Python *instalada* tem CVE conhecido. Auditar o ambiente
@@ -162,7 +164,7 @@ afrouxar a verificação. Vulnerabilidade sem correção publicada já é filtra
 com um comentário dizendo por quê, para cada exceção ser uma decisão explícita
 e datada em vez de um vermelho permanente que se aprende a ignorar.
 
-Três coisas que parecem detalhe e não são:
+Invariantes operacionais dessas verificações:
 
 1. **O Trivy roda como contêiner, não como action de marketplace.** A política
    destes repositórios é `allowed_actions: selected` com apenas
@@ -170,8 +172,9 @@ Três coisas que parecem detalhe e não são:
    rodar, e o sintoma é `startup_failure` sem log nenhum. Não troque por uma
    action "porque é mais limpo".
 2. **A varredura usa `docker save` + `--input`, sem montar
-   `/var/run/docker.sock`.** Montar o socket é dar root na prática. Foi o
-   motivo de o `autoheal` ter sido recusado no VPS, e vale igual aqui.
+   `/var/run/docker.sock`.** Montar o socket daria ao scanner controle
+   equivalente a root sobre o host; a leitura da imagem exportada evita essa
+   concessão.
 3. **O serviço servido declara `image:` com nome fixo no `compose.yaml`.** Sem
    isso o Compose batiza a imagem pelo nome do diretório, que muda conforme
    onde o repositório foi clonado — e a varredura fica sem alvo estável.

@@ -46,9 +46,8 @@ jobs:
       - name: Run quality checks
         run: docker compose --profile quality run --rm quality
 
-      # O Dependabot abre PR quando sai versao nova. Nao e a mesma pergunta que
-      # "a versao que esta instalada AGORA tem CVE conhecido?" -- e essa segunda
-      # ninguem fazia em nenhum dos seis repositorios.
+      # O Dependabot cobre atualizacoes; o pip-audit responde separadamente se
+      # a versao instalada tem uma vulnerabilidade conhecida.
       #
       # Roda dentro da propria imagem `quality`, que ja instala exatamente o que
       # a imagem servida instala, mais as ferramentas de teste. Auditar o

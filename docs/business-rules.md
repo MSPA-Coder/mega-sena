@@ -107,20 +107,22 @@ maior fechamento aceito pela interface.
 ## Escopo de segurança
 
 Operações que alteram dados exigem token CSRF, e as respostas recebem cabeçalhos
-HTTP defensivos. A aplicação nega por padrão: `_require_login` exige sessão em
+HTTP defensivos. A aplicação nega por padrão: `requer_login` exige sessão em
 toda requisição, e `PUBLIC_ENDPOINTS` é a lista curta e explícita do que fica
-de fora (hoje só a tela de login e os estáticos). Não há, porém, dono de
+de fora (tela de login, health check e estáticos). Não há, porém, dono de
 dado — autenticar não é particionar: concursos, apostas e configurações são
 um acervo único que qualquer usuário autenticado vê e altera por inteiro. Pelo
 mesmo motivo não há papel de administrador: qualquer usuário autenticado
 acessa `/usuarios` e pode criar contas, redefinir senha de outra pessoa e
 ativar ou desativar qualquer usuário — as duas únicas restrições são não
 poder desativar a própria conta nem o último usuário ativo, para não travar
-o acesso de todo mundo. A senha mínima (`MIN_PASSWORD_LENGTH` em
-`app/accounts/service.py`) é curta de propósito: o controle de acesso aqui é
-"quem tem a URL e uma conta", não uma barreira contra força bruta — isso já
-é coberto pelo rate limit do login. Expor o serviço em rede exige, além
-disso, HTTPS e revisão de hosts confiáveis.
+o acesso de todo mundo. A senha mínima é definida por `MIN_PASSWORD_LENGTH` em
+`app/accounts/service.py`. O limite de tentativas de login é local à memória de
+cada processo, reinicia com ele e não coordena workers ou instâncias. No VPS,
+o Nginx aplica ao `POST /login` um `limit_req` compartilhado, que é parte
+obrigatória da proteção atual junto com HTTPS e hosts confiáveis. Outra
+topologia exposta precisa de proteção de borda equivalente ou armazenamento
+compartilhado para o limitador; o contador em memória não basta em produção.
 
 Após o login, o parâmetro `next` só aceita caminhos locais. URLs com esquema ou
 host externo, barras invertidas e formas percent-encoded que possam ser

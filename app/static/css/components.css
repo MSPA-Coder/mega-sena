@@ -102,12 +102,9 @@ a:focus-visible {
   margin-bottom: 18px;
 }
 
-/* Variante de erro do `.flash` acima. As outras categorias saíram daqui na
-   migração para o sharedauth: resultado de ação agora é toast
-   (`window.sharedauth.avisar`, com ícone e cor por severidade), e o que resta
-   como `.flash` server-renderizado é conteúdo que fica na página -- hoje só
-   o resumo de geração/fechamento (`bets/_generation_result.html`) e o erro de
-   login, que reaproveita esta classe para não duplicar a mesma cor de erro. */
+/* Variante de erro do `.flash` server-renderizado. Resultados transitorios
+   usam `window.sharedauth.avisar`; esta classe atende o resumo persistente de
+   geracao/fechamento e o erro da tela de login. */
 .flash-error {
   background: var(--surface-tint-warm);
   border-color: var(--warning);
@@ -491,9 +488,9 @@ tbody tr:hover {
 /* Feedback de requisições HTMX: oculto até que o elemento origine uma chamada.
    Seletor `span.htmx-indicator` (não só `.htmx-indicator`) de propósito: os
    indicadores são sempre `<span>`, e `.card span { display: block }` (acima,
-   em base.css) tem especificidade maior que uma classe sozinha -- ficava
-   sempre visível dentro de qualquer `.card` (ex.: "Criando…" ao lado do botão
-   em /usuarios), mesmo sem requisição em andamento. */
+   em base.css) tem especificidade maior que uma classe sozinha. A
+   especificidade deste seletor mantém o indicador oculto dentro de `.card`
+   quando não há requisição em andamento. */
 span.htmx-indicator {
   display: none;
 }

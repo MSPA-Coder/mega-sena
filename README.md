@@ -1,10 +1,17 @@
-# Mega Sena AI
+# MegaSena
 
-Aplicação local para importar resultados da Mega-Sena, consultar estatísticas e organizar apostas. Frequências e filtros descrevem somente o histórico importado; não preveem sorteios nem aumentam a probabilidade matemática de uma combinação.
+Aplicação para importar resultados da Mega-Sena, consultar estatísticas e
+organizar apostas e fechamentos. É uma ferramenta de apoio e controle, hoje
+usada somente pelo mantenedor. Frequências, filtros e relatórios descrevem o
+histórico carregado: não preveem sorteios nem aumentam a chance matemática de
+ganho.
 
-Flask, HTMX e PostgreSQL. A interface é HTML renderizado no servidor.
+O sistema é um monólito modular em Flask, com HTML renderizado no servidor,
+interações HTMX, SQLAlchemy/Alembic e PostgreSQL. O ambiente oficial de execução
+e validação é Docker Compose; não é necessário instalar Python ou PostgreSQL no
+host.
 
-## Início rápido
+## Execução local
 
 ```powershell
 Copy-Item .env.docker.example .env.docker
@@ -13,108 +20,35 @@ Copy-Item .env.docker.example .env.docker
 docker compose --env-file .env.docker -f compose.yaml up --build -d
 ```
 
-A aplicação fica em <http://127.0.0.1:5101>. Os dados ficam no volume `postgres_data`; `docker compose down` não os remove. Use `down -v` apenas para descartar deliberadamente o banco local.
+A aplicação fica em <http://127.0.0.1:5101>. O entrypoint aplica todas as
+migrations pendentes antes de iniciar o Gunicorn. Os dados permanecem no volume
+`postgres_data` após `docker compose down`; `down -v` os remove e só deve ser
+usado para descarte deliberado.
 
-O Compose lê a senha do PostgreSQL e a chave de sessão dos arquivos
-`.secrets/postgres_password.txt` e `.secrets/secret_key.txt`, nunca de
-variáveis de ambiente do contêiner. O script de provisionamento cria os dois
-arquivos sem exibir valores; quando houver `POSTGRES_PASSWORD` ou `SECRET_KEY`
-em um `.env.docker` antigo, ele os migra para os arquivos. Depois de confirmar
-a subida, use `-RemoveLegacyValues` para remover esses valores legados do
-arquivo de ambiente. Arquivos existentes são preservados, salvo `-Force`, que
-é uma rotação deliberada.
-
-O comando padrão usa a imagem imutável. Para editar código com bind mount,
-inclua explicitamente o arquivo de desenvolvimento:
-
-```powershell
-docker compose --env-file .env.docker -f compose.yaml -f compose.dev.yaml up --build -d
-```
-
-Ao iniciar, o contêiner aplica a baseline de schema com `flask db upgrade`. Um banco novo não precisa de seed: as configurações usam valores padrão até a primeira gravação.
-
-## Produção
-
-O sistema roda em um VPS Oracle (Ubuntu 24.04), publicado pelo Nginx com
-certificado Let's Encrypt em <https://megasena-mspa.duckdns.org>. O contêiner
-escuta apenas em `127.0.0.1:5101`; só 80 e 443 ficam abertos na internet.
-
-O fluxo de mudança tem um sentido único: **máquina de desenvolvimento → GitHub →
-VPS**. O código no servidor é um espelho do `main` e nunca a origem de uma
-alteração; a implantação é feita por `~/deploy.sh megasena`, que recusa rodar se
-encontrar alteração não commitada no servidor. O repositório é privado e o VPS o
-lê por uma *deploy key* somente-leitura.
-
-Detalhes de instalação, atualização e rollback estão em
-[Implantação no VPS](docs/deployment-vps.md).
-
-## Uso
-
-1. Importe a planilha em **Concursos**.
-2. Consulte o dashboard ou filtre os concursos.
-3. Em **Apostas**, gere jogos ou informe dezenas para um fechamento.
-4. Revise e grave somente os lotes desejados.
-5. Ajuste os valores padrão em **Configurações**.
-
-O backup diário roda pelo BackupRestore, projeto irmão que centraliza dump e
-ensaio de restauração dos quatro projetos com catálogo e verificação próprios.
-Para um backup avulso antes de mudanças de schema ou manutenção, no diretório
-do BackupRestore:
-
-```powershell
-python cli.py backup --projeto mega_sena --tipos banco
-```
-
-## Acesso
-
-A aplicação exige login. Não há tela pública de cadastro: o primeiro usuário é
-criado pela linha de comando, dentro do contêiner.
+Crie o primeiro usuário dentro do contêiner:
 
 ```powershell
 docker compose --env-file .env.docker -f compose.yaml exec app flask --app run.py criar-usuario
 ```
 
-O comando pergunta usuário e senha (mínimo de 8 caracteres) sem ecoar a senha.
-Rodar de novo com um usuário existente redefine a senha dele. Usuários
-seguintes podem ser criados pela própria interface, em **Usuários**
-(`/usuarios`) — qualquer conta autenticada pode criar, redefinir senha e
-ativar/desativar outras contas por lá; a linha de comando continua útil só
-para o primeiro acesso, antes de existir sessão.
+Para desenvolvimento com o código montado no contêiner, acrescente
+`-f compose.dev.yaml` ao comando de subida. O Compose padrão usa a imagem
+imutável.
 
-Sessão, CSRF, limite de tentativas de login, controle de acesso, hash de
-senha, cabeçalhos de segurança e CSP, formatação de números em pt-BR e a rota
-`/health` vêm de [SharedAuth](https://github.com/MSPA-Coder/SharedAuth),
-biblioteca compartilhada com os outros apps do mantenedor (privada, instalada
-via `requirements.txt` fixada em tag, com o extra `[flask]`). O modelo de
-usuário e a tela de administração continuam próprios deste projeto, e a única
-folga de política pedida aqui é `img-src data:`, para o favicon SVG embutido
-no `base.html`.
-
-Login não separa dados: qualquer usuário autenticado vê e altera todos os
-concursos, apostas e configurações.
-
-## Manutenção
-
-O projeto é de uso individual. Não mantém uma suíte ampla de regressão,
-cobertura, análise estática de tipos ou `pip-audit` dentro da imagem. Mantém
-Ruff e a suíte mínima de segurança e fumaça, que rodam juntos no estágio
-`quality` da imagem:
+## Validação
 
 ```powershell
 docker compose --env-file .env.docker -f compose.yaml --profile quality run --rm quality
 ```
 
-Para alterações relevantes, valide o fluxo afetado no navegador e, quando houver mudança no banco, faça backup e confira a criação de um PostgreSQL vazio pela baseline.
+Esse estágio executa Ruff e pytest. Mudanças relevantes também exigem percorrer
+manualmente o fluxo afetado; alterações persistentes exigem backup e validação
+das migrations em PostgreSQL vazio.
 
-O workflow de CI executa essa validação enxuta em push e pull request para
-`main`, além de uma rodada semanal: gera uma CA local efêmera, valida o Compose,
-reconstrói a imagem `quality` sem cache e a executa sem segredos de runtime.
-O Dependabot acompanha dependências Python, imagens Docker e GitHub Actions; as
-atualizações minor/patch são agrupadas semanalmente. Não há varredura de código
-de segurança (CodeQL). Esses controles não substituem o percurso manual nem o
-bootstrap PostgreSQL exigidos para mudanças persistentes.
+## Documentação
 
-- [Arquitetura](docs/architecture.md)
-- [Regras funcionais](docs/business-rules.md)
-- [Desenvolvimento](docs/development.md)
-- [Schema](migrations/README)
+- [Arquitetura e responsabilidades](docs/architecture.md)
+- [Regras do domínio](docs/business-rules.md)
+- [Desenvolvimento e validação](docs/development.md)
+- [Operação, dados e backup](docs/deployment-vps.md)
+- [Migrations e schema](migrations/README)

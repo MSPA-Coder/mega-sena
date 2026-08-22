@@ -1,39 +1,74 @@
-# Desenvolvimento
+# Desenvolvimento e validação
 
-O projeto roda em Docker. O host precisa apenas de Docker Desktop, Git e um editor.
+O projeto usa Docker para aplicação, PostgreSQL, migrations, lint e testes. No
+host são necessários apenas Docker Desktop, Git e um editor.
+
+## Ambiente
 
 ```powershell
 Copy-Item .env.docker.example .env.docker
 .\scripts\provision_secrets.ps1
 .\scripts\export_local_ca.ps1
-docker compose --env-file .env.docker -f compose.yaml up --build -d
-```
-
-O provisionamento cria `.secrets/postgres_password.txt` e
-`.secrets/secret_key.txt`, sem mostrar seus valores. Para migrar uma instalação
-que ainda contém `POSTGRES_PASSWORD` e `SECRET_KEY` no `.env.docker`, execute o
-mesmo comando e, só após validar a subida, repita com `-RemoveLegacyValues`.
-Não use `-Force` sem tratar a rotação da senha no PostgreSQL e a invalidação de
-sessões causada por trocar a chave.
-
-A aplicação estará em <http://127.0.0.1:5101>. O modo padrão é imutável, sem
-bind mount. Para edição local com código montado, inclua explicitamente o arquivo
-de desenvolvimento:
-
-```powershell
 docker compose --env-file .env.docker -f compose.yaml -f compose.dev.yaml up --build -d
 ```
 
-## Validação manual
+`provision_secrets.ps1` cria, sem exibir os valores,
+`.secrets/postgres_password.txt` e `.secrets/secret_key.txt`. Se um ambiente
+antigo ainda tiver `POSTGRES_PASSWORD` ou `SECRET_KEY` no `.env.docker`, o
+script pode migrá-los para arquivos; use `-RemoveLegacyValues` somente depois
+de validar a subida. `-Force` troca os segredos e exige tratar a senha do banco
+e a invalidação das sessões existentes.
 
-Como o produto é de uso individual, a validação é deliberadamente curta:
+Sem `compose.dev.yaml`, o serviço usa a imagem imutável. O entrypoint executa
+`flask --app run.py db upgrade` antes do Gunicorn; `create_app()` apenas monta a
+aplicação e não consulta o banco, cria tabelas ou dados iniciais.
 
-1. Suba a aplicação e abra as telas afetadas.
-2. Em alterações de schema, execute `flask db upgrade` em um PostgreSQL vazio e confirme que a aplicação inicia.
-3. Antes de qualquer manutenção de dados ou schema aplicado, crie e confira um backup pelo BackupRestore, projeto irmão (`python cli.py backup --projeto mega_sena --tipos banco`).
+## Validação automatizada
 
-## Alterações de schema
+O comando oficial executa Ruff e toda a suíte pytest na imagem `quality`:
 
-O schema atual está consolidado em uma baseline Alembic. Não altere a baseline que já representa bancos existentes. Quando uma alteração futura for realmente necessária, crie uma migration nova, faça backup e valide-a em banco vazio.
+```powershell
+docker compose --env-file .env.docker -f compose.yaml --profile quality run --rm quality
+```
 
-`create_app()` não altera schema nem grava dados. Em Docker, `docker-entrypoint.sh` aplica migrations antes de iniciar o servidor.
+A suíte protege os contratos HTTP e de segurança — autenticação por padrão,
+CSRF, cabeçalhos, proxy, health check, download e limite de login —, a
+integridade do grafo Alembic e a configuração de bootstrap. Os testes de
+domínio cobrem, sem depender de uma quantidade total fixa de casos:
+
+- normalização e limites dos critérios de geração, aplicação inclusiva dos
+  filtros, rejeição de resultados já sorteados, diversidade do lote e ausência
+  de persistência antes da confirmação;
+- enumeração e validação dos fechamentos, identificação única de lote e
+  atomicidade da gravação;
+- inclusão, atualização e preservação de campos opcionais na importação de
+  concursos, com rollback integral diante de metadado inválido.
+
+Esses testes são contrato de regressão das regras centrais. Uma mudança nessas
+regras deve atualizar implementação, testes e `docs/business-rules.md` na mesma
+alteração.
+
+O CI valida o Compose, reconstrói sem cache e executa o estágio `quality`. Ele
+também audita as dependências Python instaladas com `pip-audit` e a imagem de
+runtime com Trivy. O Dependabot acompanha dependências Python, imagens Docker e
+GitHub Actions. Não há análise estática de tipos nem varredura CodeQL.
+
+## Validação proporcional
+
+Além do comando automatizado:
+
+1. percorra no navegador o fluxo alterado;
+2. em mudança de Docker ou dependências, reconstrua a imagem e confira a subida
+   e os health checks;
+3. em mudança de autenticação, sessão, autorização, CSRF ou proxy, exercite
+   também login, logout e uma operação mutante;
+4. em mudança persistente, gere e verifique um backup conforme
+   `docs/deployment-vps.md`, aplique a cadeia completa em PostgreSQL vazio e
+   teste upgrade e downgrade da revisão alterada.
+
+## Schema
+
+O schema evolui somente por novas revisões em `migrations/versions/`. Não
+reescreva revisions já aplicáveis, não use `db.create_all()` como bootstrap e
+não use `stamp` como substituto de uma migration. Consulte
+[`migrations/README`](../migrations/README) para os comandos e a cadeia atual.

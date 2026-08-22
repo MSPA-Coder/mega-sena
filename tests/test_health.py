@@ -1,9 +1,7 @@
 """A sonda de saude responde sem sessao e depende mesmo do banco.
 
-Antes desta rota existir, o `healthcheck:` do Compose batia na raiz do site.
-Sem sessao a raiz redireciona para `/login`, o `urlopen` seguia o redirect e
-recebia 200 -- entao o Docker declarava o container saudavel enquanto a tela
-de login carregasse, inclusive com o banco fora do ar.
+A sonda dedicada nao pode usar a raiz do site, que redireciona para `/login`
+sem sessao e poderia produzir um falso positivo sem consultar o banco.
 
 A suite nao tem banco (ver `conftest.py`), o que aqui e vantagem e nao
 limitacao: e exatamente o cenario "banco inalcancavel" que a rota precisa

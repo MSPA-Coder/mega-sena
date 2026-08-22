@@ -65,9 +65,8 @@ def login() -> ResponseReturnValue:
         #
         # Erro fica no próprio cartão (`erro=`), não em `flash()`: é o mesmo
         # POST que já está sendo respondido, sem redirect -- guardar na
-        # sessão para reler na sequência seria um passo a mais sem motivo, e
-        # tiraria o erro do card estruturado que a Fase 11 (login herdando a
-        # paleta) pede.
+        # sessão para reler na sequência seria um passo a mais sem motivo e
+        # tiraria o erro do card estruturado da tela de login.
         if user is None or not user.is_active_user or not user.check_password(password):
             return render_template(
                 "auth/login.html", username=username, erro="Usuário ou senha inválidos."

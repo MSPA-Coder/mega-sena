@@ -218,10 +218,8 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
     )
 
     # ------------------------------------------------------------------
-    # Sonda de saúde. Antes desta rota existir, o `healthcheck:` do Compose
-    # batia na raiz do site — que sem sessão redireciona para `/login`. O
-    # Docker via 200 e declarava o container saudável mesmo com o banco fora,
-    # que é exatamente a situação que o health check deveria detectar.
+    # Sonda de saude dedicada: precisa consultar o banco, responder sem sessao
+    # e nao seguir o fluxo da raiz, que redireciona para `/login`.
     #
     # `limiter=` isenta a rota do limite global: uma sonda a cada 60s não pode
     # competir com o orçamento de requisições de quem está usando o sistema.

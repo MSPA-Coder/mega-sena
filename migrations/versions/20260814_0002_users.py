@@ -1,8 +1,8 @@
 """Tabela de usuarios.
 
-A aplicacao passou a exigir autenticacao. Nao ha dono de dado: concursos,
-apostas e configuracoes seguem sendo um acervo unico, visivel por qualquer
-usuario autenticado — esta revisao estabelece quem entra, nao o que cada um ve.
+Esta revisao cria a autenticacao. Concursos, apostas e configuracoes formam um
+acervo unico, visivel por qualquer usuario autenticado; nao ha propriedade de
+dados por usuario.
 
 Revision ID: 20260814_0002_users
 Revises: 20260803_baseline

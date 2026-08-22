@@ -1,10 +1,8 @@
 :root {
   color-scheme: light;
-  /* Fontes do sistema. As familias web (Space Grotesk, Inter, JetBrains Mono)
-     vinham de um CDN do Google e foram removidas: a linha de base de seguranca
-     nao admite origem externa, que alem de terceiro em cada carregamento
-     obrigaria a CSP a abrir style-src e font-src. Os nomes ficam na frente da
-     lista para o caso de a familia existir localmente na maquina. */
+  /* Fontes do sistema. A linha de base de seguranca nao admite CDN externo,
+     pois isso exigiria abrir `style-src` e `font-src` na CSP. Os nomes ficam
+     na frente da lista quando a familia ja existe localmente. */
   --font-display: "Space Grotesk", "Segoe UI", system-ui, Arial, sans-serif;
   --font-body: Inter, "Segoe UI", system-ui, Arial, sans-serif;
   --font-mono: "JetBrains Mono", Consolas, Monaco, monospace;
