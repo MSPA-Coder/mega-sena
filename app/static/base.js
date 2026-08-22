@@ -52,11 +52,3 @@ htmx.config.includeIndicatorStyles = false;
       if (event.matches) setOpen(false);
     });
   }());
-  document.addEventListener("DOMContentLoaded", function () {
-    document.querySelectorAll("[data-confirm-message]").forEach(function (button) {
-      button.addEventListener("click", function (event) {
-        if (button.hasAttribute("hx-confirm")) return;
-        if (!window.confirm(button.dataset.confirmMessage || "Confirmar ação?")) event.preventDefault();
-      });
-    });
-  });

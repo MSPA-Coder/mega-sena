@@ -23,7 +23,7 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="active" value="{{ '0' if usuario.is_active_user else '1' }}">
             {% if usuario.is_active_user %}
-            <button type="submit" class="danger" hx-confirm="Desativar '{{ usuario.username }}'?" data-confirm-message="Desativar '{{ usuario.username }}'?">Desativar</button>
+            <button type="submit" class="danger" hx-confirm="Desativar '{{ usuario.username }}'? A conta pode ser reativada depois." data-sa-titulo="Desativar usuário" data-sa-severidade="warning">Desativar</button>
             {% else %}
             <button type="submit">Reativar</button>
             {% endif %}

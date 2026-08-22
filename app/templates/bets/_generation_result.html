@@ -22,6 +22,8 @@
     <p class="muted">Corrija os parâmetros e tente novamente.</p>
   {% endif %}
 </section>
-{% if oob|default(false) and feedback %}
-<div id="flash-feedback" class="flash-list" hx-swap-oob="outerHTML" aria-live="polite" aria-atomic="true"><div class="flash">{{ feedback }}</div></div>
+{% if avisos %}
+{#- Só a falha ao gravar passa `avisos` (ver bets.py): o resumo de
+    gerar/fechamento já está no `.flash` acima, dentro da própria seção. -#}
+<div hidden data-sa-avisos='{{ avisos | tojson }}'></div>
 {% endif %}

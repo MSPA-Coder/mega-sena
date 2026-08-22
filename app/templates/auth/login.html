@@ -22,6 +22,10 @@
 <section class="panel auth-panel">
   <h1>Entrar</h1>
 
+  {% if erro %}
+  <p class="flash flash-error" role="alert">{{ erro }}</p>
+  {% endif %}
+
   <form method="post" action="{{ url_for('web.login') }}" class="auth-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
