@@ -29,15 +29,23 @@ def _get_user_or_404(user_id: int) -> User:
     return usuario
 
 
-def _users_feedback(message: str):
+def _users_feedback(message: str, *, severidade: str = "error"):
+    """Devolve o resultado de uma ação sobre usuário, como toast.
+
+    `severidade` por parâmetro em vez de inferida do texto: os chamadores já
+    sabem se a operação deu certo, e adivinhar pela mensagem seria mais
+    frágil. Padrão "error" porque a maioria das chamadas aqui é caminho de
+    exceção (`ValueError`); os três sucessos abaixo passam "success"
+    explicitamente.
+    """
     if is_htmx_request():
         return render_vary(
             "users/_feedback.html",
-            message=message,
+            avisos=[{"mensagem": message, "severidade": severidade}],
             users=list_users(),
             min_password_length=MIN_PASSWORD_LENGTH,
         )
-    flash(message)
+    flash(message, severidade)
     return redirect(url_for("web.users_page"))
 
 
@@ -57,7 +65,7 @@ def create_user():
     except ValueError as exc:
         return _users_feedback(str(exc))
     _log.info("Usuario criado.")
-    return _users_feedback(f"Usuário '{username.strip()}' criado.")
+    return _users_feedback(f"Usuário '{username.strip()}' criado.", severidade="success")
 
 
 @bp.post("/usuarios/<int:user_id>/senha")
@@ -68,7 +76,7 @@ def reset_user_password(user_id: int):
         reset_account_password(usuario, password)
     except ValueError as exc:
         return _users_feedback(str(exc))
-    return _users_feedback(f"Senha de '{usuario.username}' redefinida.")
+    return _users_feedback(f"Senha de '{usuario.username}' redefinida.", severidade="success")
 
 
 @bp.post("/usuarios/<int:user_id>/ativo")
@@ -82,4 +90,4 @@ def toggle_user_active(user_id: int):
     except ValueError as exc:
         return _users_feedback(str(exc))
     estado = "ativado" if active else "desativado"
-    return _users_feedback(f"Usuário '{usuario.username}' {estado}.")
+    return _users_feedback(f"Usuário '{usuario.username}' {estado}.", severidade="success")

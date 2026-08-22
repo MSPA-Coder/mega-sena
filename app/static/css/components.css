@@ -102,21 +102,16 @@ a:focus-visible {
   margin-bottom: 18px;
 }
 
-/* Categorias do flash (`error`/`warning`/`info`); sem categoria conhecida ou
-   "success" mantém o verde padrão acima -- era a cor usada para tudo antes de
-   `get_flashed_messages` passar a receber `with_categories=True`. */
-.flash-error,
-.flash-warning {
+/* Variante de erro do `.flash` acima. As outras categorias saíram daqui na
+   migração para o sharedauth: resultado de ação agora é toast
+   (`window.sharedauth.avisar`, com ícone e cor por severidade), e o que resta
+   como `.flash` server-renderizado é conteúdo que fica na página -- hoje só
+   o resumo de geração/fechamento (`bets/_generation_result.html`) e o erro de
+   login, que reaproveita esta classe para não duplicar a mesma cor de erro. */
+.flash-error {
   background: var(--surface-tint-warm);
   border-color: var(--warning);
   border-left-color: var(--warning);
-}
-
-.flash-info {
-  background: var(--info-bg);
-  border-color: var(--info-border);
-  border-left-color: var(--info-border);
-  color: var(--info-text);
 }
 
 .frequency-chart-frame {

@@ -35,7 +35,7 @@
           hx-post="{{ url_for('web.reset_database') }}" hx-target="#settings-feedback" hx-swap="outerHTML"
           hx-disabled-elt="find button" hx-indicator="#reset-saving">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="danger" hx-confirm="Apagar todos os concursos e apostas? Essa ação não pode ser desfeita." data-confirm-message="Apagar todos os concursos e apostas? Essa ação não pode ser desfeita.">Apagar concursos e apostas</button>
+        <button type="submit" class="danger" hx-confirm="Apagar TODOS os concursos e apostas cadastrados? Essa ação não pode ser desfeita." data-sa-titulo="Reiniciar base" data-sa-severidade="error">Apagar concursos e apostas</button>
         <span id="reset-saving" class="htmx-indicator" role="status">Reiniciando…</span>
     </form>
 </section>

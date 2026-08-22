@@ -13,11 +13,13 @@ from sharedauth.csrf import iniciar_csrf
 from sharedauth.health import registrar_health
 from sharedauth.ratelimit import LIMITE_LOGIN_PADRAO, iniciar_limiter
 from sharedauth.session import configurar_sessao
+from sharedauth.ui import registrar_ui
 from sqlalchemy import select
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .core.formatting import format_brl_without_cents
 from .extensions import db, login_manager, migrate
+from .web.helpers import flashed_avisos
 
 # Endpoints alcançáveis sem sessão. Mantida deliberadamente curta: a lista é de
 # rotas **públicas**, não de rotas protegidas, para que uma rota nova nasça
@@ -174,6 +176,9 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
     app.config["SECRET_KEY"] = secret_key
 
     app.jinja_env.filters["brl0"] = format_brl_without_cents
+    # Ponte entre `flash()` e o toast do sharedauth -- ver o docstring de
+    # `flashed_avisos` e o bloco que a consome em templates/base.html.
+    app.jinja_env.globals["flashed_avisos"] = flashed_avisos
 
     db.init_app(app)
     migrate.init_app(
@@ -185,6 +190,10 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
     iniciar_csrf(app)
     login_manager.init_app(app)
     limiter = iniciar_limiter(app)
+    # Confirmação e aviso (modal + toast) comuns aos quatro apps -- ver
+    # sharedauth/ui/__init__.py. Serve CSS/JS com ETag/304 e expõe
+    # `sharedauth_icone` para os templates.
+    registrar_ui(app)
 
     from .models import User
 
@@ -272,7 +281,12 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
             response = make_response(
                 render_template(
                     "contests/_import_feedback.html",
-                    message="O arquivo enviado ultrapassa o limite de 10 MB.",
+                    avisos=[
+                        {
+                            "mensagem": "O arquivo enviado ultrapassa o limite de 10 MB.",
+                            "severidade": "error",
+                        }
+                    ],
                 ),
                 413,
             )

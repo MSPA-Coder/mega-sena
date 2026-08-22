@@ -29,15 +29,19 @@ def save_settings():
         update_config_values(request.form)
     except ValueError as exc:
         if is_htmx_request():
-            return render_vary("settings/_feedback.html", message=str(exc))
-        flash(str(exc))
+            return render_vary(
+                "settings/_feedback.html",
+                avisos=[{"mensagem": str(exc), "severidade": "error"}],
+            )
+        flash(str(exc), "error")
         return redirect(url_for("web.settings_page"))
     _log.info("Configuracoes atualizadas.")
     if is_htmx_request():
         return render_vary(
-            "settings/_feedback.html", message="Configurações salvas."
+            "settings/_feedback.html",
+            avisos=[{"mensagem": "Configurações salvas.", "severidade": "success"}],
         )
-    flash("Configurações salvas.")
+    flash("Configurações salvas.", "success")
     return redirect(url_for("web.settings_page"))
 
 
@@ -47,6 +51,9 @@ def reset_database():
     _log.warning("Base reiniciada: %d concursos e %d apostas apagados.", draw_count, bet_count)
     message = "Base reiniciada: concursos e apostas apagados."
     if is_htmx_request():
-        return render_vary("settings/_feedback.html", message=message)
-    flash(message)
+        return render_vary(
+            "settings/_feedback.html",
+            avisos=[{"mensagem": message, "severidade": "success"}],
+        )
+    flash(message, "success")
     return redirect(url_for("web.settings_page"))

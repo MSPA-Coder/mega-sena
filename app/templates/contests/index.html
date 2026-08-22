@@ -8,7 +8,7 @@
         hx-target="#import-feedback" hx-swap="outerHTML" hx-disabled-elt="find button" hx-indicator="#import-indicator">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label>Escolher planilha<input type="file" name="file" accept=".xlsx" required></label>
-    <button type="submit" hx-confirm="Importar pode sobrescrever concursos já cadastrados (prêmios, ganhadores e data) se a planilha trouxer valores diferentes para o mesmo concurso, sem possibilidade de desfazer. Continuar?" data-confirm-message="Importar pode sobrescrever concursos já cadastrados (prêmios, ganhadores e data) se a planilha trouxer valores diferentes para o mesmo concurso, sem possibilidade de desfazer. Continuar?">Importar arquivo</button>
+    <button type="submit" hx-confirm="Importar pode sobrescrever concursos já cadastrados (prêmios, ganhadores e data) se a planilha trouxer valores diferentes para o mesmo concurso, sem possibilidade de desfazer. Continuar?" data-sa-titulo="Importar planilha" data-sa-severidade="warning">Importar arquivo</button>
     <span id="import-indicator" class="htmx-indicator" role="status">Importando…</span>
   </form>
   <form method="post" action="{{ url_for('web.import_from_link') }}" class="form import-form import-link-form"
@@ -16,7 +16,7 @@
         hx-disabled-elt="find button" hx-indicator="#import-link-indicator">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <p class="form-help">Baixa a planilha pelo link salvo em Configurações.</p>
-    <button type="submit" class="secondary" hx-confirm="Baixar e importar pode sobrescrever concursos já cadastrados (prêmios, ganhadores e data) se a planilha do link trouxer valores diferentes para o mesmo concurso, sem possibilidade de desfazer. Continuar?" data-confirm-message="Baixar e importar pode sobrescrever concursos já cadastrados (prêmios, ganhadores e data) se a planilha do link trouxer valores diferentes para o mesmo concurso, sem possibilidade de desfazer. Continuar?">Baixar e importar pelo link</button>
+    <button type="submit" class="secondary" hx-confirm="Baixar e importar pode sobrescrever concursos já cadastrados (prêmios, ganhadores e data) se a planilha do link trouxer valores diferentes para o mesmo concurso, sem possibilidade de desfazer. Continuar?" data-sa-titulo="Importar planilha" data-sa-severidade="warning">Baixar e importar pelo link</button>
     <span id="import-link-indicator" class="htmx-indicator" role="status">Baixando e importando…</span>
   </form>
   <div id="import-feedback" aria-live="polite"></div>

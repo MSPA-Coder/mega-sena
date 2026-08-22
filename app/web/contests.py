@@ -41,12 +41,14 @@ def _contests_context() -> dict:
     }
 
 
-def _import_feedback(message: str):
+def _import_feedback(message: str, *, severidade: str = "error"):
     if is_htmx_request():
         return render_vary(
-            "contests/_import_response.html", message=message, **_contests_context()
+            "contests/_import_response.html",
+            avisos=[{"mensagem": message, "severidade": severidade}],
+            **_contests_context(),
         )
-    flash(message)
+    flash(message, severidade)
     return redirect(url_for("web.contests"))
 
 
@@ -58,7 +60,8 @@ def _import_result_feedback(result: dict[str, int], *, source: str) -> object:
         f"Importação {source} concluída: "
         f"{imported} {plural(imported, 'novo', 'novos')}, "
         f"{updated} {plural(updated, 'atualizado', 'atualizados')}, "
-        f"{ignored} {plural(ignored, 'ignorado', 'ignorados')}."
+        f"{ignored} {plural(ignored, 'ignorado', 'ignorados')}.",
+        severidade="success",
     )
 
 

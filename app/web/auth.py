@@ -62,9 +62,16 @@ def login() -> ResponseReturnValue:
         user = db.session.scalar(db.select(User).where(User.username == username))
         # A mesma mensagem para usuário inexistente, inativo e senha errada:
         # distinguir os casos diria a quem tenta quais nomes existem.
+        #
+        # Erro fica no próprio cartão (`erro=`), não em `flash()`: é o mesmo
+        # POST que já está sendo respondido, sem redirect -- guardar na
+        # sessão para reler na sequência seria um passo a mais sem motivo, e
+        # tiraria o erro do card estruturado que a Fase 11 (login herdando a
+        # paleta) pede.
         if user is None or not user.is_active_user or not user.check_password(password):
-            flash("Usuário ou senha inválidos.", "error")
-            return render_template("auth/login.html", username=username), 401
+            return render_template(
+                "auth/login.html", username=username, erro="Usuário ou senha inválidos."
+            ), 401
         login_user(user, remember=True)
         return redirect(_safe_next_url() or url_for("web.dashboard"))
 

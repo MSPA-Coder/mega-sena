@@ -308,9 +308,12 @@ def bet_generation():
             except RuntimeError as exc:
                 if htmx_request:
                     return render_vary(
-                        "bets/_generation_result.html", bets=[], feedback=str(exc), oob=True
+                        "bets/_generation_result.html",
+                        bets=[],
+                        feedback=str(exc),
+                        avisos=[{"mensagem": str(exc), "severidade": "error"}],
                     )
-                flash(str(exc))
+                flash(str(exc), "error")
                 return redirect(
                     url_for(
                         "web.bet_generation",
@@ -326,10 +329,10 @@ def bet_generation():
             if htmx_request:
                 return render_vary(
                     "bets/_save_response.html",
-                    feedback=feedback,
+                    avisos=[{"mensagem": feedback, "severidade": "success"}],
                     recent_generations=list_recent_generations_with_bets(),
                 )
-            flash(feedback)
+            flash(feedback, "success")
             return redirect(
                 url_for(
                     "web.bet_generation",
@@ -379,9 +382,6 @@ def bet_generation():
         except RuntimeError as exc:
             feedback = str(exc)
 
-        if feedback and not htmx_request:
-            flash(feedback)
-
     filter_preview = _draw_filter_preview_payload(selected_filters)
     (
         selected_quantity,
@@ -427,14 +427,13 @@ def bet_generation():
         "feedback": feedback,
     }
     if htmx_request:
-        # `oob=True` só aqui: este render é uma resposta HTMX de topo (o
-        # fragmento vira toda a resposta), então o mirror para o banner
-        # global de mensagens (`#flash-feedback`) precisa ir junto. O
-        # `context` abaixo é reaproveitado por `bets/index.html`, que inclui
-        # este mesmo parcial dentro de `<main>` - lá `oob` fica ausente
-        # (default `false`), porque o banner real de `base.html` já cobre
-        # esse caso e duplicar o id quebraria a página.
-        return render_vary("bets/_generation_result.html", **context, oob=True)
+        # Sem `flash()` aqui de propósito: o `feedback` de gerar/fechamento já
+        # é conteúdo da própria seção `#generation-result` (o resumo fica ao
+        # lado das apostas geradas, para quem decide se grava), não um aviso
+        # avulso -- duplicá-lo em toast só repetiria a mesma frase duas vezes
+        # na tela. O `context` abaixo é reaproveitado por `bets/index.html`,
+        # que inclui este mesmo parcial dentro de `<main>`.
+        return render_vary("bets/_generation_result.html", **context)
     return render_template(
         "bets/index.html",
         **context,

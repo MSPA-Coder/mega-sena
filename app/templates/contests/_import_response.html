@@ -1,3 +1,2 @@
-<div id="import-feedback" class="flash-list" aria-live="polite" aria-atomic="true"><div class="flash">{{ message }}</div></div>
-<div id="flash-feedback" class="flash-list" hx-swap-oob="outerHTML" aria-live="polite" aria-atomic="true"><div class="flash">{{ message }}</div></div>
+<div id="import-feedback" hidden data-sa-avisos='{{ avisos | tojson }}'></div>
 {% set oob = true %}{% include "contests/_results.html" %}
