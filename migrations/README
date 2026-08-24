@@ -1,8 +1,9 @@
 # Migrations PostgreSQL
 
 Alembic é a única fonte de evolução do schema. A cadeia atual começa em
-`20260803_baseline` e segue por `20260814_0002_users`; um banco novo precisa
-receber a cadeia completa até a revisão mais recente.
+`20260803_baseline`, segue por `20260814_0002_users` e
+`20260824_0003_user_roles`; um banco novo precisa receber a cadeia completa
+até a revisão mais recente.
 
 No Compose, `docker-entrypoint.sh` executa o upgrade antes de iniciar a
 aplicação. Para aplicá-lo explicitamente em uma pilha já iniciada:

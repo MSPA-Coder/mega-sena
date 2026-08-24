@@ -10,8 +10,11 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label>Usuário<input type="text" name="username" maxlength="80" required autocomplete="off"></label>
         <label>Senha<input type="password" name="password" minlength="{{ min_password_length }}" required autocomplete="new-password"></label>
+        <label>Papel<select name="role">
+          {% for role in roles %}<option value="{{ role }}">{{ 'Administrador' if role == 'admin' else 'Operador' }}</option>{% endfor %}
+        </select></label>
         <div class="form-actions">
-            <button type="submit">Criar usuário</button>
+            <button type="submit" hx-confirm="Criar este usuário?" data-sa-confirmar="Criar este usuário?" data-sa-titulo="Criar usuário" data-sa-severidade="warning">Criar usuário</button>
             <span id="users-creating" class="htmx-indicator" role="status">Criando…</span>
         </div>
     </form>
