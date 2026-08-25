@@ -11,7 +11,8 @@
     {% if closure_preview_truncated %}<p class="muted">Exibindo as primeiras {{ bets|length }} de {{ closure_total_formatted }} apostas. Ao gravar, o fechamento completo será recalculado a partir das dezenas informadas.</p>{% endif %}
     <form method="post" action="{{ url_for('web.bet_generation') }}"
           hx-post="{{ url_for('web.bet_generation') }}" hx-target="#generation-result" hx-swap="outerHTML"
-          hx-disabled-elt="find button[type='submit']" hx-indicator="#save-indicator">
+          hx-disabled-elt="find button[type='submit']" hx-indicator="#save-indicator"
+          hx-confirm="Gravar estas apostas no banco?">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="{{ 'save_closure' if closure_mode else 'save' }}"><input type="hidden" name="quantity" value="{{ bets[0].quantity }}"><input type="hidden" name="amount" value="{{ selected_amount }}">
       {% if closure_mode %}<input type="hidden" name="closure_numbers" value="{{ closure_numbers }}">{% endif %}
       {% for key, value in selected_filters.items() %}{% if value is not none %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endif %}{% endfor %}

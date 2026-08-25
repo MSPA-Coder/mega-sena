@@ -6,7 +6,8 @@
     </div>
     <form method="post" action="{{ url_for('web.create_user') }}" class="form-grid users-grid"
           hx-post="{{ url_for('web.create_user') }}" hx-target="#users-feedback" hx-swap="outerHTML"
-          hx-disabled-elt="find button" hx-indicator="#users-creating">
+          hx-disabled-elt="find button" hx-indicator="#users-creating"
+          hx-confirm="Criar este usuário?">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label>Usuário<input type="text" name="username" maxlength="80" required autocomplete="off"></label>
         <label>Senha<input type="password" name="password" minlength="{{ min_password_length }}" required autocomplete="new-password"></label>
@@ -14,7 +15,7 @@
           {% for role in roles %}<option value="{{ role }}">{{ 'Administrador' if role == 'admin' else 'Operador' }}</option>{% endfor %}
         </select></label>
         <div class="form-actions">
-            <button type="submit" hx-confirm="Criar este usuário?" data-sa-confirmar="Criar este usuário?" data-sa-titulo="Criar usuário" data-sa-severidade="warning">Criar usuário</button>
+            <button type="submit">Criar usuário</button>
             <span id="users-creating" class="htmx-indicator" role="status">Criando…</span>
         </div>
     </form>

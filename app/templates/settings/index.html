@@ -7,7 +7,8 @@
     <p>Valores padrão usados ao abrir a geração, o racional e a importação de resultados.</p>
     <form method="post" action="{{ url_for('web.save_settings') }}" class="form-grid settings-grid"
           hx-post="{{ url_for('web.save_settings') }}" hx-target="#settings-feedback" hx-swap="outerHTML"
-          hx-disabled-elt="find button" hx-indicator="#settings-saving">
+          hx-disabled-elt="find button" hx-indicator="#settings-saving"
+          hx-confirm="Salvar estas configurações?">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label>Números por aposta<input type="number" name="bet_quantity" min="{{ generation_limits['quantity'][0] }}" max="{{ generation_limits['quantity'][1] }}" value="{{ config_values.bet_quantity }}"></label>
         <label>Quantas apostas deseja gerar<input type="number" name="generation_amount" min="{{ generation_limits['amount'][0] }}" max="{{ generation_limits['amount'][1] }}" value="{{ config_values.generation_amount }}"></label>
@@ -33,9 +34,10 @@
     <p class="muted">Apaga todos os concursos e apostas salvos. Use isso apenas para começar do zero.</p>
     <form method="post" action="{{ url_for('web.reset_database') }}"
           hx-post="{{ url_for('web.reset_database') }}" hx-target="#settings-feedback" hx-swap="outerHTML"
-          hx-disabled-elt="find button" hx-indicator="#reset-saving">
+          hx-disabled-elt="find button" hx-indicator="#reset-saving"
+          hx-confirm="Apagar TODOS os concursos e apostas cadastrados? Essa ação não pode ser desfeita.">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="danger" hx-confirm="Apagar TODOS os concursos e apostas cadastrados? Essa ação não pode ser desfeita." data-sa-titulo="Reiniciar base" data-sa-severidade="error">Apagar concursos e apostas</button>
+        <button type="submit" class="danger">Apagar concursos e apostas</button>
         <span id="reset-saving" class="htmx-indicator" role="status">Reiniciando…</span>
     </form>
 </section>
