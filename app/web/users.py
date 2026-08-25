@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import logging
+from functools import wraps
 
 from flask import abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user
 
 from ..accounts.service import (
     MIN_PASSWORD_LENGTH,
+    ROLE_ADMIN,
+    ROLE_OPERADOR,
     list_users,
     set_active,
+    set_role,
 )
 from ..accounts.service import create_user as create_account
 from ..accounts.service import reset_password as reset_account_password
@@ -20,6 +24,18 @@ from . import bp
 from .helpers import is_htmx_request, render_vary
 
 _log = logging.getLogger(__name__)
+
+
+def admin_required(view):
+    """Restringe a gestão de contas a administradores autenticados."""
+
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if not current_user.is_authenticated or not current_user.is_admin:
+            abort(403)
+        return view(*args, **kwargs)
+
+    return wrapped
 
 
 def _get_user_or_404(user_id: int) -> User:
@@ -50,18 +66,24 @@ def _users_feedback(message: str, *, severidade: str = "error"):
 
 
 @bp.get("/usuarios")
+@admin_required
 def users_page():
     return render_template(
-        "users/index.html", users=list_users(), min_password_length=MIN_PASSWORD_LENGTH
+        "users/index.html",
+        users=list_users(),
+        min_password_length=MIN_PASSWORD_LENGTH,
+        roles=(ROLE_OPERADOR, ROLE_ADMIN),
     )
 
 
 @bp.post("/usuarios")
+@admin_required
 def create_user():
     username = request.form.get("username", "")
     password = request.form.get("password", "")
+    role = request.form.get("role", ROLE_OPERADOR)
     try:
-        create_account(username, password)
+        create_account(username, password, role=role, actor=current_user)
     except ValueError as exc:
         return _users_feedback(str(exc))
     _log.info("Usuario criado.")
@@ -69,25 +91,42 @@ def create_user():
 
 
 @bp.post("/usuarios/<int:user_id>/senha")
+@admin_required
 def reset_user_password(user_id: int):
     usuario = _get_user_or_404(user_id)
     password = request.form.get("password", "")
     try:
-        reset_account_password(usuario, password)
+        reset_account_password(usuario, password, actor=current_user)
     except ValueError as exc:
         return _users_feedback(str(exc))
     return _users_feedback(f"Senha de '{usuario.username}' redefinida.", severidade="success")
 
 
 @bp.post("/usuarios/<int:user_id>/ativo")
+@admin_required
 def toggle_user_active(user_id: int):
     usuario = _get_user_or_404(user_id)
     active = request.form.get("active") == "1"
     if not active and usuario.id == current_user.id:
         return _users_feedback("Você não pode desativar sua própria conta.")
     try:
-        set_active(usuario, active)
+        set_active(usuario, active, actor=current_user)
     except ValueError as exc:
         return _users_feedback(str(exc))
     estado = "ativado" if active else "desativado"
     return _users_feedback(f"Usuário '{usuario.username}' {estado}.", severidade="success")
+
+
+@bp.post("/usuarios/<int:user_id>/papel")
+@admin_required
+def change_user_role(user_id: int):
+    usuario = _get_user_or_404(user_id)
+    role = request.form.get("role", "")
+    try:
+        set_role(usuario, role, actor=current_user)
+    except ValueError as exc:
+        return _users_feedback(str(exc))
+    nome = "administrador" if role == ROLE_ADMIN else "operador"
+    return _users_feedback(
+        f"Usuário '{usuario.username}' agora é {nome}.", severidade="success"
+    )

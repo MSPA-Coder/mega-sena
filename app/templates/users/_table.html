@@ -3,27 +3,42 @@
     <h2>Usuários</h2>
   </div>
   <table>
-    <thead><tr><th>Usuário</th><th>Status</th><th>Redefinir senha</th><th>Acesso</th></tr></thead>
+    <thead><tr><th>Usuário</th><th>Papel atual</th><th>Status</th><th>Redefinir senha</th><th>Alterar papel</th><th>Acesso</th></tr></thead>
     <tbody>
       {% for usuario in users %}
       <tr>
         <td>{{ usuario.username }}</td>
+        <td>{{ 'Administrador' if usuario.is_admin else 'Operador' }}</td>
         <td>{{ 'Ativo' if usuario.is_active_user else 'Inativo' }}</td>
         <td>
           <form method="post" action="{{ url_for('web.reset_user_password', user_id=usuario.id) }}" class="inline-form"
-                hx-post="{{ url_for('web.reset_user_password', user_id=usuario.id) }}" hx-target="#users-feedback" hx-swap="outerHTML">
+                hx-post="{{ url_for('web.reset_user_password', user_id=usuario.id) }}" hx-target="#users-feedback" hx-swap="outerHTML"
+                hx-confirm="Redefinir a senha de '{{ usuario.username }}'?">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="password" name="password" minlength="{{ min_password_length }}" placeholder="Nova senha" required autocomplete="new-password">
             <button type="submit">Redefinir</button>
+        </form>
+        </td>
+        <td>
+          <form method="post" action="{{ url_for('web.change_user_role', user_id=usuario.id) }}" class="inline-form"
+                hx-post="{{ url_for('web.change_user_role', user_id=usuario.id) }}" hx-target="#users-feedback" hx-swap="outerHTML"
+                hx-confirm="Alterar o papel de '{{ usuario.username }}'?">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <select name="role" aria-label="Papel de {{ usuario.username }}">
+              <option value="admin"{% if usuario.is_admin %} selected{% endif %}>Administrador</option>
+              <option value="operador"{% if not usuario.is_admin %} selected{% endif %}>Operador</option>
+            </select>
+            <button type="submit">Salvar</button>
           </form>
         </td>
         <td>
           <form method="post" action="{{ url_for('web.toggle_user_active', user_id=usuario.id) }}" class="inline-form"
-                hx-post="{{ url_for('web.toggle_user_active', user_id=usuario.id) }}" hx-target="#users-feedback" hx-swap="outerHTML">
+                hx-post="{{ url_for('web.toggle_user_active', user_id=usuario.id) }}" hx-target="#users-feedback" hx-swap="outerHTML"
+                hx-confirm="{{ 'Desativar ' ~ usuario.username ~ '? A conta pode ser reativada depois.' if usuario.is_active_user else 'Reativar ' ~ usuario.username ~ '?' }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="active" value="{{ '0' if usuario.is_active_user else '1' }}">
             {% if usuario.is_active_user %}
-            <button type="submit" class="danger" hx-confirm="Desativar '{{ usuario.username }}'? A conta pode ser reativada depois." data-sa-titulo="Desativar usuário" data-sa-severidade="warning">Desativar</button>
+            <button type="submit" class="danger">Desativar</button>
             {% else %}
             <button type="submit">Reativar</button>
             {% endif %}
@@ -31,7 +46,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="4" class="empty-state">Nenhum usuário cadastrado.</td></tr>
+      <tr><td colspan="6" class="empty-state">Nenhum usuário cadastrado.</td></tr>
       {% endfor %}
     </tbody>
   </table>

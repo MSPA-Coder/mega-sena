@@ -199,7 +199,11 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
 
     @login_manager.user_loader
     def _load_user(user_id: str):
-        return db.session.get(User, int(user_id))
+        try:
+            usuario = db.session.get(User, int(user_id))
+        except (TypeError, ValueError):
+            return None
+        return usuario if usuario is not None and usuario.is_active_user else None
 
     from .web import bp
 

@@ -29,7 +29,9 @@
     <a class="{{ 'active' if request.endpoint in ['web.bet_generation', 'web.rationale'] else '' }}" href="{{ url_for('web.bet_generation') }}">Gerar apostas</a>
     <a class="{{ 'active' if request.endpoint == 'web.contests' or request.endpoint == 'web.import_upload' else '' }}" href="{{ url_for('web.contests') }}">Concursos</a>
     <a class="{{ 'active' if request.endpoint in ['web.settings_page', 'web.save_settings', 'web.reset_database'] else '' }}" href="{{ url_for('web.settings_page') }}">Configurações</a>
-    <a class="{{ 'active' if request.endpoint in ['web.users_page', 'web.create_user', 'web.reset_user_password', 'web.toggle_user_active'] else '' }}" href="{{ url_for('web.users_page') }}">Usuários</a>
+    {% if current_user.is_authenticated and current_user.is_admin %}
+    <a class="{{ 'active' if request.endpoint in ['web.users_page', 'web.create_user', 'web.reset_user_password', 'web.toggle_user_active', 'web.change_user_role'] else '' }}" href="{{ url_for('web.users_page') }}">Usuários</a>
+    {% endif %}
     {% if current_user.is_authenticated %}
     <form method="post" action="{{ url_for('web.logout') }}" class="logout-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

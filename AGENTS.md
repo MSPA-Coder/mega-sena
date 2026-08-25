@@ -66,8 +66,9 @@ compartilhada com os outros apps do mantenedor (ver README.md);
 não reimplemente esse mecanismo localmente. `core/security.py` e
 `core/formatting.py` são adaptadores finos sobre ela: mudança de
 comportamento sobe para a biblioteca, com tag nova, não para cá. O sistema autentica, mas não particiona dados:
-qualquer conta autenticada acessa o acervo comum. Não introduza propriedade de
-dados ou papéis como efeito colateral de uma refatoração.
+qualquer conta autenticada acessa o acervo comum. A gestão de contas é uma
+exceção administrativa deliberada: `/usuarios` exige `admin`, enquanto novos
+usuários recebem `operador` por padrão; isso não introduz propriedade de dados.
 
 No Compose, a senha PostgreSQL e a chave de sessão são arquivos Docker secrets
 em `.secrets/`, apontados por `DB_PASSWORD_FILE` e `SECRET_KEY_FILE`. O

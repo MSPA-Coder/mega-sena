@@ -11,8 +11,9 @@ import click
 from flask import Flask
 from sharedauth.passwords import SenhaMuitoCurtaError, validar_tamanho
 
+from .accounts.service import UserManagementError, provision_cli_user
 from .extensions import db
-from .models import User
+from .models import ROLE_ADMIN, ROLE_OPERADOR, User
 
 
 def register_commands(app: Flask) -> None:
@@ -25,7 +26,13 @@ def register_commands(app: Flask) -> None:
         confirmation_prompt=True,
         help="Senha; solicitada de forma oculta se omitida.",
     )
-    def criar_usuario(usuario: str, senha: str) -> None:
+    @click.option(
+        "--perfil",
+        type=click.Choice([ROLE_ADMIN, ROLE_OPERADOR]),
+        default=None,
+        help="Papel do novo usuário; o primeiro usuário será administrador.",
+    )
+    def criar_usuario(usuario: str, senha: str, perfil: str | None) -> None:
         """Cria um usuario ou redefine a senha de um existente."""
         usuario = usuario.strip()
         if not usuario:
@@ -39,15 +46,10 @@ def register_commands(app: Flask) -> None:
             # mensagem limpa.
             raise click.ClickException(str(erro)) from erro
 
-        existente = db.session.scalar(db.select(User).where(User.username == usuario))
-        if existente is None:
-            novo = User(username=usuario, is_active_user=True)
-            novo.set_password(senha)
-            db.session.add(novo)
-            acao = "criado"
-        else:
-            existente.set_password(senha)
-            existente.is_active_user = True
-            acao = "atualizado"
-        db.session.commit()
+        ja_existia = db.session.scalar(db.select(User).where(User.username == usuario))
+        try:
+            provision_cli_user(usuario, senha, role=perfil)
+        except UserManagementError as erro:
+            raise click.ClickException(str(erro)) from erro
+        acao = "atualizado" if ja_existia is not None else "criado"
         click.echo(f"Usuario '{usuario}' {acao}.")

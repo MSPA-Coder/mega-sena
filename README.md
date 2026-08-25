@@ -31,6 +31,11 @@ Crie o primeiro usuário dentro do contêiner:
 docker compose --env-file .env.docker -f compose.yaml exec app flask --app run.py criar-usuario
 ```
 
+O primeiro usuário recebe o papel de administrador. A tela `/usuarios` é
+restrita a administradores; novos usuários criados por ela são operadores por
+padrão e continuam compartilhando o mesmo acervo de concursos, apostas e
+configurações.
+
 Para desenvolvimento com o código montado no contêiner, acrescente
 `-f compose.dev.yaml` ao comando de subida. O Compose padrão usa a imagem
 imutável.

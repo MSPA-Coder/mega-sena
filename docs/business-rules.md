@@ -111,12 +111,16 @@ HTTP defensivos. A aplicação nega por padrão: `requer_login` exige sessão em
 toda requisição, e `PUBLIC_ENDPOINTS` é a lista curta e explícita do que fica
 de fora (tela de login, health check e estáticos). Não há, porém, dono de
 dado — autenticar não é particionar: concursos, apostas e configurações são
-um acervo único que qualquer usuário autenticado vê e altera por inteiro. Pelo
-mesmo motivo não há papel de administrador: qualquer usuário autenticado
-acessa `/usuarios` e pode criar contas, redefinir senha de outra pessoa e
-ativar ou desativar qualquer usuário — as duas únicas restrições são não
-poder desativar a própria conta nem o último usuário ativo, para não travar
-o acesso de todo mundo. A senha mínima é definida por `MIN_PASSWORD_LENGTH` em
+um acervo único que qualquer usuário autenticado vê e altera por inteiro. Isso
+não significa que toda operação administrativa seja aberta: `/usuarios` e
+suas mutações exigem o papel `admin`; contas comuns usam o papel `operador`.
+Administradores podem criar contas, redefinir senhas, alterar papéis e ativar
+ou desativar usuários. O serviço impede remover o último administrador, deixar
+o último administrador ativo desativado, desativar a própria conta ou deixar
+zero usuários ativos. A migração de papéis atribui `admin` às contas legadas
+para preservar o acesso existente; novos usuários são `operador` por padrão.
+O primeiro usuário é criado como administrador pelo comando `criar-usuario`.
+A senha mínima é definida por `MIN_PASSWORD_LENGTH` em
 `app/accounts/service.py`. O limite de tentativas de login é local à memória de
 cada processo, reinicia com ele e não coordena workers ou instâncias. No VPS,
 o Nginx aplica ao `POST /login` um `limit_req` compartilhado, que é parte

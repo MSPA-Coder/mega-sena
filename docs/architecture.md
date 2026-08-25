@@ -133,13 +133,16 @@ e apostas solicitada pelo usuário.
 
 ### `app/accounts`
 
-Cria usuários, redefine senhas e ativa/desativa contas — usado pela tela
+Cria usuários, redefine senhas, altera papéis e ativa/desativa contas — usado pela tela
 `/usuarios` (`app/web/users.py`) e pelo comando `flask criar-usuario`
 (`app/cli.py`), que continua existindo para provisionar o primeiro acesso sem
-navegador. `MIN_PASSWORD_LENGTH` é o único ponto de política de senha; os dois
-consumidores importam a constante em vez de repeti-la. `set_active` recusa
-desativar o último usuário ativo, e a rota recusa que alguém desative a
-própria conta — nenhuma outra ordem além dessas duas existe hoje.
+navegador. A tela é exclusiva de administradores; o primeiro usuário criado
+pela CLI recebe esse papel e os demais recebem `operador` por padrão.
+`MIN_PASSWORD_LENGTH` é o único ponto de política de senha; os dois
+consumidores importam a constante em vez de repeti-la. O serviço serializa as
+alterações de conta e impede remover o último administrador, desativar o
+último administrador ativo, desativar a própria conta ou deixar zero usuários
+ativos.
 
 ### Persistência
 
@@ -165,8 +168,8 @@ O escopo padrão é local:
 
 - autenticação é obrigatória: `requer_login` nega por padrão, com
   `PUBLIC_ENDPOINTS` como lista curta e explícita do que é público (login,
-  health check e estáticos) — mas não há dono de dado, qualquer usuário
-  autenticado vê e altera o acervo inteiro;
+  health check e estáticos). Não há dono de dado: qualquer usuário autenticado
+  vê e altera o acervo inteiro; apenas a gestão de contas é administrativa;
 - hosts aceitos são `localhost`, `127.0.0.1` e `[::1]`;
 - operações de escrita exigem token CSRF;
 - as respostas recebem CSP e outros cabeçalhos defensivos;

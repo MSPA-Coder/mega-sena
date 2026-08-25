@@ -128,6 +128,11 @@ class Config(db.Model):
     value = db.Column(db.String(200), nullable=False, default="")
 
 
+ROLE_ADMIN = "admin"
+ROLE_OPERADOR = "operador"
+USER_ROLES = (ROLE_ADMIN, ROLE_OPERADOR)
+
+
 class User(UserMixin, db.Model):
     """Usuário da aplicação.
 
@@ -144,6 +149,7 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(80), nullable=False, unique=True, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
     is_active_user = db.Column(db.Boolean, nullable=False, default=True)
+    role = db.Column(db.String(20), nullable=False, default=ROLE_OPERADOR)
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
 
     def set_password(self, password: str) -> None:
@@ -157,3 +163,7 @@ class User(UserMixin, db.Model):
         # `Flask-Login` consulta esta propriedade; a coluna tem outro nome para
         # não colidir com ela.
         return self.is_active_user
+
+    @property
+    def is_admin(self) -> bool:
+        return self.role == ROLE_ADMIN
