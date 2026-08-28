@@ -14,9 +14,11 @@ from sharedauth.security import SECURITY_HEADERS, montar_csp, registrar_cabecalh
 
 __all__ = ["SECURITY_HEADERS", "register_security_hooks"]
 
-# A politica da biblioteca fecha `img-src` em 'self'. Este projeto precisa de
-# `data:` por um motivo unico e verificavel: o favicon do `base.html` e um SVG
-# embutido no proprio `<link rel="icon">`, nao um arquivo estatico.
+# A politica da biblioteca fecha `img-src` em 'self', e este projeto agora
+# cabe nela. A folga existia por um motivo unico: o favicon era um SVG
+# embutido no proprio `<link rel="icon">`. Ele passou a ser
+# `static/favicon.svg`, um arquivo como qualquer outro, e a excecao deixou de
+# ter razao de ser -- era a unica ocorrencia de URI `data:` no projeto.
 #
 # Os graficos do dashboard NAO precisam de folga nenhuma: a altura de cada
 # barra vem de uma classe `.pct-N` estatica em `dashboard-charts.css`/
@@ -24,7 +26,7 @@ __all__ = ["SECURITY_HEADERS", "register_security_hooks"]
 # calcula a porcentagem e escolhe a classe; nada muda estilo em runtime. Nem
 # `style="--count: N"` e `element.style.setProperty()` via JS nao sao
 # permitidos por `style-src 'self'`.
-_IMAGENS_DATA_URI = True
+_IMAGENS_DATA_URI = False
 
 CONTENT_SECURITY_POLICY = montar_csp(imagens_data_uri=_IMAGENS_DATA_URI)
 
