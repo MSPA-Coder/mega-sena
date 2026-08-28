@@ -13,6 +13,7 @@ from sharedauth.config import ler_flag, montar_url_postgres
 from sharedauth.csrf import iniciar_csrf
 from sharedauth.health import registrar_health
 from sharedauth.ratelimit import LIMITE_LOGIN_PADRAO, aplicar_limite, iniciar_limiter
+from sharedauth.secrets import resolver_segredo
 from sharedauth.session import configurar_sessao
 from sharedauth.ui import registrar_ui
 from sqlalchemy import select
@@ -48,18 +49,14 @@ def _trusted_hosts_from_environment() -> list[str]:
     return hosts
 
 
-def _ler_segredo_por_arquivo(nome_variavel: str) -> str:
-    """Lê um segredo de arquivo sem transformá-lo em configuração padrão."""
-    caminho = os.environ.get(nome_variavel, "").strip()
-    if not caminho:
-        return ""
-    try:
-        valor = Path(caminho).read_text(encoding="utf-8").strip()
-    except OSError as erro:
-        raise RuntimeError(f"Não foi possível ler o segredo indicado por {nome_variavel}.") from erro
-    if not valor:
-        raise RuntimeError(f"O arquivo indicado por {nome_variavel} está vazio.")
-    return valor
+def _ler_segredo_por_arquivo(nome: str) -> str:
+    """Segredo por arquivo, sem transformá-lo em configuração padrão.
+
+    `aceitar_variavel=False`: a forma direta, onde existe, é tratada pelo
+    chamador com semântica própria (ver `SECRET_KEY` em `create_app`).
+    Ausência devolve string vazia, que é o que os chamadores testam.
+    """
+    return resolver_segredo(nome, aceitar_variavel=False) or ""
 
 
 def _database_uri_from_environment() -> str:
@@ -71,7 +68,7 @@ def _database_uri_from_environment() -> str:
     host = os.environ.get("DB_HOST", "").strip()
     usuario = os.environ.get("DB_USER", "").strip()
     banco = os.environ.get("DB_NAME", "").strip()
-    senha = _ler_segredo_por_arquivo("DB_PASSWORD_FILE")
+    senha = _ler_segredo_por_arquivo("DB_PASSWORD")
     if not host:
         raise RuntimeError("DB_HOST é obrigatório no ambiente PostgreSQL.")
     if not usuario:
@@ -158,7 +155,7 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
     # ausência da configuração e invalida toda sessão a cada reinício, o que
     # aparece para quem usa como "o sistema me desloga sozinho".
     configured_secret = str(app.config.get("SECRET_KEY") or "").strip()
-    secret_key = configured_secret or _ler_segredo_por_arquivo("SECRET_KEY_FILE")
+    secret_key = configured_secret or _ler_segredo_por_arquivo("SECRET_KEY")
     # `SECRET_KEY` no ambiente é compatibilidade para execução manual antiga;
     # o Compose concede a chave exclusivamente por arquivo Docker secret.
     if not secret_key:
