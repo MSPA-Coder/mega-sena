@@ -9,9 +9,10 @@ from pathlib import Path
 from flask import Flask, flash, make_response, redirect, render_template, request, url_for
 from flask_login import current_user
 from sharedauth.access import requer_login
+from sharedauth.config import ler_flag, montar_url_postgres
 from sharedauth.csrf import iniciar_csrf
 from sharedauth.health import registrar_health
-from sharedauth.ratelimit import LIMITE_LOGIN_PADRAO, iniciar_limiter
+from sharedauth.ratelimit import LIMITE_LOGIN_PADRAO, aplicar_limite, iniciar_limiter
 from sharedauth.session import configurar_sessao
 from sharedauth.ui import registrar_ui
 from sqlalchemy import select
@@ -47,15 +48,6 @@ def _trusted_hosts_from_environment() -> list[str]:
     return hosts
 
 
-def _environment_flag(name: str) -> bool:
-    value = os.environ.get(name, "false").strip().lower()
-    if value in {"1", "true", "yes", "on"}:
-        return True
-    if value in {"", "0", "false", "no", "off"}:
-        return False
-    raise RuntimeError(f"{name} deve ser true ou false.")
-
-
 def _ler_segredo_por_arquivo(nome_variavel: str) -> str:
     """Lê um segredo de arquivo sem transformá-lo em configuração padrão."""
     caminho = os.environ.get(nome_variavel, "").strip()
@@ -88,21 +80,19 @@ def _database_uri_from_environment() -> str:
         raise RuntimeError("DB_NAME é obrigatório no ambiente PostgreSQL.")
     if not senha:
         raise RuntimeError("DB_PASSWORD_FILE é obrigatório no ambiente PostgreSQL.")
+    # `montar_url_postgres` valida a porta e escapa usuário, senha e banco --
+    # uma senha com `@`, `/` ou `:` apontaria a conexão para outro lugar sem
+    # que nada acusasse erro de escape. Ver sharedauth/config.py.
     try:
-        porta = int(os.environ.get("DB_PORT", "5432"))
+        return montar_url_postgres(
+            usuario=usuario,
+            senha=senha,
+            host=host,
+            banco=banco,
+            porta=os.environ.get("DB_PORT", "5432"),
+        )
     except ValueError as erro:
-        raise RuntimeError("DB_PORT deve ser uma porta PostgreSQL válida.") from erro
-
-    from sqlalchemy.engine import URL
-
-    return URL.create(
-        "postgresql+psycopg",
-        username=usuario,
-        password=senha,
-        host=host,
-        port=porta,
-        database=banco,
-    ).render_as_string(hide_password=False)
+        raise RuntimeError(f"Configuração PostgreSQL inválida: {erro}") from erro
 
 
 def create_app(config: Mapping[str, object] | None = None) -> Flask:
@@ -110,7 +100,7 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
 
     app = Flask(__name__)
     base_dir = Path(__file__).resolve().parent.parent
-    force_https = _environment_flag("MEGA_SENA_FORCE_HTTPS")
+    force_https = ler_flag("MEGA_SENA_FORCE_HTTPS")
 
     app.config.from_mapping(
         SQLALCHEMY_ENGINE_OPTIONS={"pool_pre_ping": True},
@@ -121,14 +111,20 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
     if config:
         app.config.update(config)
 
+    # `login_user(..., remember=True)` em `web/auth.py` é o padrão deste app,
+    # não uma caixa que a pessoa marca. Sem `duracao_lembrete_horas`, valeria o
+    # padrão do Flask-Login -- 365 dias -- e um cookie copiado continuaria
+    # autenticando por um ano. As duas durações são o teto explícito.
     configurar_sessao(
         app,
         nome_cookie=os.environ.get("MEGA_SENA_SESSION_COOKIE_NAME", "mega_sena_session").strip()
         or "mega_sena_session",
         https_obrigatorio=force_https,
+        duracao_horas=24,
+        duracao_lembrete_horas=24,
     )
 
-    if _environment_flag("MEGA_SENA_TRUST_PROXY_HEADERS"):
+    if ler_flag("MEGA_SENA_TRUST_PROXY_HEADERS"):
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_host=1, x_proto=1)
 
     # ------------------------------------------------------------------
@@ -213,13 +209,11 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
     # `create_app()`, não um singleton de módulo — ver extensions.py), então a
     # rota de login não pode carregar `@limiter.limit(...)` no import de
     # auth.py; ela é aplicada aqui, depois que a rota já está registrada.
-    # `RouteLimit.__call__` devolve uma função *nova*, embrulhada — descartar
-    # o retorno (não reatribuir a `view_functions`) deixaria o limite
-    # decorado e nunca aplicado, com toda requisição chamando a view original
-    # sem limite nenhum.
-    app.view_functions["web.login"] = limiter.limit(LIMITE_LOGIN_PADRAO)(
-        app.view_functions["web.login"]
-    )
+    #
+    # `aplicar_limite` faz a religação de `view_functions` que o Flask-Limiter
+    # exige e que já foi esquecida aqui uma vez, deixando o login sem limite
+    # nenhum. A mecânica agora mora em `sharedauth.ratelimit`, com teste.
+    aplicar_limite(app, limiter, "web.login", LIMITE_LOGIN_PADRAO)
 
     # ------------------------------------------------------------------
     # Sonda de saude dedicada: precisa consultar o banco, responder sem sessao
