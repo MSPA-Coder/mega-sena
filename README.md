@@ -43,8 +43,12 @@ imutável.
 ## Validação
 
 ```powershell
-docker compose --env-file .env.docker -f compose.yaml --profile quality run --rm quality
+docker compose --env-file .env.docker -f compose.yaml --profile quality run --build --rm quality
 ```
+
+`--build` faz parte do comando: o serviço `quality` não monta o código do
+host e `docker compose run` só reconstrói quando a imagem não existe. Sem
+ele, a validação roda a versão anterior do código e passa em verde.
 
 Esse estágio executa Ruff e pytest. Mudanças relevantes também exigem percorrer
 manualmente o fluxo afetado; alterações persistentes exigem backup e validação

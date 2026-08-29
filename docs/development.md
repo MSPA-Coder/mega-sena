@@ -28,8 +28,17 @@ aplicação e não consulta o banco, cria tabelas ou dados iniciais.
 O comando oficial executa Ruff e toda a suíte pytest na imagem `quality`:
 
 ```powershell
-docker compose --env-file .env.docker -f compose.yaml --profile quality run --rm quality
+docker compose --env-file .env.docker -f compose.yaml --profile quality run --build --rm quality
 ```
+
+**`--build` não é opcional.** O serviço `quality` não monta o código do
+host: o que ele executa é o que foi copiado para a imagem. `docker compose
+run` reconstrói apenas quando a imagem não existe — se ela já existe, o
+comando roda a versão anterior do código e passa em verde sem ter visto
+nenhuma das suas alterações. É uma falha silenciosa na direção pior: dá
+confiança sem dar evidência. O CI não corre esse risco porque reconstrói
+sem cache antes de executar; o comando local precisa do `--build` para ter
+o mesmo significado.
 
 A suíte protege os contratos HTTP e de segurança — autenticação por padrão,
 CSRF, cabeçalhos, proxy, health check, download e limite de login —, a
