@@ -19,4 +19,4 @@ psycopg[binary]>=3.2.9,<4
 #
 # O extra `[flask]` é obrigatório: o núcleo do pacote é Python puro e não
 # instala as integrações e dependências Flask.
-sharedauth[flask] @ git+https://github.com/MSPA-Coder/SharedAuth.git@v0.6.0
+sharedauth[flask] @ git+https://github.com/MSPA-Coder/SharedAuth.git@v0.7.0
