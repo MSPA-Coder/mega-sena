@@ -88,8 +88,12 @@ host. Comandos atuais:
 
 ```powershell
 docker compose --env-file .env.docker -f compose.yaml up --build -d
-docker compose --env-file .env.docker -f compose.yaml --profile quality run --rm quality
+docker compose --env-file .env.docker -f compose.yaml --profile quality run --build --rm quality
 ```
+
+`--build` faz parte do comando: o serviço `quality` não monta o código do
+host e `docker compose run` só reconstrói quando a imagem não existe. Sem
+ele, a validação roda a versão anterior do código e passa em verde.
 
 O estágio `quality` executa Ruff e toda a suíte pytest, incluindo os contratos
 de domínio de geração, fechamento e importação. O CI executa o Compose e esse
