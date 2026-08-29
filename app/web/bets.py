@@ -34,7 +34,7 @@ from ..core.formatting import format_int, format_percent
 from ..draws.service import count_draws
 from ..settings.service import get_generation_defaults
 from . import bp
-from .helpers import is_htmx_request, optional_int, plural, render_vary
+from .helpers import is_htmx_request, optional_int, plural
 
 CLOSURE_PREVIEW_LIMIT = 200
 
@@ -307,7 +307,7 @@ def bet_generation():
                     )
             except RuntimeError as exc:
                 if htmx_request:
-                    return render_vary(
+                    return render_template(
                         "bets/_generation_result.html",
                         bets=[],
                         feedback=str(exc),
@@ -327,7 +327,7 @@ def bet_generation():
                 f"{plural(saved, 'aposta gravada', 'apostas gravadas')} no banco de dados."
             )
             if htmx_request:
-                return render_vary(
+                return render_template(
                     "bets/_save_response.html",
                     avisos=[{"mensagem": feedback, "severidade": "success"}],
                     recent_generations=list_recent_generations_with_bets(),
@@ -433,7 +433,7 @@ def bet_generation():
         # avulso -- duplicá-lo em toast só repetiria a mesma frase duas vezes
         # na tela. O `context` abaixo é reaproveitado por `bets/index.html`,
         # que inclui este mesmo parcial dentro de `<main>`.
-        return render_vary("bets/_generation_result.html", **context)
+        return render_template("bets/_generation_result.html", **context)
     return render_template(
         "bets/index.html",
         **context,
@@ -443,7 +443,7 @@ def bet_generation():
 @bp.get("/bets/preview")
 def bet_preview():
     """Return the server-rendered read-only generation preview for htmx."""
-    return render_vary("bets/_preview.html", **_preview_context(request.args))
+    return render_template("bets/_preview.html", **_preview_context(request.args))
 
 
 @bp.get("/bets/filter-targets/fragment")
@@ -451,7 +451,7 @@ def filter_targets_fragment():
     target_percentage = request.args.get("target_percentage", 80, type=float)
     target_percentage = max(0, min(target_percentage, 100))
     targets = calculate_individual_filter_targets(target_percentage)
-    response = render_vary(
+    response = render_template(
         "bets/_filter_targets.html",
         target_percentage=target_percentage,
         targets=targets,

@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from flask import redirect, request, url_for
+from flask import redirect, render_template, request, url_for
 
 from ..draws.statistics import build_stats
 from . import bp
-from .helpers import is_htmx_request, optional_int, render_vary
+from .helpers import is_htmx_request, optional_int
 
 _DASHBOARD_PERIODS = (
     (None, "Todos"),
@@ -35,8 +35,8 @@ def dashboard():
         "periods": _DASHBOARD_PERIODS,
     }
     if is_htmx_request():
-        return render_vary("dashboard/_content.html", **context)
-    return render_vary("dashboard/index.html", **context)
+        return render_template("dashboard/_content.html", **context)
+    return render_template("dashboard/index.html", **context)
 
 
 def _bounded_period() -> int | None:
