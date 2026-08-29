@@ -28,8 +28,12 @@
     <a class="{{ 'active' if request.endpoint == 'web.dashboard' else '' }}" href="{{ url_for('web.dashboard') }}">Dashboard</a>
     <a class="{{ 'active' if request.endpoint in ['web.bet_generation', 'web.rationale'] else '' }}" href="{{ url_for('web.bet_generation') }}">Gerar apostas</a>
     <a class="{{ 'active' if request.endpoint == 'web.contests' or request.endpoint == 'web.import_upload' else '' }}" href="{{ url_for('web.contests') }}">Concursos</a>
-    <a class="{{ 'active' if request.endpoint in ['web.settings_page', 'web.save_settings', 'web.reset_database'] else '' }}" href="{{ url_for('web.settings_page') }}">Configurações</a>
+    {# Configurações e Usuários exigem `admin` na rota (ver
+       `web/authorization.py`). Esconder aqui é apresentação: o controle
+       está no decorator, e um operador que digite /settings recebe 403
+       mesmo sem ver este item. #}
     {% if current_user.is_authenticated and current_user.is_admin %}
+    <a class="{{ 'active' if request.endpoint in ['web.settings_page', 'web.save_settings', 'web.reset_database'] else '' }}" href="{{ url_for('web.settings_page') }}">Configurações</a>
     <a class="{{ 'active' if request.endpoint in ['web.users_page', 'web.create_user', 'web.reset_user_password', 'web.toggle_user_active', 'web.change_user_role'] else '' }}" href="{{ url_for('web.users_page') }}">Usuários</a>
     {% endif %}
     {% if current_user.is_authenticated %}

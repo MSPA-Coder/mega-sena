@@ -1,4 +1,12 @@
-"""Rotas de configuracao e manutencao local."""
+"""Rotas de configuracao e manutencao local.
+
+A tela inteira e de administrador. `reset_database` apaga TODOS os
+concursos e apostas de uma vez, e os valores de `save_settings` mudam o
+padrao com que todo mundo gera aposta -- as duas coisas sao 'como o
+sistema funciona', nao 'operar o sistema'. O GET entra junto de proposito:
+deixar o formulario visivel e recusar so o POST daria uma tela que existe
+para nao funcionar.
+"""
 
 from __future__ import annotations
 
@@ -9,12 +17,14 @@ from flask import flash, redirect, render_template, request, url_for
 from ..bets.criteria import GENERATION_LIMITS
 from ..settings.service import get_config_values, reset_all_data, update_config_values
 from . import bp
+from .authorization import admin_required
 from .helpers import is_htmx_request
 
 _log = logging.getLogger(__name__)
 
 
 @bp.get("/settings")
+@admin_required
 def settings_page():
     return render_template(
         "settings/index.html",
@@ -24,6 +34,7 @@ def settings_page():
 
 
 @bp.post("/settings")
+@admin_required
 def save_settings():
     try:
         update_config_values(request.form)
@@ -46,6 +57,7 @@ def save_settings():
 
 
 @bp.post("/reset")
+@admin_required
 def reset_database():
     draw_count, bet_count = reset_all_data()
     _log.warning("Base reiniciada: %d concursos e %d apostas apagados.", draw_count, bet_count)
