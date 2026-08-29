@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import logging
 
-from flask import flash, redirect, request, url_for
+from flask import flash, redirect, render_template, request, url_for
 
 from ..draws.downloading import ResultsDownloadError, fetch_results_xlsx
 from ..draws.importing import import_results_from_xlsx
 from ..draws.service import search_contests
 from ..settings.service import get_results_source_url
 from . import bp
-from .helpers import is_htmx_request, optional_int, plural, render_vary
+from .helpers import is_htmx_request, optional_int, plural
 
 _ALLOWED_UPLOAD_EXTENSIONS = frozenset({".xlsx"})
 _log = logging.getLogger(__name__)
@@ -43,7 +43,7 @@ def _contests_context() -> dict:
 
 def _import_feedback(message: str, *, severidade: str = "error"):
     if is_htmx_request():
-        return render_vary(
+        return render_template(
             "contests/_import_response.html",
             avisos=[{"mensagem": message, "severidade": severidade}],
             **_contests_context(),
@@ -113,5 +113,5 @@ def import_from_link():
 def contests():
     context = _contests_context()
     if is_htmx_request():
-        return render_vary("contests/_results.html", **context)
-    return render_vary("contests/index.html", **context)
+        return render_template("contests/_results.html", **context)
+    return render_template("contests/index.html", **context)

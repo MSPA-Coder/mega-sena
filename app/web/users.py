@@ -21,7 +21,7 @@ from ..accounts.service import reset_password as reset_account_password
 from ..extensions import db
 from ..models import User
 from . import bp
-from .helpers import is_htmx_request, render_vary
+from .helpers import is_htmx_request
 
 _log = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ def _users_feedback(message: str, *, severidade: str = "error"):
     explicitamente.
     """
     if is_htmx_request():
-        return render_vary(
+        return render_template(
             "users/_feedback.html",
             avisos=[{"mensagem": message, "severidade": severidade}],
             users=list_users(),
