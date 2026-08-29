@@ -22,7 +22,7 @@
         {% for period, label in periods %}
           {% set period_url = url_for('web.dashboard', count=period) if period else url_for('web.dashboard') %}
           <a class="period-btn {{ 'active' if selected_count == period else '' }}" href="{{ period_url }}"
-             hx-get="{{ period_url }}" hx-target="#dashboard-content" hx-swap="outerHTML" hx-push-url="true"
+             hx-get="{{ period_url }}" hx-target="#dashboard-content" hx-swap="outerHTML" hx-replace-url="true"
              aria-current="{{ 'true' if selected_count == period else 'false' }}">{{ label }}</a>
         {% endfor %}
       </div>

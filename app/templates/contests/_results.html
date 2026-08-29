@@ -5,7 +5,7 @@
         <h2>Concursos</h2>
         <span class="contests-title-summary {{ 'active-filter' if winners_only else 'muted' }}">{{ contests_summary }}</span>
         <form method="get" action="{{ url_for('web.contests') }}" class="contests-filter contests-filter-inline"
-              hx-get="{{ url_for('web.contests') }}" hx-trigger="change from:input" hx-target="#contests-results" hx-swap="outerHTML" hx-push-url="true">
+              hx-get="{{ url_for('web.contests') }}" hx-trigger="change from:input" hx-target="#contests-results" hx-swap="outerHTML" hx-replace-url="true">
           {% if consecutive_count is not none %}<input type="hidden" name="consecutive_count" value="{{ consecutive_count }}">{% endif %}
           {% if even_count is not none %}<input type="hidden" name="even_count" value="{{ even_count }}">{% endif %}
           <label><input type="checkbox" name="winners_only" value="1" {% if winners_only %}checked{% endif %}> Mega Sena</label>
@@ -15,6 +15,12 @@
     </div>
     {% if pagination.pages > 1 %}
       <nav class="pagination pagination-compact" aria-label="Paginação dos concursos">
+        {#- `hx-push-url` aqui, e nao `hx-replace-url` como nos filtros acima:
+            paginar E navegacao. Sair da pagina 4 para a 5 e depois clicar em
+            "voltar" tem de devolver a pagina 4 -- e exatamente para isso que o
+            historico serve. Ja o formulario de filtro dispara em `change`, e
+            com `push` cada clique na caixa virava uma entrada, fazendo o
+            "voltar" desfazer filtro por filtro em vez de sair da tela. -#}
         {% if pagination.has_prev %}
           {% set previous_url = url_for('web.contests', page=pagination.prev_num, **pagination_args) %}
           <a class="button secondary" href="{{ previous_url }}" hx-get="{{ previous_url }}" hx-target="#contests-results" hx-swap="outerHTML" hx-push-url="true">Anterior</a>
