@@ -7,10 +7,33 @@ aparece quando alguem de fora ja entrou.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from app import PUBLIC_ENDPOINTS
 from app.web.auth import _safe_next_url
+
+#: Substitui `<int:id>`, `<path:filename>` e afins por um valor navegavel.
+_PARAMETRO = re.compile(r"<(?:(?P<tipo>[^:<>]+):)?[^<>]+>")
+
+
+def _url_plausivel(regra) -> str:
+    """URL concreta para uma rota, com ou sem parametro.
+
+    Rotas com parametro ja foram puladas aqui, com o argumento de que "as sem
+    parametro ja cobrem a decisao, que e do `before_request` e nao da rota".
+    O argumento tinha um furo: a unica rota parametrizada nao publica do app
+    era `sharedauth_ui.static`, servindo o CSS e o JS que a propria tela de
+    login carrega. Ela estava barrada, o navegador recusava o HTML do
+    redirecionamento por MIME, e a suite passava verde -- porque a rota com o
+    defeito era exatamente a que o filtro descartava.
+    """
+
+    def valor(m: re.Match[str]) -> str:
+        return "1" if (m.group("tipo") or "") in ("int", "float") else "x"
+
+    return _PARAMETRO.sub(valor, regra.rule)
 
 
 def _rotas_get_registradas(app):
@@ -20,11 +43,7 @@ def _rotas_get_registradas(app):
             continue
         if "GET" not in (regra.methods or set()):
             continue
-        # Rotas com parametro exigiriam um valor plausivel; as sem parametro ja
-        # cobrem a decisao, que e do `before_request` e nao da rota.
-        if regra.arguments:
-            continue
-        yield regra.rule
+        yield _url_plausivel(regra)
 
 
 def test_existem_rotas_protegidas_para_verificar(app):
@@ -48,7 +67,19 @@ def test_lista_de_publicos_e_curta_e_conhecida(app):
     # A lista e de rotas publicas, nao de protegidas: uma rota nova nasce
     # protegida. Este teste existe para que acrescentar algo aqui seja uma
     # decisao consciente, nao um efeito colateral.
-    assert frozenset({"web.login", "static", "health"}) == PUBLIC_ENDPOINTS
+    assert frozenset(
+        {
+            "web.login",
+            "static",
+            "health",
+            # CSS e JS do componente de aviso, carregados por `base.html` --
+            # que `auth/login.html` estende. Sem esta entrada os dois sao
+            # pedidos sem sessao, o gate os manda para /login e o navegador
+            # recusa o HTML por MIME: o toast de "Sessao encerrada" some
+            # depois do logout, porque quem o monta e o JS bloqueado.
+            "sharedauth_ui.static",
+        }
+    ) == PUBLIC_ENDPOINTS
 
 
 def test_htmx_sem_sessao_recebe_redirect_de_pagina_inteira(client):

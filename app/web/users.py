@@ -6,7 +6,6 @@ import logging
 
 from flask import abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user
-from sharedauth.access import requer_papel
 
 from ..accounts.service import (
     MIN_PASSWORD_LENGTH,
@@ -21,29 +20,10 @@ from ..accounts.service import reset_password as reset_account_password
 from ..extensions import db
 from ..models import User
 from . import bp
+from .authorization import admin_required
 from .helpers import is_htmx_request
 
 _log = logging.getLogger(__name__)
-
-
-# A mecânica de recusa (403, nunca redirect para o login) vem de
-# `sharedauth.access.requer_papel`, compartilhada com o ControleRendaVariavel.
-# Quem decide o que é ser administrador continua aqui: a biblioteca não conhece
-# o modelo de usuário deste projeto.
-#
-# `is_authenticated` continua na condição de propósito, embora `requer_login`
-# já garanta sessão em toda rota não pública: `current_user` é anônimo quando
-# não há sessão, e `is_admin` não existe no anônimo do Flask-Login. Sem a
-# primeira metade, um erro futuro na lista de endpoints públicos viraria
-# AttributeError (500) em vez de 403.
-#
-# `prefixo_api=None` porque este app não serve rotas `/api/` -- ver o mesmo
-# argumento em `create_app`.
-admin_required = requer_papel(
-    lambda: current_user.is_authenticated and current_user.is_admin,
-    prefixo_api=None,
-    mensagem="Apenas administradores podem gerir usuários.",
-)
 
 
 def _get_user_or_404(user_id: int) -> User:

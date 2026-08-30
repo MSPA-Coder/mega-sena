@@ -30,7 +30,16 @@ from .web.helpers import flashed_avisos
 # `health` é público porque quem consulta é o Docker, de dentro da rede do
 # Compose, sem sessão nenhuma. Ele não expõe dado: responde `ok` ou `erro` e
 # mais nada — nem versão, nem nome de banco, nem contagem de registros.
-PUBLIC_ENDPOINTS = frozenset({"web.login", "static", "health"})
+#
+# `sharedauth_ui.static` serve o CSS e o JS do componente comum de aviso,
+# carregados por `base.html` -- e `auth/login.html` estende `base.html`.
+# Sem esta entrada os dois arquivos sao pedidos SEM sessao, o gate os
+# redireciona para /login, e o navegador recusa o HTML devolvido por
+# incompatibilidade de MIME. O efeito visivel e o toast de "Sessao
+# encerrada" nunca aparecer depois do logout: quem monta o toast e o JS
+# que acabou de ser bloqueado. Nao ha nada sensivel neles -- sao dois
+# estaticos da biblioteca.
+PUBLIC_ENDPOINTS = frozenset({"web.login", "static", "health", "sharedauth_ui.static"})
 
 _log = logging.getLogger(__name__)
 
