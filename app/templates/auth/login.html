@@ -28,6 +28,10 @@
 
   <form method="post" action="{{ url_for('web.login') }}" class="auth-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {#- O destino pós-login viaja no formulário porque o `action` posta em
+        `/login` sem query. Já validado por `sharedauth.access.url_proximo_seguro`
+        na view; o `|e` do Jinja fecha o atributo. -#}
+    {% if proximo %}<input type="hidden" name="next" value="{{ proximo }}">{% endif %}
 
     <label for="username">Usuário</label>
     <input type="text" id="username" name="username" value="{{ username }}"

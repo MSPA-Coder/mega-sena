@@ -59,7 +59,9 @@ Toda rota nasce protegida por sessão, exceto a lista pública explícita em
 `PUBLIC_ENDPOINTS`. Escritas exigem CSRF. Preserve CSP, limites de upload e
 requisição, hosts confiáveis e cookies `HttpOnly`/`SameSite`; `SECRET_KEY` é
 obrigatória e não tem fallback. Sessão, CSRF, limite de tentativas de login,
-controle de acesso, hash de senha, cabeçalhos de segurança e CSP, formatação
+controle de acesso, hash de senha, senha temporária e trava de troca
+pendente, destino pós-login seguro e a marca que amarra a sessão à senha em
+vigor, cabeçalhos de segurança e CSP, formatação
 de números em pt-BR e a rota `/health` vêm de
 [SharedAuth](https://github.com/MSPA-Coder/SharedAuth), biblioteca
 compartilhada com os outros apps do mantenedor (ver README.md);

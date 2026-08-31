@@ -7,7 +7,12 @@ lugares.
 
 from __future__ import annotations
 
-from sharedauth.passwords import MIN_PASSWORD_LENGTH, validar_tamanho  # noqa: F401 (reexportado)
+from sharedauth.passwords import (
+    MIN_PASSWORD_LENGTH,  # noqa: F401 (reexportado: a tela e a CLI importam daqui)
+    gerar_senha_temporaria,
+    validar_tamanho,
+    validar_troca,
+)
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
@@ -46,6 +51,9 @@ def create_user(
         raise UserManagementError(f"Já existe um usuário com o nome '{username}'.")
     usuario = User(username=username, is_active_user=True, role=role)
     usuario.set_password(password)
+    # Conta nova nasce com uma senha que quem administra escolheu e conhece --
+    # é o mesmo caso da redefinição, e vale a mesma obrigação de trocar.
+    usuario.must_change_password = True
     db.session.add(usuario)
     try:
         db.session.commit()
@@ -58,7 +66,17 @@ def create_user(
 def provision_cli_user(
     username: str, password: str, *, role: str | None = None
 ) -> User:
-    """Provisiona o acesso confiável da CLI sem abrir um bypass da tela."""
+    """Provisiona o acesso confiável da CLI sem abrir um bypass da tela.
+
+    **Não liga `must_change_password`, de propósito.** Quem roda este comando
+    tem shell no contêiner e escolheu a própria senha: não existe o terceiro
+    que a redefinição pela tela pressupõe, e obrigar a trocar transformaria o
+    resgate do primeiro acesso num passo a mais sem ganho.
+
+    Também não desliga a marca de uma conta que já a tenha: se um
+    administrador usar este caminho para socorrer outra pessoa, a obrigação
+    que estava pendente continua valendo.
+    """
     _lock_user_policy()
     username = username.strip()
     if not username:
@@ -91,10 +109,43 @@ def provision_cli_user(
     return usuario
 
 
-def reset_password(user: User, password: str, *, actor: User) -> None:
+def reset_password(user: User, *, actor: User) -> str:
+    """Redefine a senha de outra conta e devolve a senha temporária gerada.
+
+    O administrador não escolhe mais a senha: uma senha escolhida por ele é
+    uma senha que ele conhece e que tende a se repetir entre contas. O sistema
+    sorteia, mostra uma vez a quem redefiniu, e obriga o dono a trocá-la no
+    primeiro acesso.
+
+    O valor devolvido é a **única cópia em texto claro** que vai existir. Quem
+    chama mostra e descarta; não vai para log, nem para o banco.
+    """
     _require_admin(actor)
-    _validate_password(password)
-    user.set_password(password)
+    senha_temporaria = gerar_senha_temporaria()
+    user.set_password(senha_temporaria)
+    user.must_change_password = True
+    db.session.commit()
+    return senha_temporaria
+
+
+def change_own_password(
+    user: User, senha_atual: str, senha_nova: str, confirmacao: str
+) -> None:
+    """Troca a senha do próprio dono e desliga a obrigação de trocar.
+
+    As quatro regras (senha atual confere, confirmação bate, senha nova é
+    diferente da atual, piso de tamanho) vêm de `sharedauth.passwords` —
+    inclusive a de "diferente da atual", que é o que impede alguém obrigado a
+    trocar de simplesmente redigitar a senha temporária e sair com ela.
+    """
+    validar_troca(
+        hash_atual=user.password_hash,
+        senha_atual=senha_atual,
+        senha_nova=senha_nova,
+        confirmacao=confirmacao,
+    )
+    user.set_password(senha_nova)
+    user.must_change_password = False
     db.session.commit()
 
 

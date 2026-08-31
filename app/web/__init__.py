@@ -8,6 +8,6 @@ bp = Blueprint("web", __name__)
 register_security_hooks(bp)
 
 # Os imports registram as rotas no blueprint compartilhado.
-from . import auth, bets, contests, dashboard, settings, users  # noqa: E402, F401
+from . import account, auth, bets, contests, dashboard, settings, users  # noqa: E402, F401
 
 __all__ = ("bp",)

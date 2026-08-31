@@ -81,13 +81,38 @@ def create_user():
 @bp.post("/usuarios/<int:user_id>/senha")
 @admin_required
 def reset_user_password(user_id: int):
+    """Redefine a senha de outra conta e mostra a senha temporária gerada.
+
+    A resposta não usa `_users_feedback`: aquilo vira toast, e toast some. A
+    senha temporária é a única cópia em texto claro que vai existir -- ela
+    precisa ficar na tela até quem redefiniu sair da página.
+
+    Pelo mesmo motivo o caminho sem HTMX **renderiza** a página em vez de
+    redirecionar: um redirect perderia o valor no caminho.
+    """
     usuario = _get_user_or_404(user_id)
-    password = request.form.get("password", "")
     try:
-        reset_account_password(usuario, password, actor=current_user)
+        senha_temporaria = reset_account_password(usuario, actor=current_user)
     except ValueError as exc:
         return _users_feedback(str(exc))
-    return _users_feedback(f"Senha de '{usuario.username}' redefinida.", severidade="success")
+
+    _log.info("Senha redefinida por administrador.")
+    if is_htmx_request():
+        return render_template(
+            "users/_senha_temporaria.html",
+            senha_temporaria=senha_temporaria,
+            senha_de=usuario.username,
+            users=list_users(),
+            min_password_length=MIN_PASSWORD_LENGTH,
+        )
+    return render_template(
+        "users/index.html",
+        users=list_users(),
+        min_password_length=MIN_PASSWORD_LENGTH,
+        roles=(ROLE_OPERADOR, ROLE_ADMIN),
+        senha_temporaria=senha_temporaria,
+        senha_de=usuario.username,
+    )
 
 
 @bp.post("/usuarios/<int:user_id>/ativo")

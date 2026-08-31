@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from flask import current_app
 from flask_login import UserMixin
 from sharedauth.passwords import conferir_hash, gerar_hash
+from sharedauth.session import identificador_de_sessao, marca_de_sessao
 from sqlalchemy import CheckConstraint
 
 from .extensions import db
@@ -150,6 +152,13 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     is_active_user = db.Column(db.Boolean, nullable=False, default=True)
     role = db.Column(db.String(20), nullable=False, default=ROLE_OPERADOR)
+    # Ligada por quem redefine a senha de outra pessoa (e pela criação de
+    # conta), desligada só pela troca feita pelo próprio dono. Enquanto está
+    # ligada, `requer_troca_de_senha` prende a sessão na tela de troca: uma
+    # senha que duas pessoas conhecem só deve valer até o primeiro acesso.
+    must_change_password = db.Column(
+        db.Boolean, nullable=False, default=False, server_default=db.text("false")
+    )
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
 
     def set_password(self, password: str) -> None:
@@ -157,6 +166,23 @@ class User(UserMixin, db.Model):
 
     def check_password(self, password: str) -> bool:
         return conferir_hash(self.password_hash, password)
+
+    def get_id(self) -> str:
+        """Identificador guardado no cookie: o id **e** a marca da senha.
+
+        O Flask-Login guarda o que esta função devolve e o entrega de volta ao
+        `user_loader`. Só o id não bastava: trocar a senha não derrubava as
+        sessões abertas em outros lugares, porque o cookie dizia QUEM é a
+        pessoa e nada sobre QUAL senha estava valendo. Quem trocasse a senha
+        por desconfiar de acesso indevido continuaria com esse alguém dentro
+        do sistema -- exatamente quando acreditasse ter resolvido.
+
+        A marca vem de `sharedauth.session` e é a mesma nos três apps Flask.
+        """
+        return identificador_de_sessao(
+            self.id,
+            marca_de_sessao(self.password_hash, chave_secreta=current_app.secret_key),
+        )
 
     @property
     def is_active(self) -> bool:

@@ -19,7 +19,11 @@
             <span id="users-creating" class="htmx-indicator" role="status">Criando…</span>
         </div>
     </form>
-    <div id="users-feedback" aria-live="polite"></div>
+    <div id="users-feedback" aria-live="polite">
+      {%- if senha_temporaria is defined and senha_temporaria %}
+      {% include "users/_senha_temporaria_conteudo.html" %}
+      {%- endif %}
+    </div>
 </section>
 {% include "users/_table.html" %}
 {% endblock %}
