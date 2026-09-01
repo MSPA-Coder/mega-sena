@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 
-from flask import flash, redirect, render_template, request, url_for
+from flask import flash, make_response, redirect, render_template, request, url_for
 from werkzeug.datastructures import MultiDict
 
 from ..bets.combinatorics import (
@@ -21,6 +21,7 @@ from ..bets.criteria import (
     MAX_BET_NUMBERS,
     MIN_BET_NUMBERS,
     GenerationCriteria,
+    InvalidGenerationCriteriaError,
 )
 from ..bets.service import (
     count_closure_bets,
@@ -127,7 +128,9 @@ def _coverage_metrics(
     }
 
 
-def _read_generation_state(values: MultiDict) -> tuple[int, dict[str, int | None], int]:
+def _read_generation_state(
+    values: MultiDict, *, strict: bool = False
+) -> tuple[int, dict[str, int | None], int]:
     defaults = get_generation_defaults()
     has_url_state = any(key in values for key in GENERATION_PARAM_KEYS)
     if has_url_state:
@@ -150,7 +153,12 @@ def _read_generation_state(values: MultiDict) -> tuple[int, dict[str, int | None
             value = defaults.get(key)
             source[key] = "" if value is None else str(value)
 
-    params = GenerationCriteria.from_mapping(
+    criteria_factory = (
+        GenerationCriteria.from_mapping_strict
+        if strict
+        else GenerationCriteria.from_mapping
+    )
+    params = criteria_factory(
         source,
         default_quantity=int(defaults["bet_quantity"] or 6),
         default_amount=int(defaults["generation_amount"] or 5),
@@ -285,9 +293,20 @@ def bet_generation():
     recent_generations = list_recent_generations_with_bets()
     if request.method == "POST":
         action = request.form.get("action", "generate")
-        quantity, selected_filters, selected_amount = _read_generation_state(
-            request.form
-        )
+        try:
+            quantity, selected_filters, selected_amount = _read_generation_state(
+                request.form, strict=True
+            )
+        except InvalidGenerationCriteriaError as exc:
+            return (
+                render_template(
+                    "bets/_generation_result.html",
+                    bets=[],
+                    feedback=str(exc),
+                    avisos=[{"mensagem": str(exc), "severidade": "error"}],
+                ),
+                400,
+            )
         closure_numbers = request.form.get("closure_numbers", "")
         selected_quantity = quantity
         if closure_numbers.strip() and action == "generate":
@@ -451,10 +470,12 @@ def filter_targets_fragment():
     target_percentage = request.args.get("target_percentage", 80, type=float)
     target_percentage = max(0, min(target_percentage, 100))
     targets = calculate_individual_filter_targets(target_percentage)
-    response = render_template(
-        "bets/_filter_targets.html",
-        target_percentage=target_percentage,
-        targets=targets,
+    response = make_response(
+        render_template(
+            "bets/_filter_targets.html",
+            target_percentage=target_percentage,
+            targets=targets,
+        )
     )
     response.headers["HX-Trigger-After-Settle"] = "bets-preview"
     return response

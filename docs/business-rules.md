@@ -61,6 +61,10 @@ Filtros restritivos podem impedir que a quantidade solicitada seja alcançada.
 Nesse caso, o sistema entrega as apostas encontradas e informa a redução, em vez
 de continuar tentando indefinidamente.
 
+Valores fora dos limites, texto em campos numéricos e pares mínimo/máximo
+contraditórios são recusados com erro 400 e uma mensagem visível. O servidor
+não limita, inverte nem ignora silenciosamente um filtro enviado pelo usuário.
+
 Os parâmetros da URL representam o estado da tela. Sem parâmetros na URL, são
 usados os valores salvos em **Configurações**.
 

@@ -19,7 +19,6 @@ from .criteria import (
     MAX_BET_NUMBERS,
     MIN_BET_NUMBERS,
     GenerationCriteria,
-    coerce_generation_filters,
 )
 
 _log = logging.getLogger(__name__)
@@ -101,7 +100,11 @@ def generate_bets(
         MAX_BET_NUMBERS,
     )
     amount = clamp_int(parse_int(amount) or 1, 1, 100)
-    filters = coerce_generation_filters(filters)
+    strict_values = {"quantity": quantity, "amount": amount, **(filters or {})}
+    criteria = GenerationCriteria.from_mapping_strict(
+        strict_values, default_quantity=quantity, default_amount=amount
+    )
+    filters = criteria.filters()
     draws = all_draw_numbers()
     existing_draws = {tuple(d) for d in draws}
     created: list[GeneratedBet] = []

@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from itertools import chain, repeat
 
+import pytest
+
 from app.bets import service
-from app.bets.criteria import GenerationCriteria
+from app.bets.criteria import GenerationCriteria, InvalidGenerationCriteriaError
 
 
 def test_generation_criteria_normalizes_clamps_and_resolves_inverted_ranges():
@@ -57,6 +59,26 @@ def test_generation_criteria_applies_inclusive_filter_boundaries():
     assert not GenerationCriteria(consecutive_count=1).matches_candidate(
         [1, 2, 14, 25, 36, 47]
     )
+
+
+@pytest.mark.parametrize(
+    ("values", "message"),
+    [
+        ({"even_min": "7"}, "entre 0 e 6"),
+        ({"range_min_occupied": "7"}, "entre 1 e 6"),
+        ({"even_min": "5", "even_max": "2"}, "mínimo de números pares"),
+        ({"sum_min": "300", "sum_max": "217"}, "soma inicial"),
+        ({"even_min": "abc"}, "número inteiro válido"),
+    ],
+)
+def test_strict_generation_criteria_rejects_impossible_input(values, message):
+    with pytest.raises(InvalidGenerationCriteriaError, match=message):
+        GenerationCriteria.from_mapping_strict(values)
+
+
+def test_service_defensively_rejects_contradictory_filters():
+    with pytest.raises(InvalidGenerationCriteriaError):
+        service.generate_bets(6, 5, {"even_min": 5, "even_max": 2})
 
 
 def test_expanded_bets_are_checked_by_the_extreme_internal_six_number_bets():
