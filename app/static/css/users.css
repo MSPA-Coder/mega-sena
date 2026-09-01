@@ -21,3 +21,39 @@
 .inline-form input {
   min-width: 140px;
 }
+
+/* Senha temporaria devolvida pela redefinicao.
+ *
+ * Persistente e nao toast: e a unica copia em texto claro que vai existir, e
+ * quem redefiniu precisa dela na tela o tempo que levar para anotar ou ditar.
+ * Reaproveita `.flash` de components.css para a moldura. */
+.senha-temporaria {
+  background: var(--flash-bg);
+  border: 1px solid var(--flash-border);
+  border-left: 4px solid var(--primary);
+  padding: 12px 18px;
+  border-radius: var(--radius-md);
+  margin-top: 16px;
+}
+
+.senha-temporaria p {
+  margin: 0 0 6px;
+}
+
+.senha-temporaria p:last-child {
+  margin-bottom: 0;
+}
+
+/* Monoespacada e espacada: o valor vai ser lido em voz alta ou copiado a mao,
+   e e por isso que o alfabeto do sorteio ja exclui `0/O` e `1/l/I`. */
+.senha-temporaria-valor {
+  font-family: ui-monospace, "Cascadia Code", "Source Code Pro", monospace;
+  font-size: 1.15rem;
+  letter-spacing: 0.12em;
+  user-select: all;
+}
+
+.senha-temporaria-aviso {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}

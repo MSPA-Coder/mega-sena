@@ -17,11 +17,12 @@ from ..accounts.service import (
 )
 from ..accounts.service import create_user as create_account
 from ..accounts.service import reset_password as reset_account_password
+from ..audit.service import record_event
 from ..extensions import db
 from ..models import User
 from . import bp
 from .authorization import admin_required
-from .helpers import is_htmx_request
+from .helpers import audit_request_context, is_htmx_request
 
 _log = logging.getLogger(__name__)
 
@@ -71,9 +72,11 @@ def create_user():
     password = request.form.get("password", "")
     role = request.form.get("role", ROLE_OPERADOR)
     try:
-        create_account(username, password, role=role, actor=current_user)
+        usuario = create_account(username, password, role=role, actor=current_user)
     except ValueError as exc:
+        record_event(action="users.create", entity="user", actor=current_user, success=False, context=audit_request_context())
         return _users_feedback(str(exc))
+    record_event(action="users.create", entity="user", entity_id=usuario.id, actor=current_user, success=True, context={**audit_request_context(), "username": username.strip(), "role": role})
     _log.info("Usuario criado.")
     return _users_feedback(f"Usuário '{username.strip()}' criado.", severidade="success")
 
@@ -81,13 +84,40 @@ def create_user():
 @bp.post("/usuarios/<int:user_id>/senha")
 @admin_required
 def reset_user_password(user_id: int):
+    """Redefine a senha de outra conta e mostra a senha temporária gerada.
+
+    A resposta não usa `_users_feedback`: aquilo vira toast, e toast some. A
+    senha temporária é a única cópia em texto claro que vai existir -- ela
+    precisa ficar na tela até quem redefiniu sair da página.
+
+    Pelo mesmo motivo o caminho sem HTMX **renderiza** a página em vez de
+    redirecionar: um redirect perderia o valor no caminho.
+    """
     usuario = _get_user_or_404(user_id)
-    password = request.form.get("password", "")
     try:
-        reset_account_password(usuario, password, actor=current_user)
+        senha_temporaria = reset_account_password(usuario, actor=current_user)
     except ValueError as exc:
+        record_event(action="users.password_reset", entity="user", entity_id=user_id, actor=current_user, success=False, context=audit_request_context())
         return _users_feedback(str(exc))
-    return _users_feedback(f"Senha de '{usuario.username}' redefinida.", severidade="success")
+    record_event(action="users.password_reset", entity="user", entity_id=user_id, actor=current_user, success=True, context=audit_request_context())
+
+    _log.info("Senha redefinida por administrador.")
+    if is_htmx_request():
+        return render_template(
+            "users/_senha_temporaria.html",
+            senha_temporaria=senha_temporaria,
+            senha_de=usuario.username,
+            users=list_users(),
+            min_password_length=MIN_PASSWORD_LENGTH,
+        )
+    return render_template(
+        "users/index.html",
+        users=list_users(),
+        min_password_length=MIN_PASSWORD_LENGTH,
+        roles=(ROLE_OPERADOR, ROLE_ADMIN),
+        senha_temporaria=senha_temporaria,
+        senha_de=usuario.username,
+    )
 
 
 @bp.post("/usuarios/<int:user_id>/ativo")
@@ -100,7 +130,9 @@ def toggle_user_active(user_id: int):
     try:
         set_active(usuario, active, actor=current_user)
     except ValueError as exc:
+        record_event(action="users.set_active", entity="user", entity_id=user_id, actor=current_user, success=False, context=audit_request_context())
         return _users_feedback(str(exc))
+    record_event(action="users.set_active", entity="user", entity_id=user_id, actor=current_user, success=True, context={**audit_request_context(), "active": active})
     estado = "ativado" if active else "desativado"
     return _users_feedback(f"Usuário '{usuario.username}' {estado}.", severidade="success")
 
@@ -113,7 +145,9 @@ def change_user_role(user_id: int):
     try:
         set_role(usuario, role, actor=current_user)
     except ValueError as exc:
+        record_event(action="users.set_role", entity="user", entity_id=user_id, actor=current_user, success=False, context=audit_request_context())
         return _users_feedback(str(exc))
+    record_event(action="users.set_role", entity="user", entity_id=user_id, actor=current_user, success=True, context={**audit_request_context(), "role": role})
     nome = "administrador" if role == ROLE_ADMIN else "operador"
     return _users_feedback(
         f"Usuário '{usuario.username}' agora é {nome}.", severidade="success"

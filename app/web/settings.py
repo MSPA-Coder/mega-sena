@@ -13,12 +13,14 @@ from __future__ import annotations
 import logging
 
 from flask import flash, redirect, render_template, request, url_for
+from flask_login import current_user
 
+from ..audit.service import record_event
 from ..bets.criteria import GENERATION_LIMITS
 from ..settings.service import get_config_values, reset_all_data, update_config_values
 from . import bp
 from .authorization import admin_required
-from .helpers import is_htmx_request
+from .helpers import audit_request_context, is_htmx_request
 
 _log = logging.getLogger(__name__)
 
@@ -39,6 +41,7 @@ def save_settings():
     try:
         update_config_values(request.form)
     except ValueError as exc:
+        record_event(action="settings.update", entity="config", actor=current_user, success=False, context=audit_request_context())
         if is_htmx_request():
             return render_template(
                 "settings/_feedback.html",
@@ -47,6 +50,7 @@ def save_settings():
         flash(str(exc), "error")
         return redirect(url_for("web.settings_page"))
     _log.info("Configuracoes atualizadas.")
+    record_event(action="settings.update", entity="config", actor=current_user, success=True, context=audit_request_context())
     if is_htmx_request():
         return render_template(
             "settings/_feedback.html",
@@ -62,6 +66,7 @@ def reset_database():
     draw_count, bet_count = reset_all_data()
     _log.warning("Base reiniciada: %d concursos e %d apostas apagados.", draw_count, bet_count)
     message = "Base reiniciada: concursos e apostas apagados."
+    record_event(action="data.reset", entity="draws_and_generated_bets", actor=current_user, success=True, context={**audit_request_context(), "draw_count": draw_count, "bet_count": bet_count})
     if is_htmx_request():
         return render_template(
             "settings/_feedback.html",

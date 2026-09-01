@@ -1,0 +1,11 @@
+{#- Bloco da senha temporaria, compartilhado pela resposta HTMX e pela
+    renderizacao de pagina inteira. Nao e toast de proposito: um aviso que
+    desaparece sozinho levaria embora a unica copia em texto claro da senha. -#}
+<div class="senha-temporaria" role="status">
+  <p>Senha temporária de <strong>{{ senha_de }}</strong>:</p>
+  <p><code class="senha-temporaria-valor">{{ senha_temporaria }}</code></p>
+  <p class="senha-temporaria-aviso">
+    Anote agora: ela não será mostrada de novo. Quem entrar com ela terá de
+    trocá-la antes de usar o sistema.
+  </p>
+</div>

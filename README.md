@@ -36,6 +36,25 @@ restrita a administradores; novos usuários criados por ela são operadores por
 padrão e continuam compartilhando o mesmo acervo de concursos, apostas e
 configurações.
 
+Quem perde a senha é atendido por um administrador em `/usuarios`: o botão
+**Redefinir** sorteia uma senha temporária, mostrada uma única vez na tela de
+quem redefiniu, para ser entregue fora do sistema. Contas criadas por essa
+tela recebem o mesmo tratamento. Enquanto a troca estiver pendente, toda
+requisição da pessoa cai em `/minha-senha` — só o logout e os arquivos
+estáticos escapam. A troca exige a senha atual e recusa repetir a senha
+temporária. `/minha-senha` também está sempre disponível pelo menu, sem
+obrigação. O comando `criar-usuario` é a exceção: quem o roda escolheu a
+própria senha e não fica com troca pendente.
+
+Duas garantias vieram junto, compartilhadas com os outros apps Flask do
+mantenedor: o destino pós-login (`?next=`) é validado por
+`sharedauth.access.url_proximo_seguro`, que só aceita caminho interno — sem
+isso a tela de login vira um redirecionador aberto; e a sessão carrega uma
+marca da senha em vigor (`sharedauth.session`), então **trocar a senha derruba
+as sessões abertas em outros lugares**, e não só a atual. Quem troca a própria
+senha continua conectado; quem tinha entrado com a senha antiga cai no próximo
+acesso.
+
 Para desenvolvimento com o código montado no contêiner, acrescente
 `-f compose.dev.yaml` ao comando de subida. O Compose padrão usa a imagem
 imutável.

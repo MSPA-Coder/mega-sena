@@ -35,6 +35,10 @@ GENERATION_LIMITS = {
 }
 
 
+class InvalidGenerationCriteriaError(ValueError):
+    """Entrada de filtro inválida ou contraditória."""
+
+
 def _optional_int(value: object) -> int | None:
     if isinstance(value, bool) or value is None or value == "":
         return None
@@ -70,6 +74,59 @@ class GenerationCriteria:
     sum_max: int | None = None
     range_min_occupied: int | None = None
     range_max_per_band: int | None = None
+
+    @classmethod
+    def from_mapping_strict(
+        cls,
+        values: Mapping[str, object] | None,
+        *,
+        default_quantity: int = 6,
+        default_amount: int = 5,
+    ) -> GenerationCriteria:
+        """Interpreta entrada externa sem corrigir silenciosamente o pedido."""
+        source = values or {}
+        parsed: dict[str, int | None] = {}
+        for key in GENERATION_PARAM_KEYS:
+            raw = source.get(key)
+            if raw is None or str(raw).strip() == "":
+                parsed[key] = None
+                continue
+            value = _optional_int(raw)
+            if value is None:
+                raise InvalidGenerationCriteriaError(
+                    f"{key}: informe um número inteiro válido."
+                )
+            minimum, maximum = GENERATION_LIMITS[key]
+            if not minimum <= value <= maximum:
+                raise InvalidGenerationCriteriaError(
+                    f"{key}: use um valor entre {minimum} e {maximum}."
+                )
+            parsed[key] = value
+
+        quantity = parsed["quantity"] or default_quantity
+        amount = parsed["amount"] or default_amount
+        filters = {key: parsed[key] for key in GENERATION_FILTER_KEYS}
+        if (
+            filters["even_min"] is not None
+            and filters["even_max"] is not None
+            and filters["even_min"] > filters["even_max"]
+        ):
+            raise InvalidGenerationCriteriaError(
+                "O mínimo de números pares não pode ser maior que o máximo."
+            )
+        if (
+            filters["sum_min"] is not None
+            and filters["sum_max"] is not None
+            and filters["sum_min"] > filters["sum_max"]
+        ):
+            raise InvalidGenerationCriteriaError(
+                "A soma inicial não pode ser maior que a soma final."
+            )
+        if filters["consecutive_count"] == 0:
+            raise InvalidGenerationCriteriaError(
+                "A maior sequência consecutiva permitida precisa ser pelo menos 1."
+            )
+        return cls(quantity=quantity, amount=amount, **filters)
 
     @classmethod
     def from_mapping(

@@ -19,7 +19,6 @@ from .criteria import (
     MAX_BET_NUMBERS,
     MIN_BET_NUMBERS,
     GenerationCriteria,
-    coerce_generation_filters,
 )
 
 _log = logging.getLogger(__name__)
@@ -101,7 +100,11 @@ def generate_bets(
         MAX_BET_NUMBERS,
     )
     amount = clamp_int(parse_int(amount) or 1, 1, 100)
-    filters = coerce_generation_filters(filters)
+    strict_values = {"quantity": quantity, "amount": amount, **(filters or {})}
+    criteria = GenerationCriteria.from_mapping_strict(
+        strict_values, default_quantity=quantity, default_amount=amount
+    )
+    filters = criteria.filters()
     draws = all_draw_numbers()
     existing_draws = {tuple(d) for d in draws}
     created: list[GeneratedBet] = []
@@ -221,6 +224,24 @@ def list_recent_generations_with_bets(limit: int = 12) -> list[dict]:
     for generation in generations:
         generation["bets"] = bets_by_generation.get(generation["generation_id"], [])
     return generations
+
+
+def delete_saved_bet(bet_id: int) -> GeneratedBet:
+    """Exclui uma aposta salva, sem tocar nos concursos importados.
+
+    O id é conferido no servidor; assim o botão da interface não é a única
+    barreira e uma tentativa de remover algo inexistente recebe erro explícito.
+    """
+    bet = db.session.get(GeneratedBet, bet_id)
+    if bet is None:
+        raise RuntimeError("A aposta salva não foi encontrada.")
+    db.session.delete(bet)
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+    return bet
 
 
 def save_generated_bets(quantity: int, bets: Iterable[str]) -> tuple[int, int | None]:

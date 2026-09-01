@@ -152,6 +152,8 @@ ativos.
 - `GeneratedBet`, para apostas agrupadas por geração;
 - `Config`, para preferências persistidas;
 - `User`, para credenciais e estado de acesso das contas.
+- `AuditEvent`, para a trilha persistente de alterações relevantes, separada
+  do log técnico e sem segredos.
 
 As colunas derivadas de `Draw` (`total_sum`, `even_count`, `consecutive_count`)
 são protegidas por CHECK constraints que as comparam com as próprias dezenas.

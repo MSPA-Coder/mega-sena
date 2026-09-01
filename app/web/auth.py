@@ -8,11 +8,10 @@ de rotas públicas envelhece bem, porque a rota nova nasce protegida.
 
 from __future__ import annotations
 
-from urllib.parse import unquote, urlsplit
-
 from flask import flash, redirect, render_template, request, url_for
 from flask.typing import ResponseReturnValue
 from flask_login import current_user, login_required, login_user, logout_user
+from sharedauth.access import url_proximo_seguro
 
 from ..extensions import db
 from ..models import User
@@ -20,41 +19,33 @@ from . import bp
 
 
 def _safe_next_url() -> str | None:
-    """Devolve o destino pós-login apenas quando ele é interno.
+    """Destino pós-login, lido de onde ele chega neste app.
 
-    Sem esta checagem, `?next=https://outro.site` transformaria a tela de login
-    em um redirecionador aberto. A validação usa a forma percent-decodificada
-    para recusar barras invertidas e caminhos que um navegador possa normalizar
-    como URL com host externo.
+    A decisão de segurança mora em `sharedauth.access.url_proximo_seguro` --
+    era a mesma checagem escrita duas vezes, de dois jeitos, entre os apps
+    Flask do mantenedor. Aqui fica só de onde o valor vem: `request.values`
+    cobre a query da URL (o GET da tela) **e** o campo escondido do formulário
+    (o POST).
+
+    `request.args` sozinho era o defeito: o formulário posta em `/login` sem
+    query nenhuma, então no POST -- o único momento em que o destino importa --
+    o valor chegava sempre vazio, e todo login caía no dashboard. O teste que
+    existia exercitava a função com um contexto montado à mão, nunca o POST de
+    verdade, e por isso passava.
     """
-    next_url = request.args.get("next")
-    if not next_url:
-        return None
-
-    normalized = next_url
-    for _ in range(8):
-        decoded = unquote(normalized)
-        if decoded == normalized:
-            break
-        normalized = decoded
-    else:
-        return None
-
-    if "\\" in normalized or any(ord(char) < 32 or ord(char) == 127 for char in normalized):
-        return None
-    try:
-        parsed = urlsplit(normalized)
-    except ValueError:
-        return None
-    if normalized.startswith("/") and not normalized.startswith("//") and not parsed.scheme and not parsed.netloc:
-        return normalized
-    return None
+    return url_proximo_seguro(request.values.get("next"))
 
 
 @bp.route("/login", methods=["GET", "POST"])
 def login() -> ResponseReturnValue:
     if current_user.is_authenticated:
         return redirect(url_for("web.dashboard"))
+
+    # Lido uma vez, e devolvido ao formulário: o destino chega na query no GET
+    # e no campo escondido no POST. Uma recusa de senha também precisa
+    # carregá-lo adiante, senão a segunda tentativa perde o destino que a
+    # primeira tinha.
+    proximo = _safe_next_url()
 
     if request.method == "POST":
         username = request.form.get("username", "").strip()
@@ -69,12 +60,15 @@ def login() -> ResponseReturnValue:
         # tiraria o erro do card estruturado da tela de login.
         if user is None or not user.is_active_user or not user.check_password(password):
             return render_template(
-                "auth/login.html", username=username, erro="Usuário ou senha inválidos."
+                "auth/login.html",
+                username=username,
+                erro="Usuário ou senha inválidos.",
+                proximo=proximo,
             ), 401
         login_user(user, remember=True)
-        return redirect(_safe_next_url() or url_for("web.dashboard"))
+        return redirect(proximo or url_for("web.dashboard"))
 
-    return render_template("auth/login.html", username="")
+    return render_template("auth/login.html", username="", proximo=proximo)
 
 
 @bp.post("/logout")

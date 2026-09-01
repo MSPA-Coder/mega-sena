@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import math
 
-from flask import flash, redirect, render_template, request, url_for
+from flask import flash, make_response, redirect, render_template, request, url_for
+from flask_login import current_user
 from werkzeug.datastructures import MultiDict
 
+from ..audit.service import record_event
 from ..bets.combinatorics import (
     TOTAL_DRAW_COMBINATIONS,
     build_combination_report,
@@ -21,9 +23,11 @@ from ..bets.criteria import (
     MAX_BET_NUMBERS,
     MIN_BET_NUMBERS,
     GenerationCriteria,
+    InvalidGenerationCriteriaError,
 )
 from ..bets.service import (
     count_closure_bets,
+    delete_saved_bet,
     generate_bets,
     generate_closure_bets,
     list_recent_generations_with_bets,
@@ -34,7 +38,7 @@ from ..core.formatting import format_int, format_percent
 from ..draws.service import count_draws
 from ..settings.service import get_generation_defaults
 from . import bp
-from .helpers import is_htmx_request, optional_int, plural
+from .helpers import audit_request_context, is_htmx_request, optional_int, plural
 
 CLOSURE_PREVIEW_LIMIT = 200
 
@@ -127,7 +131,9 @@ def _coverage_metrics(
     }
 
 
-def _read_generation_state(values: MultiDict) -> tuple[int, dict[str, int | None], int]:
+def _read_generation_state(
+    values: MultiDict, *, strict: bool = False
+) -> tuple[int, dict[str, int | None], int]:
     defaults = get_generation_defaults()
     has_url_state = any(key in values for key in GENERATION_PARAM_KEYS)
     if has_url_state:
@@ -150,7 +156,12 @@ def _read_generation_state(values: MultiDict) -> tuple[int, dict[str, int | None
             value = defaults.get(key)
             source[key] = "" if value is None else str(value)
 
-    params = GenerationCriteria.from_mapping(
+    criteria_factory = (
+        GenerationCriteria.from_mapping_strict
+        if strict
+        else GenerationCriteria.from_mapping
+    )
+    params = criteria_factory(
         source,
         default_quantity=int(defaults["bet_quantity"] or 6),
         default_amount=int(defaults["generation_amount"] or 5),
@@ -285,9 +296,20 @@ def bet_generation():
     recent_generations = list_recent_generations_with_bets()
     if request.method == "POST":
         action = request.form.get("action", "generate")
-        quantity, selected_filters, selected_amount = _read_generation_state(
-            request.form
-        )
+        try:
+            quantity, selected_filters, selected_amount = _read_generation_state(
+                request.form, strict=True
+            )
+        except InvalidGenerationCriteriaError as exc:
+            return (
+                render_template(
+                    "bets/_generation_result.html",
+                    bets=[],
+                    feedback=str(exc),
+                    avisos=[{"mensagem": str(exc), "severidade": "error"}],
+                ),
+                400,
+            )
         closure_numbers = request.form.get("closure_numbers", "")
         selected_quantity = quantity
         if closure_numbers.strip() and action == "generate":
@@ -306,6 +328,13 @@ def bet_generation():
                         bets=request.form.getlist("bet"),
                     )
             except RuntimeError as exc:
+                record_event(
+                    action="bets.save",
+                    entity="generated_bet_batch",
+                    actor=current_user,
+                    success=False,
+                    context=audit_request_context(source=action),
+                )
                 if htmx_request:
                     return render_template(
                         "bets/_generation_result.html",
@@ -322,6 +351,17 @@ def bet_generation():
                         ),
                     )
                 )
+            record_event(
+                action="bets.save",
+                entity="generated_bet_batch",
+                entity_id=generation_id,
+                actor=current_user,
+                success=True,
+                context={
+                    **audit_request_context(source=action),
+                    "saved_count": saved,
+                },
+            )
             feedback = (
                 f"{format_int(saved)} "
                 f"{plural(saved, 'aposta gravada', 'apostas gravadas')} no banco de dados."
@@ -440,6 +480,36 @@ def bet_generation():
     )
 
 
+@bp.post("/bets/saved/<int:bet_id>/delete")
+def delete_bet(bet_id: int):
+    try:
+        deleted = delete_saved_bet(bet_id)
+    except RuntimeError as exc:
+        record_event(
+            action="bets.delete",
+            entity="generated_bet",
+            entity_id=bet_id,
+            actor=current_user,
+            success=False,
+            context=audit_request_context(),
+        )
+        flash(str(exc), "error")
+    else:
+        record_event(
+            action="bets.delete",
+            entity="generated_bet",
+            entity_id=bet_id,
+            actor=current_user,
+            success=True,
+            context={
+                **audit_request_context(),
+                "generation_id": deleted.generation_id,
+            },
+        )
+        flash("Aposta salva excluída.", "success")
+    return redirect(url_for("web.bet_generation"))
+
+
 @bp.get("/bets/preview")
 def bet_preview():
     """Return the server-rendered read-only generation preview for htmx."""
@@ -451,10 +521,12 @@ def filter_targets_fragment():
     target_percentage = request.args.get("target_percentage", 80, type=float)
     target_percentage = max(0, min(target_percentage, 100))
     targets = calculate_individual_filter_targets(target_percentage)
-    response = render_template(
-        "bets/_filter_targets.html",
-        target_percentage=target_percentage,
-        targets=targets,
+    response = make_response(
+        render_template(
+            "bets/_filter_targets.html",
+            target_percentage=target_percentage,
+            targets=targets,
+        )
     )
     response.headers["HX-Trigger-After-Settle"] = "bets-preview"
     return response

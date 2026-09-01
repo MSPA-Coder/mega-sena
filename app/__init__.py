@@ -8,13 +8,18 @@ from pathlib import Path
 
 from flask import Flask, flash, make_response, redirect, render_template, request, url_for
 from flask_login import current_user
-from sharedauth.access import requer_login
+from sharedauth.access import requer_login, requer_troca_de_senha
 from sharedauth.config import ler_flag, montar_url_postgres
 from sharedauth.csrf import iniciar_csrf
 from sharedauth.health import registrar_health
 from sharedauth.ratelimit import LIMITE_LOGIN_PADRAO, aplicar_limite, iniciar_limiter
 from sharedauth.secrets import resolver_segredo
-from sharedauth.session import configurar_sessao
+from sharedauth.session import (
+    configurar_sessao,
+    marca_de_sessao,
+    marcas_conferem,
+    separar_identificador,
+)
 from sharedauth.ui import registrar_ui
 from sqlalchemy import select
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -200,12 +205,29 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
     from .models import User
 
     @login_manager.user_loader
-    def _load_user(user_id: str):
+    def _load_user(identificador: str):
+        """Carrega o dono da sessão, conferindo a marca da senha.
+
+        O identificador guardado no cookie é `id:marca` -- ver `User.get_id`.
+        A marca não conferir significa que a senha mudou depois que aquele
+        cookie foi emitido: a sessão cai, que é o efeito que faltava para
+        trocar a senha derrubar quem entrou com a antiga.
+
+        Formato inválido inclui o identificador ANTIGO (só o id). No primeiro
+        acesso depois do deploy as sessões abertas caem, uma vez só.
+        """
+        partes = separar_identificador(identificador)
+        if partes is None:
+            return None
+        usuario_id, marca = partes
         try:
-            usuario = db.session.get(User, int(user_id))
+            usuario = db.session.get(User, int(usuario_id))
         except (TypeError, ValueError):
             return None
-        return usuario if usuario is not None and usuario.is_active_user else None
+        if usuario is None or not usuario.is_active_user:
+            return None
+        atual = marca_de_sessao(usuario.password_hash, chave_secreta=app.secret_key)
+        return usuario if marcas_conferem(marca, atual) else None
 
     from .web import bp
 
@@ -245,6 +267,28 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
         endpoints_publicos=PUBLIC_ENDPOINTS,
         endpoint_login="web.login",
         esta_autenticado=lambda: current_user.is_authenticated,
+        prefixo_api=None,
+        usar_hx_redirect=True,
+    )
+
+    # ------------------------------------------------------------------
+    # Senha redefinida por um administrador vale ate o primeiro acesso: com a
+    # marca ligada, toda requisicao cai na tela de troca. Verificar so no
+    # login deixaria a marca sem efeito -- bastaria digitar outra URL depois
+    # do desvio para seguir usando a senha que o administrador conhece.
+    #
+    # `web.change_password` e isento pela propria biblioteca. Os quatro daqui
+    # sao os que faltam: sem `web.logout` a pessoa fica presa dentro do
+    # aplicativo, e sem os dois estaticos a tela de troca chega sem CSS.
+    # ------------------------------------------------------------------
+    requer_troca_de_senha(
+        app,
+        endpoint_troca="web.change_password",
+        endpoints_isentos=frozenset(
+            {"web.logout", "static", "health", "sharedauth_ui.static"}
+        ),
+        esta_autenticado=lambda: current_user.is_authenticated,
+        precisa_trocar=lambda: bool(current_user.must_change_password),
         prefixo_api=None,
         usar_hx_redirect=True,
     )

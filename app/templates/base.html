@@ -37,6 +37,9 @@
     <a class="{{ 'active' if request.endpoint in ['web.users_page', 'web.create_user', 'web.reset_user_password', 'web.toggle_user_active', 'web.change_user_role'] else '' }}" href="{{ url_for('web.users_page') }}">Usuários</a>
     {% endif %}
     {% if current_user.is_authenticated %}
+    {# Trocar a propria senha nao exige papel nenhum: e a conta de quem esta
+       logado, ao contrario de "Usuarios", que administra contas alheias. #}
+    <a class="{{ 'active' if request.endpoint == 'web.change_password' else '' }}" href="{{ url_for('web.change_password') }}">Minha senha</a>
     <form method="post" action="{{ url_for('web.logout') }}" class="logout-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit" class="logout-button">Sair</button>

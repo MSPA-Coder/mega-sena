@@ -12,6 +12,8 @@ import re
 import pytest
 
 from app import PUBLIC_ENDPOINTS
+from app.extensions import db
+from app.models import ROLE_ADMIN, User
 from app.web.auth import _safe_next_url
 
 #: Substitui `<int:id>`, `<path:filename>` e afins por um valor navegavel.
@@ -110,3 +112,59 @@ def test_next_externo_ou_normalizavel_nao_e_aceito(app, destino):
 def test_next_interno_e_preservado(app):
     with app.test_request_context("/login", query_string={"next": "/apostas?periodo=recente"}):
         assert _safe_next_url() == "/apostas?periodo=recente"
+
+
+def test_next_tambem_e_lido_do_formulario(app):
+    # O formulário posta em `/login` sem query: se a leitura olhasse só
+    # `request.args`, o destino chegaria vazio no POST -- que é o único momento
+    # em que ele importa.
+    with app.test_request_context("/login", method="POST", data={"next": "/apostas"}):
+        assert _safe_next_url() == "/apostas"
+
+
+def test_login_leva_ao_destino_pedido(app, client, monkeypatch):
+    # O teste que faltava: exercita o POST inteiro, e não a função isolada.
+    # Enquanto só existia o teste da função, o formulário postava sem o destino
+    # e todo login caía no dashboard -- verde, e errado.
+    app.config["WTF_CSRF_ENABLED"] = False
+    usuario = User(id=1, username="fulano", role=ROLE_ADMIN, is_active_user=True)
+    usuario.set_password("senha-de-teste")
+    monkeypatch.setattr(
+        db.session, "scalar", lambda _stmt: usuario
+    )
+
+    resposta = client.post(
+        "/login",
+        data={"username": "fulano", "password": "senha-de-teste", "next": "/apostas"},
+        follow_redirects=False,
+    )
+
+    assert resposta.status_code == 302
+    assert resposta.headers["Location"] == "/apostas"
+
+
+def test_login_com_destino_externo_cai_no_dashboard(app, client, monkeypatch):
+    # A recusa acontece no POST de verdade, não só na função.
+    app.config["WTF_CSRF_ENABLED"] = False
+    usuario = User(id=1, username="fulano", role=ROLE_ADMIN, is_active_user=True)
+    usuario.set_password("senha-de-teste")
+    monkeypatch.setattr(db.session, "scalar", lambda _stmt: usuario)
+
+    resposta = client.post(
+        "/login",
+        data={
+            "username": "fulano",
+            "password": "senha-de-teste",
+            "next": "https://exemplo.invalido",
+        },
+        follow_redirects=False,
+    )
+
+    assert resposta.headers["Location"] == "/dashboard"
+
+
+def test_o_formulario_de_login_carrega_o_destino(app, client):
+    # Sem o campo escondido, o POST perde o que o GET recebeu.
+    html = client.get("/login?next=/apostas").get_data(as_text=True)
+
+    assert 'name="next" value="/apostas"' in html
