@@ -5,13 +5,15 @@ from __future__ import annotations
 import logging
 
 from flask import flash, redirect, render_template, request, url_for
+from flask_login import current_user
 
+from ..audit.service import record_event
 from ..draws.downloading import ResultsDownloadError, fetch_results_xlsx
 from ..draws.importing import import_results_from_xlsx
 from ..draws.service import search_contests
 from ..settings.service import get_results_source_url
 from . import bp
-from .helpers import is_htmx_request, optional_int, plural
+from .helpers import audit_request_context, is_htmx_request, optional_int, plural
 
 _ALLOWED_UPLOAD_EXTENSIONS = frozenset({".xlsx"})
 _log = logging.getLogger(__name__)
@@ -81,13 +83,16 @@ def import_upload():
     try:
         result = import_results_from_xlsx(file.stream)
     except RuntimeError as exc:
+        record_event(action="draws.import", entity="draw", actor=current_user, success=False, context=audit_request_context(source="upload"))
         return _import_feedback(str(exc))
     except Exception as exc:
         _log.exception("Erro inesperado na importação: %s", exc)
+        record_event(action="draws.import", entity="draw", actor=current_user, success=False, context=audit_request_context(source="upload"))
         return _import_feedback(
             "Erro inesperado ao processar o arquivo. Verifique se é uma planilha válida."
         )
 
+    record_event(action="draws.import", entity="draw", actor=current_user, success=True, context={**audit_request_context(source="upload"), **result})
     return _import_result_feedback(result, source="manual")
 
 
@@ -97,15 +102,19 @@ def import_from_link():
         source = fetch_results_xlsx(get_results_source_url())
         result = import_results_from_xlsx(source)
     except ResultsDownloadError as exc:
+        record_event(action="draws.import", entity="draw", actor=current_user, success=False, context=audit_request_context(source="link"))
         return _import_feedback(str(exc))
     except RuntimeError as exc:
+        record_event(action="draws.import", entity="draw", actor=current_user, success=False, context=audit_request_context(source="link"))
         return _import_feedback(str(exc))
     except Exception as exc:
         _log.exception("Erro inesperado na importação pelo link: %s", exc)
+        record_event(action="draws.import", entity="draw", actor=current_user, success=False, context=audit_request_context(source="link"))
         return _import_feedback(
             "Erro inesperado ao obter a planilha. Verifique o link configurado."
         )
 
+    record_event(action="draws.import", entity="draw", actor=current_user, success=True, context={**audit_request_context(source="link"), **result})
     return _import_result_feedback(result, source="pelo link")
 
 

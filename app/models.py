@@ -130,6 +130,26 @@ class Config(db.Model):
     value = db.Column(db.String(200), nullable=False, default="")
 
 
+class AuditEvent(db.Model):
+    """Trilha de auditoria imutável para mutações e administração relevantes."""
+
+    __tablename__ = "audit_events"
+
+    id = db.Column(db.BigInteger, primary_key=True)
+    actor_user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    action = db.Column(db.String(80), nullable=False, index=True)
+    entity = db.Column(db.String(80), nullable=False, index=True)
+    entity_id = db.Column(db.String(120), nullable=True, index=True)
+    occurred_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
+    success = db.Column(db.Boolean, nullable=False)
+    context = db.Column(db.JSON, nullable=False, default=dict)
+
+
 ROLE_ADMIN = "admin"
 ROLE_OPERADOR = "operador"
 USER_ROLES = (ROLE_ADMIN, ROLE_OPERADOR)

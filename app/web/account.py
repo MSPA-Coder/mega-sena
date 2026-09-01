@@ -22,7 +22,9 @@ from flask.typing import ResponseReturnValue
 from flask_login import current_user, login_user
 
 from ..accounts.service import MIN_PASSWORD_LENGTH, change_own_password
+from ..audit.service import record_event
 from . import bp
+from .helpers import audit_request_context
 
 
 @bp.route("/minha-senha", methods=["GET", "POST"])
@@ -38,6 +40,7 @@ def change_password() -> ResponseReturnValue:
                 request.form.get("password_confirm", ""),
             )
         except ValueError as exc:
+            record_event(action="users.change_own_password", entity="user", entity_id=current_user.id, actor=current_user, success=False, context=audit_request_context())
             # Todas as recusas de `sharedauth.passwords.validar_troca` são
             # `ValueError`; a mensagem de cada uma já é adequada à pessoa.
             #
@@ -49,6 +52,8 @@ def change_password() -> ResponseReturnValue:
                 erro=str(exc),
                 min_password_length=MIN_PASSWORD_LENGTH,
             ), 400
+
+        record_event(action="users.change_own_password", entity="user", entity_id=current_user.id, actor=current_user, success=True, context=audit_request_context())
 
         # Renova a sessão de quem acabou de trocar. O identificador no cookie
         # carrega a marca da senha ANTIGA (ver `User.get_id`), então sem isto a

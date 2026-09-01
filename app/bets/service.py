@@ -226,6 +226,24 @@ def list_recent_generations_with_bets(limit: int = 12) -> list[dict]:
     return generations
 
 
+def delete_saved_bet(bet_id: int) -> GeneratedBet:
+    """Exclui uma aposta salva, sem tocar nos concursos importados.
+
+    O id é conferido no servidor; assim o botão da interface não é a única
+    barreira e uma tentativa de remover algo inexistente recebe erro explícito.
+    """
+    bet = db.session.get(GeneratedBet, bet_id)
+    if bet is None:
+        raise RuntimeError("A aposta salva não foi encontrada.")
+    db.session.delete(bet)
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+    return bet
+
+
 def save_generated_bets(quantity: int, bets: Iterable[str]) -> tuple[int, int | None]:
     quantity = clamp_int(
         parse_int(quantity) or MIN_BET_NUMBERS,

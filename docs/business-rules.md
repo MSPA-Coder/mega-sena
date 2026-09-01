@@ -108,6 +108,19 @@ gravar:
 Um lote pode conter no máximo `C(20, 6) = 38.760` apostas, correspondente ao
 maior fechamento aceito pela interface.
 
+Cada aposta salva pode ser excluída individualmente, com confirmação. A
+exclusão remove somente a aposta escolhida; concursos importados não são
+afetados.
+
+## Auditoria
+
+O sistema registra ações relevantes de escrita e administração: gravação e
+exclusão de apostas, importações, configurações, limpeza total de dados e
+gestão de contas. Cada evento contém ator, ação, entidade, identificador quando
+existir, instante, resultado e contexto mínimo (rota, IP e origem quando
+aplicável). Senhas, tokens, conteúdo de arquivos e formulários completos não
+entram na auditoria.
+
 ## Escopo de segurança
 
 Operações que alteram dados exigem token CSRF, e as respostas recebem cabeçalhos

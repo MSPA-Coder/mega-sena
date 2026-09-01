@@ -31,6 +31,14 @@ def is_htmx_request() -> bool:
     return request.headers.get("HX-Request", "").lower() == "true"
 
 
+def audit_request_context(*, source: str | None = None) -> dict[str, str]:
+    """Retorna somente metadados seguros e úteis para a auditoria."""
+    context = {"route": request.endpoint or request.path, "ip": request.remote_addr or ""}
+    if source:
+        context["source"] = source
+    return context
+
+
 def flashed_avisos() -> list[dict[str, str]]:
     """Mensagens de `flash()` no formato que `data-sa-avisos` espera.
 

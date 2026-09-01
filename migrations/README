@@ -2,7 +2,8 @@
 
 Alembic é a única fonte de evolução do schema. A cadeia atual começa em
 `20260803_baseline`, segue por `20260814_0002_users` e
-`20260824_0003_user_roles`; um banco novo precisa receber a cadeia completa
+`20260824_0003_user_roles`, `20260830_0004_change_password` e
+`20260901_0005_audit_events`; um banco novo precisa receber a cadeia completa
 até a revisão mais recente.
 
 No Compose, `docker-entrypoint.sh` executa o upgrade antes de iniciar a
