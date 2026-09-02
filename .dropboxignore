@@ -34,6 +34,7 @@ dist/
 .env
 .env.docker
 !.env.docker.example
+.secrets/
 .certs/
 
 # Ferramentas de agente
