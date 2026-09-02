@@ -122,6 +122,22 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
     if config:
         app.config.update(config)
 
+    # MS-02: host público com transporte inseguro não sobe em silêncio.
+    # `MEGA_SENA_FORCE_HTTPS` é o único interruptor que liga `Secure` nos
+    # cookies; até 02/09/2026 nada impedia uma recriação do VPS que esquecesse
+    # `.env.vps` de subir mesmo assim -- o cookie de sessão saía sem `Secure`,
+    # sem nada avisar. Hosts de loopback continuam liberados para
+    # desenvolvimento local em HTTP.
+    if any(
+        host not in _DEFAULT_TRUSTED_HOSTS for host in app.config["TRUSTED_HOSTS"]
+    ) and not force_https:
+        raise RuntimeError(
+            "MEGA_SENA_TRUSTED_HOSTS aponta para host público com "
+            "MEGA_SENA_FORCE_HTTPS desligado: o cookie de sessão sairia sem "
+            "Secure. Defina MEGA_SENA_FORCE_HTTPS=true, ou restrinja "
+            "MEGA_SENA_TRUSTED_HOSTS a host de loopback em desenvolvimento local."
+        )
+
     # `login_user(..., remember=True)` em `web/auth.py` é o padrão deste app,
     # não uma caixa que a pessoa marca. Sem `duracao_lembrete_horas`, valeria o
     # padrão do Flask-Login -- 365 dias -- e um cookie copiado continuaria
@@ -171,9 +187,18 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
     configured_secret = str(app.config.get("SECRET_KEY") or "").strip()
     secret_key = configured_secret or _ler_segredo_por_arquivo("SECRET_KEY")
     # `SECRET_KEY` no ambiente é compatibilidade para execução manual antiga;
-    # o Compose concede a chave exclusivamente por arquivo Docker secret.
+    # o Compose concede a chave exclusivamente por arquivo Docker secret. MS-01:
+    # esse caminho de compatibilidade ficava silencioso -- agora registra
+    # WARNING identificável, para deixar de ser uma segunda fonte de verdade
+    # despercebida para a chave que assina as sessões.
     if not secret_key:
         secret_key = os.environ.get("SECRET_KEY", "").strip()
+        if secret_key:
+            _log.warning(
+                "SECRET_KEY veio da variável de ambiente, não de SECRET_KEY_FILE. "
+                "É o caminho de compatibilidade para execução manual antiga; o "
+                "Compose concede a chave exclusivamente por arquivo Docker secret."
+            )
     if not secret_key:
         raise RuntimeError(
             "SECRET_KEY é obrigatória e não foi definida. "
@@ -196,7 +221,11 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
     )
     iniciar_csrf(app)
     login_manager.init_app(app)
-    limiter = iniciar_limiter(app)
+    # MS-03: teto global para as 21 rotas que não são o login -- sem ele,
+    # nenhuma delas tinha limite algum. O valor é generoso para o uso normal
+    # (folga de tela em tela) e serve de rede para qualquer rota futura que
+    # esqueça limite dedicado.
+    limiter = iniciar_limiter(app, limites_padrao=["300 per hour", "60 per minute"])
     # Confirmação e aviso (modal + toast) comuns aos quatro apps -- ver
     # sharedauth/ui/__init__.py. Serve CSS/JS com ETag/304 e expõe
     # `sharedauth_icone` para os templates.
@@ -242,6 +271,19 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
     # exige e que já foi esquecida aqui uma vez, deixando o login sem limite
     # nenhum. A mecânica agora mora em `sharedauth.ratelimit`, com teste.
     aplicar_limite(app, limiter, "web.login", LIMITE_LOGIN_PADRAO)
+
+    # MS-03: as duas rotas de importação e o relatório combinatório fazem
+    # trabalho caro por requisição -- download externo, planilha de até 10 mil
+    # linhas, geração combinatória -- e estão abertas a QUALQUER conta
+    # autenticada, sem exigir `admin`. `override_defaults=True` porque este
+    # limite é mais estreito que o global acima, não um adicional a ele.
+    aplicar_limite(
+        app,
+        limiter,
+        ("web.import_upload", "web.import_from_link", "web.rationale"),
+        "10 per minute; 100 per hour",
+        override_defaults=True,
+    )
 
     # ------------------------------------------------------------------
     # Sonda de saude dedicada: precisa consultar o banco, responder sem sessao

@@ -71,6 +71,9 @@ comportamento sobe para a biblioteca, com tag nova, não para cá. O sistema aut
 qualquer conta autenticada acessa o acervo comum. A gestão de contas é uma
 exceção administrativa deliberada: `/usuarios` exige `admin`, enquanto novos
 usuários recebem `operador` por padrão; isso não introduz propriedade de dados.
+A decisão de acervo comum, a alternativa recusada e o gatilho para revisá-la
+estão registrados em
+[ADR 0002](docs/adr/0002-acervo-comum-sem-dono.md).
 
 No Compose, a senha PostgreSQL e a chave de sessão são arquivos Docker secrets
 em `.secrets/`, apontados por `DB_PASSWORD_FILE` e `SECRET_KEY_FILE`. O
