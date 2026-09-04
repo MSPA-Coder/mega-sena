@@ -46,4 +46,11 @@ def test_secret_key_de_arquivo_nao_registra_warning(monkeypatch, tmp_path, caplo
         app = create_app(dict(_CONFIG_SEM_CHAVE))
 
     assert app.config["SECRET_KEY"] == "chave-de-arquivo-para-teste"
-    assert not caplog.records, "o caminho normal (por arquivo) não deve registrar WARNING"
+    # A asserção é sobre a resolução do segredo, não sobre o log inteiro do
+    # `create_app`. Proibir qualquer WARNING fazia este teste falhar por
+    # motivo alheio: a v0.11.0 do sharedauth passou a avisar quando o
+    # limitador usa o IP remoto sem ProxyFix, e aqui o ProxyFix não é
+    # registrado porque `MEGA_SENA_TRUST_PROXY_HEADERS` está desligado. Esse
+    # aviso está certo e é útil -- não é ele que este teste mede.
+    ruidos = [r for r in caplog.records if "SECRET_KEY" in r.message]
+    assert not ruidos, "o caminho normal (por arquivo) não deve registrar WARNING sobre SECRET_KEY"
