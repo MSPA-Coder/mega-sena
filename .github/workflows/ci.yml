@@ -34,7 +34,7 @@ jobs:
           rm -f /tmp/mega-sena-ci-ca.key
       - name: Write SharedAuth read token
         # PAT de acesso restrito, somente-leitura, só no repositório
-        # SharedAuth -- usado apenas para o `pip install` do requirements.txt
+        # SharedAuth -- usado apenas para o `pip install` das dependencias do pyproject.toml
         # baixar essa dependência privada durante o build da imagem `quality`.
         run: |
           mkdir -p .secrets
