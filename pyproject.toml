@@ -37,7 +37,7 @@ dependencies = [
   #
   # O extra `[flask]` e obrigatorio: o nucleo do pacote e Python puro e nao
   # instala as integracoes e dependencias Flask.
-  "sharedauth[flask] @ git+https://github.com/MSPA-Coder/SharedAuth.git@v0.10.0",
+  "sharedauth[flask] @ git+https://github.com/MSPA-Coder/SharedAuth.git@v0.11.0",
 ]
 
 [project.optional-dependencies]
