@@ -117,8 +117,13 @@ do sistema nem o PATH, e apagar a pasta desfaz a instalação por inteiro. A
 proibição que vale é outra, e continua de pé -- nada de instalar dependências
 do projeto no Python global do Windows.
 
-`sharedauth` vem de repositório privado: o `git` precisa estar autenticado,
-ou instale do clone local na tag que `pyproject.toml` fixa.
+`sharedauth` é instalado direto do GitHub, na tag que `pyproject.toml` fixa.
+O repositório é **público**, então o `pip install` não precisa de credencial
+nenhuma -- basta `git` no PATH. A engrenagem de token que o `Dockerfile` e a CI
+ainda montam (`--mount=type=secret,id=github_token`, `.secrets/github_token.txt`
+e o PAT de leitura) é herança da época em que ele era privado, e continua
+funcionando sem atrapalhar; retirá-la é mudança de build, com sua própria
+validação, e não um ajuste de documentação.
 
 Os dois ambientes acham defeitos diferentes, então nenhum substitui o outro.
 O venv é Windows e já pegou travamento de suíte que o contêiner nunca mostrou
@@ -130,8 +135,10 @@ O estágio `quality` executa Ruff e toda a suíte pytest, incluindo os contratos
 de domínio de geração, fechamento e importação. O CI executa o Compose e esse
 estágio em mudanças para `main` e semanalmente, audita as dependências Python
 instaladas com `pip-audit` e a imagem servida com Trivy. O Dependabot cobre
-dependências Python, imagens Docker e GitHub Actions. Não há análise estática de
-tipos nem varredura CodeQL. Isso não dispensa a validação proporcional:
+dependências Python, imagens Docker e GitHub Actions. O CodeQL roda em
+configuração padrão (Python e Actions, semanal) e é status check obrigatório no
+ruleset do `main`, ao lado de `Qualidade`. Não há análise estática de tipos --
+nem `mypy` nem `pyright`. Isso não dispensa a validação proporcional:
 percorra manualmente o fluxo alterado. Mudanças de
 autenticação, sessão, CSRF ou autorização executam o comando `quality`; mudanças
 de Docker ou dependências também exigem rebuild e subida da pilha.
