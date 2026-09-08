@@ -39,6 +39,23 @@ jobs:
         run: |
           mkdir -p .secrets
           printf '%s' "${{ secrets.SHAREDAUTH_READ_TOKEN }}" > .secrets/github_token.txt
+      - name: Criar a senha efêmera do PostgreSQL de teste
+        # Este arquivo não existia na CI: até a fase F1 nenhum contêiner de
+        # banco subia aqui, e o Compose só reclamava dele em tempo de execução.
+        #
+        # O modo `0644` é deliberado. Um segredo de arquivo do Compose é montado
+        # preservando dono e modo do host -- `uid`, `gid` e `mode` na sintaxe
+        # longa são ignorados fora do Swarm, e o próprio Compose avisa isso. O
+        # contêiner `postgres-teste` roda como uid 70 e precisa LER este arquivo
+        # para inicializar; restrito ao runner, ele morre no arranque e o
+        # `quality` só reporta "dependency failed to start".
+        #
+        # O valor é uma constante pública escrita aqui e não protege nada: o
+        # banco é efêmero, vive em tmpfs e não publica porta.
+        run: |
+          mkdir -p .secrets
+          printf '%s\n' 'ci-postgres-password-not-for-production' > .secrets/postgres_password.txt
+          chmod 0644 .secrets/postgres_password.txt
       - name: Validate Compose
         run: docker compose config --quiet
       - name: Build quality image without cache

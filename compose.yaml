@@ -111,11 +111,6 @@ services:
     stop_grace_period: 60s
     logging: *default-logging
 
-  # Ruff e a suíte mínima de segurança. Fica atrás de um perfil para não subir
-  # junto com a aplicação:
-  # `docker compose --profile quality run --build --rm quality`.
-  # O `--build` é necessário: este serviço não monta o código do host, e
-  # `docker compose run` reutiliza a imagem existente sem reconstruí-la.
   # Banco EFÊMERO da suíte.
   #
   # Não é o `postgres` de cima, e isso é deliberado: a suíte aplica migrações e
@@ -161,6 +156,11 @@ services:
       timeout: 5s
       retries: 20
 
+  # Ruff e a suíte mínima de segurança. Fica atrás de um perfil para não subir
+  # junto com a aplicação:
+  # `docker compose --profile quality run --build --rm quality`.
+  # O `--build` é necessário: este serviço não monta o código do host, e
+  # `docker compose run` reutiliza a imagem existente sem reconstruí-la.
   quality:
     build:
       context: .
@@ -179,7 +179,6 @@ services:
       TESTE_POSTGRES_PORT: "5432"
       TESTE_POSTGRES_DB: ${POSTGRES_DB:-mega_sena}
       TESTE_POSTGRES_USER: ${POSTGRES_USER:-mega_sena}
-      TESTE_POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
     secrets:
       - postgres_password
     depends_on:
