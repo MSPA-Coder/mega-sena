@@ -62,7 +62,6 @@ services:
       target: runtime
       secrets:
         - local_ca
-        - github_token
     restart: unless-stopped
     init: true
     read_only: true
@@ -167,7 +166,6 @@ services:
       target: quality
       secrets:
         - local_ca
-        - github_token
     # OS NOMES TÊM PREFIXO `TESTE_` DE PROPÓSITO, e não são `POSTGRES_HOST` e
     # companhia: a suíte tem testes que medem o que a aplicação faz quando uma
     # variável NÃO existe, apagando-a com `monkeypatch.delenv`. Declarar os
@@ -197,9 +195,3 @@ secrets:
     file: .secrets/postgres_password.txt
   secret_key:
     file: .secrets/secret_key.txt
-  # PAT de acesso restrito (somente-leitura, só no repositório SharedAuth) --
-  # usado apenas durante o build, para o `pip install` do pyproject.toml
-  # baixar a dependência Git privada. Nunca vira variável de ambiente do
-  # runtime nem fica na imagem final.
-  github_token:
-    file: .secrets/github_token.txt
