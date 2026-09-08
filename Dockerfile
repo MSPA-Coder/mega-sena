@@ -7,7 +7,16 @@
 # -----------------------------------------------------------------------
 # base: certificados locais opcionais, sem ferramentas de banco no runtime.
 # -----------------------------------------------------------------------
-FROM python:3.14-slim AS base
+# Base fixada por DIGEST do indice multi-arquitetura, e nao pela tag.
+#
+# `python:3.14-slim` e um alvo movel: a tag e reapontada a cada republicacao, e
+# como o `deploy.sh` reconstroi no VPS, a imagem servida podia nascer de uma
+# base diferente da que a CI varreu. O digest e o mesmo raciocinio que ja fixa
+# as actions por SHA e o Trivy por digest.
+#
+# E digest de INDICE, nao de manifesto: assim continua valendo para amd64 e
+# arm64. O Dependabot atualiza esta linha.
+FROM python:3.14-slim@sha256:cad9a2c871761c413caa6fdd6441c783451e740a48aaeba60ae62a8b53525ef6 AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -36,20 +45,33 @@ RUN apt-get update \
     && python -m pip install --no-cache-dir --upgrade pip setuptools
 
 # -----------------------------------------------------------------------
-# builder: instala as dependências Python em um venv isolado.
+# builder: instala as dependências Python em um venv isolado, a partir do
+# `uv.lock`.
 #
-# `pyproject.toml` inclui `sharedauth` de um repositório Git PÚBLICO
-# -- o token abaixo é herança de quando ele era privado e hoje não é exigido
-# (github.com/MSPA-Coder/SharedAuth) — pip precisa de `git` no PATH e de
-# credencial para HTTPS. O secret `github_token` (BuildKit, nunca vira
-# camada da imagem) autentica só para este RUN; `git config --unset` no
-# fim da mesma instrução remove o token do `.gitconfig` antes de commitar
-# a camada.
+# POR QUE `uv` E NÃO `pip install .`: `pip` resolvia as faixas do
+# `pyproject.toml` no instante do build, então dois builds do MESMO commit
+# podiam produzir imagens diferentes -- e o `deploy.sh` reconstrói no VPS, de
+# modo que a imagem servida nunca foi exatamente a que a CI testou. O
+# `uv.lock` fixa versão e hash SHA-256 de cada dependência.
 #
-# As dependências vivem no `pyproject.toml`, fonte única do projeto. Como
-# `pip install .` precisa do código, copiar `app/` aqui faz a camada ser
-# refeita a cada edição -- daí o `--mount=type=cache` no `pip`: a camada é
-# refeita, mas nada é baixado de novo.
+# O FLAG É `--locked`, E A DIFERENÇA IMPORTA. `--frozen` apenas usa o lock sem
+# olhar o `pyproject.toml`: com o lock desatualizado ele sai com sucesso e
+# instala as versões antigas, em silêncio. `--locked` confere se o lock ainda
+# corresponde ao `pyproject.toml` e REPROVA quando alguém edita a declaração e
+# esquece de rodar `uv lock`. Testado nos dois modos antes de escolher.
+#
+# POR QUE ISSO IMPORTA MAIS AQUI DO QUE NA MAIORIA DOS PROJETOS: `sharedauth`
+# vem de repositório Git, e o lock o prende ao COMMIT, não à tag. A regra "tag
+# publicada é imutável" continua valendo, mas deixou de ser a única coisa
+# entre o build e uma surpresa.
+#
+# `git` continua necessário: é assim que o `sharedauth` é obtido. O que saiu
+# foi o token -- o repositório é público e a credencial era herança da época
+# em que não era.
+#
+# `--no-editable` instala o projeto de verdade no venv, como `pip install .`
+# fazia; sem isso o `uv` deixaria um link para a árvore de código, que o
+# estágio `runtime` não copia.
 # -----------------------------------------------------------------------
 FROM base AS builder
 
@@ -57,14 +79,17 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml README.md ./
+# Versão fixa: o instalador que garante reprodutibilidade não pode ser ele
+# próprio uma variável. O binário é autocontido e o estágio `quality` o copia
+# daqui, em vez de reinstalá-lo.
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python -m pip install --upgrade "uv==0.12.10"
+
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv
+COPY pyproject.toml uv.lock README.md ./
 COPY app ./app
-RUN python -m venv /opt/venv
-ENV PATH="/opt/venv/bin:${PATH}"
-RUN --mount=type=cache,target=/root/.cache/pip --mount=type=secret,id=github_token \
-    git config --global url."https://x-access-token:$(cat /run/secrets/github_token)@github.com/".insteadOf "https://github.com/" && \
-    pip install . && \
-    git config --global --unset url."https://x-access-token:$(cat /run/secrets/github_token)@github.com/".insteadOf
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-editable
 
 # -----------------------------------------------------------------------
 # runtime: usuário não-root; o override local pode montar o código.
@@ -93,8 +118,13 @@ COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 #
 # A ultima linha e a propria verificacao: se `pip` continuar no PATH, o build
 # falha aqui em vez de entregar uma imagem que so parece limpa.
+#
+# O `python -m pip check` que abria este bloco saiu com a adocao do `uv`. Ele
+# perguntava se as dependencias instaladas sao mutuamente compativeis -- e o
+# venv criado pelo `uv` nem tem `pip` para responder. A pergunta tambem deixou
+# de fazer sentido: o conjunto vem resolvido do `uv.lock`, entao a coerencia e
+# garantida na resolucao, e nao conferida depois da instalacao.
 RUN set -eu; \
-    python -m pip check; \
     for raiz in /usr/local/lib/python*/site-packages /opt/venv/lib/python*/site-packages; do \
       [ -d "$raiz" ] || continue; \
       rm -rf "$raiz"/pip "$raiz"/pip-*.dist-info \
@@ -121,23 +151,26 @@ CMD ["gunicorn", "--bind", "0.0.0.0:5001", "--workers", "2", "--threads", "4", "
 FROM runtime AS quality
 
 USER root
-# O estágio `runtime` acima remove o `pip` da imagem. Este estágio herda dela e
-# precisa dele de volta para instalar as dependências de teste. `ensurepip` é o
-# mecanismo do próprio Python para isso, não uma gambiarra.
+# O `ensurepip` que existia aqui saiu junto com o `pip`: o estágio `runtime`
+# remove o `pip` da imagem, e este herdava dela, então precisava reinstalá-lo
+# só para poder instalar as dependências de teste.
 #
-# A imagem SERVIDA continua sem `pip`: `quality` está atrás do profile do mesmo
-# nome e nunca vai para produção.
-RUN python -m ensurepip --upgrade \
-    && python -m pip --version
+# Com o `uv` isso deixa de ser necessário -- ele é um binário autocontido, e
+# copiá-lo do `builder` é mais barato e mais previsível do que reinstalar um
+# gerenciador de pacotes. A imagem SERVIDA continua sem `pip` e sem `uv`:
+# `quality` está atrás do profile do mesmo nome e nunca vai para produção.
+COPY --from=builder /usr/local/bin/uv /usr/local/bin/uv
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
-COPY --chown=mega_sena:mega_sena pyproject.toml README.md ./
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv
+COPY --chown=mega_sena:mega_sena pyproject.toml uv.lock README.md ./
 COPY --chown=mega_sena:mega_sena tests ./tests
-RUN --mount=type=cache,target=/root/.cache/pip --mount=type=secret,id=github_token \
-    git config --global url."https://x-access-token:$(cat /run/secrets/github_token)@github.com/".insteadOf "https://github.com/" && \
-    python -m pip install ".[dev]" && \
-    git config --global --unset url."https://x-access-token:$(cat /run/secrets/github_token)@github.com/".insteadOf
+# `--extra dev` acrescenta as ferramentas de teste ao MESMO venv que o runtime
+# usa, em vez de montar outro: a suíte tem de medir exatamente o que a imagem
+# servida instala, e o lock garante que sejam as mesmas versões.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-editable --extra dev
 USER mega_sena
 
 ENV RUFF_CACHE_DIR=/tmp/ruff-cache \
