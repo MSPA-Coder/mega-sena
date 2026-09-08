@@ -116,6 +116,51 @@ services:
   # `docker compose --profile quality run --build --rm quality`.
   # O `--build` é necessário: este serviço não monta o código do host, e
   # `docker compose run` reutiliza a imagem existente sem reconstruí-la.
+  # Banco EFÊMERO da suíte.
+  #
+  # Não é o `postgres` de cima, e isso é deliberado: a suíte aplica migrações e
+  # grava, e não pode ter caminho até o volume com dados reais nem por engano.
+  # Sem volume nomeado -- os dados vivem em tmpfs e somem com o contêiner.
+  #
+  # `uid=70,gid=70,mode=0700` no tmpfs de dados: ele nasce pertencendo ao root,
+  # e o `initdb` roda como `postgres` com `cap_drop: ALL`, sem CAP_CHOWN nem
+  # CAP_FOWNER para tomar posse. 70 é o uid do postgres nesta imagem.
+  #
+  # O `.secrets/postgres_password.txt` precisa ser LEGÍVEL PELO UID 70: um
+  # segredo de arquivo é montado preservando dono e modo do host, e `uid`/`gid`/
+  # `mode` na sintaxe longa são ignorados fora do Swarm. Com 0600 de outro dono,
+  # este contêiner morre no arranque e o `quality` só reporta "dependency failed
+  # to start". No Docker Desktop do Windows não aparece: lá tudo chega 0777.
+  postgres-teste:
+    image: postgres:17-alpine
+    profiles: ["quality"]
+    user: postgres
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,mode=1777,size=64m
+      - /var/run/postgresql:rw,nosuid,nodev,noexec,mode=1777,size=16m
+      - /var/lib/postgresql/data:rw,nosuid,nodev,mode=0700,uid=70,gid=70,size=512m
+    pids_limit: 256
+    mem_limit: 512m
+    cpus: "1.0"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mega_sena}
+      POSTGRES_USER: ${POSTGRES_USER:-mega_sena}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      TZ: America/Sao_Paulo
+    secrets:
+      - postgres_password
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mega_sena} -d ${POSTGRES_DB:-mega_sena}"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
   quality:
     build:
       context: .
@@ -123,6 +168,23 @@ services:
       secrets:
         - local_ca
         - github_token
+    # OS NOMES TÊM PREFIXO `TESTE_` DE PROPÓSITO, e não são `POSTGRES_HOST` e
+    # companhia: a suíte tem testes que medem o que a aplicação faz quando uma
+    # variável NÃO existe, apagando-a com `monkeypatch.delenv`. Declarar os
+    # nomes reais aqui faria o app encontrar por arquivo o que o teste acabou
+    # de apagar do ambiente. Com prefixo, o ambiente da suíte fica intacto e só
+    # a fixture `app_com_banco` enxerga estes valores.
+    environment:
+      TESTE_POSTGRES_HOST: postgres-teste
+      TESTE_POSTGRES_PORT: "5432"
+      TESTE_POSTGRES_DB: ${POSTGRES_DB:-mega_sena}
+      TESTE_POSTGRES_USER: ${POSTGRES_USER:-mega_sena}
+      TESTE_POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    depends_on:
+      postgres-teste:
+        condition: service_healthy
     profiles: ["quality"]
     cpus: "2.0"
 

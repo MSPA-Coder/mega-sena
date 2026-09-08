@@ -1,15 +1,35 @@
-"""Fixtures da suite minima.
+"""Fixtures da suite.
 
-A suite nao toca o banco. Isso e desenho, nao limitacao: as quatro coisas que
-ela protege -- cabecalhos, negacao por padrao, CSRF e integridade do grafo de
-migracoes -- sao decididas antes de qualquer consulta. Isso mantem a execucao
-rapida e sem infraestrutura de banco para teste.
+A suite tem DUAS CAMADAS, e a distincao importa ao escrever teste novo.
 
-O bootstrap do schema em PostgreSQL vazio continua sendo verificacao manual
-obrigatoria para mudanca de schema, como a base registra.
+A CAMADA SEM BANCO e a maioria dos arquivos, e continua sendo desenho e nao
+limitacao: cabecalhos, negacao por padrao, CSRF e integridade do grafo de
+migracoes sao decididos antes de qualquer consulta, o que mantem a execucao
+rapida e sem infraestrutura. As fixtures `app` e `client` servem a ela, com o
+`creator` abaixo recusando a conexao antes de qualquer socket.
+
+A CAMADA COM BANCO e o que a fase F1 do LEVANTAMENTO_2026-09.md acrescentou:
+os testes marcados com `@pytest.mark.banco`, servidos por `app_com_banco` e
+`sessao`. Ela existe porque o AGENTS.md declara que "as CHECK constraints de
+`Draw` protegem valores derivados das dezenas" e pede para NAO duplicar essa
+garantia com reparo silencioso em Python -- e uma garantia que vive so no
+PostgreSQL nao pode ser verificada por uma suite que recusa a conexao.
+
+O banco dessa camada e o servico `postgres-teste` do Compose: efemero, em
+tmpfs, e deliberadamente NAO e o `postgres` com dados reais.
+
+CONSEQUENCIA PRATICA: o bootstrap do schema em PostgreSQL vazio deixou de ser
+verificacao manual. Uma migracao que falha ao executar agora reprova na CI, e
+nao mais no `deploy.sh` -- que reverte codigo e imagem, mas nao reverte
+migracao.
+
+No venv, sem banco, o laco rapido e `pytest -q -m "not banco"`.
 """
 
 from __future__ import annotations
+
+import os
+from pathlib import Path
 
 import psycopg
 import pytest
@@ -61,3 +81,85 @@ def app():
 @pytest.fixture
 def client(app):
     return app.test_client()
+
+
+# ---------------------------------------------------------------------------
+# Camada com banco (`@pytest.mark.banco`)
+# ---------------------------------------------------------------------------
+
+
+def _url_do_banco_de_teste() -> str:
+    """Monta a URL a partir das variaveis `TESTE_POSTGRES_*` do Compose.
+
+    O prefixo `TESTE_` nao e enfeite: a suite tem testes que medem o que a
+    aplicacao faz quando uma variavel NAO existe, apagando-a do ambiente.
+    Declarar `POSTGRES_HOST` e companhia no servico `quality` faria o app
+    encontrar por arquivo o que o teste acabou de apagar. O motivo tambem esta
+    escrito no `compose.yaml`, ao lado das variaveis.
+    """
+    from urllib.parse import quote
+
+    faltando = [
+        nome
+        for nome in ("TESTE_POSTGRES_HOST", "TESTE_POSTGRES_DB", "TESTE_POSTGRES_USER")
+        if not os.environ.get(nome)
+    ]
+    if faltando:
+        pytest.skip(
+            "camada com banco: rode pelo servico `quality` do Compose "
+            f"(faltam {', '.join(faltando)})"
+        )
+
+    senha = Path(os.environ["TESTE_POSTGRES_PASSWORD_FILE"]).read_text(encoding="utf-8").strip()
+    return (
+        "postgresql+psycopg://"
+        f"{quote(os.environ['TESTE_POSTGRES_USER'])}:{quote(senha)}"
+        f"@{os.environ['TESTE_POSTGRES_HOST']}:{os.environ.get('TESTE_POSTGRES_PORT', '5432')}"
+        f"/{os.environ['TESTE_POSTGRES_DB']}"
+    )
+
+
+@pytest.fixture(scope="session")
+def app_com_banco():
+    """App real, ligado ao `postgres-teste`, com as migracoes aplicadas.
+
+    O `upgrade()` aqui nao e cerimonia: e ele que faz cada execucao da suite
+    aplicar TODAS as revisoes Alembic a um banco vazio. Uma revisao com SQL
+    invalido, coluna `NOT NULL` acrescentada a tabela com linhas ou dependencia
+    de extensao ausente derruba esta fixture, e a CI reprova.
+
+    O `AGENTS.md` diz que `flask db upgrade` e etapa controlada e que
+    `create_app()` nao aplica migracoes -- isso continua valendo. Aqui a
+    migracao e chamada explicitamente pela fixture, que e o equivalente de
+    teste do `docker-entrypoint.sh`, e nao pela fabrica.
+    """
+    from flask_migrate import upgrade
+
+    aplicacao = create_app(
+        {
+            "SQLALCHEMY_DATABASE_URI": _url_do_banco_de_teste(),
+            "SECRET_KEY": "chave-de-teste-nao-usada-em-execucao-real",
+            "TESTING": True,
+        }
+    )
+    with aplicacao.app_context():
+        upgrade()
+    return aplicacao
+
+
+@pytest.fixture
+def sessao(app_com_banco):
+    """Sessao dentro de uma transacao que sempre e desfeita.
+
+    Os testes desta camada usam `flush()` e nunca `commit()`: o `flush` envia o
+    INSERT e faz a `CheckConstraint` disparar, que e o que se quer medir, sem
+    deixar linha atras.
+    """
+    from app.models import db
+
+    with app_com_banco.app_context():
+        try:
+            yield db.session
+        finally:
+            db.session.rollback()
+            db.session.remove()
