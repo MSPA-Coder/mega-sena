@@ -2,7 +2,7 @@
 #
 # As dependencias vivem aqui, em `[project]`, e nao em `requirements*.txt`:
 # uma unica fonte serve ao `pip install .` da imagem e ao `pip install -e
-# ".[dev]"` do venv de desenvolvimento. Os cinco projetos irmaos seguem esta
+# ".[dev]"` do venv de desenvolvimento. Os projetos irmaos seguem esta
 # mesma forma.
 
 [build-system]

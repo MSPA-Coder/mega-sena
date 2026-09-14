@@ -2,8 +2,9 @@
 
 > **A frota é este projeto, o ControleBancario e o ControleRendaVariavel.** Os
 > três compartilham o `SharedAuth`, o mesmo formato de Compose e Dockerfile e o
-> mesmo portão `quality`; servem de referência uns aos outros, e uma divergência
-> entre eles é candidata a correção.
+> mesmo portão `quality`, e servem de referência uns aos outros. Divergir é
+> permitido quando for uma escolha consciente: experimente num deles e, se der
+> certo, leve aos outros.
 >
 > **O ConfortoTermico não está na frota** e segue trilha própria desde
 > 07/09/2026: a arquitetura dele é livre, e diferença em relação a ele **não é
@@ -59,12 +60,11 @@ deduplicação, identificação do lote e gravação composta permanecem no serv
 
 O padrão atual é HTML renderizado no servidor e HTMX para atualizações
 incrementais, com `Vary: HX-Request` quando a mesma rota devolve página ou
-fragmento. JavaScript próprio não deve duplicar regras de negócio nem renderizar
-dados que o servidor já fornece. Esse padrão é preferido por reduzir formatos e
-consumidores paralelos; não é uma proibição absoluta de JSON. Uma API ou um
-fluxo JavaScript adicional só é aceitável para consumidor identificado, contrato
-documentado, autorização/CSRF preservados e testes proporcionais; atualize todos
-os consumidores na mesma mudança.
+fragmento. É uma preferência, porque reduz formatos e consumidores paralelos,
+não uma proibição: uma API JSON ou um fluxo JavaScript novo pode entrar quando
+fizer sentido, preservando autorização e CSRF, com testes proporcionais e com
+os consumidores atualizados na mesma mudança. O cuidado que continua valendo é
+não duplicar no JavaScript uma regra de negócio que já vive no servidor.
 
 Toda rota nasce protegida por sessão, exceto a lista pública explícita em
 `PUBLIC_ENDPOINTS`. Escritas exigem CSRF. Preserve CSP, limites de upload e
@@ -76,9 +76,10 @@ vigor, cabeçalhos de segurança e CSP, formatação
 de números em pt-BR e a rota `/health` vêm de
 [SharedAuth](https://github.com/MSPA-Coder/SharedAuth), biblioteca
 compartilhada com os outros apps do mantenedor (ver README.md);
-não reimplemente esse mecanismo localmente. `core/security.py` e
-`core/formatting.py` são adaptadores finos sobre ela: mudança de
-comportamento sobe para a biblioteca, com tag nova, não para cá. O sistema autentica, mas não particiona dados:
+o padrão é usar a biblioteca. `core/security.py` e `core/formatting.py` são
+adaptadores finos sobre ela; uma variação pode nascer aqui para experimentar e,
+se servir aos outros, sobe para a biblioteca com tag nova. O sistema autentica,
+mas não particiona dados:
 qualquer conta autenticada acessa o acervo comum. A gestão de contas é uma
 exceção administrativa deliberada: `/usuarios` exige `admin`, enquanto novos
 usuários recebem `operador` por padrão; isso não introduz propriedade de dados.
@@ -132,13 +133,6 @@ do projeto no Python global do Windows.
 no commit que o `uv.lock` registra. O repositório é **público**: o build precisa
 só de `git` no PATH, nenhuma credencial.
 
-A engrenagem de token que existia aqui — secret do BuildKit, `git config
-url...insteadOf` para injetar um PAT, e `.secrets/github_token.txt` — **saiu em
-08/09/2026** (achado L23 do `LEVANTAMENTO_2026-09.md`). Era herança da época em
-que o repositório era privado, e o efeito que importa é fora deste arquivo:
-enquanto qualquer build da frota exigisse o token, ele tinha de existir no VPS
-também.
-
 Os dois ambientes acham defeitos diferentes, então nenhum substitui o outro.
 O venv é Windows e já pegou travamento de suíte que o contêiner nunca mostrou
 (ver o docstring de `tests/conftest.py`); o contêiner é Linux e é o único
@@ -190,10 +184,9 @@ substituir o diretório do projeto não os afeta. Consulte
 com `versioning-strategy: widen`. Quando ele propuser elevar o mínimo, aproveite
 apenas a parte que alarga o teto e recuse a que sobe o piso. O piso registra a
 compatibilidade mínima efetivamente verificada, não a versão mais nova
-disponível: elevá-lo declara uma incompatibilidade que ninguém comprovou e não
-muda nada do que é instalado, porque o pip já resolve para a versão mais nova
-permitida pela faixa.
-
+disponível: elevá-lo declara uma incompatibilidade que ninguém comprovou. A
+versão instalada é a do `uv.lock`: depois de mudar uma faixa, rode `uv lock` e
+commite o resultado. O Dependabot acompanha o lock pelo ecossistema `uv`.
 
 Mantenha dependências em faixas limitadas e atualize-as deliberadamente. Para
 atualização mínima/patch, execute a validação proporcional e registre impacto

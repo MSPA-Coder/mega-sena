@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# Nucleo comum aos quatro projetos. Mantenha esta secao em sincronia; o que for
+# Nucleo comum aos projetos irmaos. Mantenha esta secao em sincronia; o que for
 # especifico deste projeto vai no fim do arquivo.
 # ---------------------------------------------------------------------------
 
@@ -74,9 +74,6 @@ Thumbs.db
 # ---------------------------------------------------------------------------
 # Especifico do MegaSena
 # ---------------------------------------------------------------------------
-
-# Ambiente virtual local, se criado por ferramentas auxiliares.
-.htmx-venv/
 
 # Planilhas de resultados importadas manualmente.
 *.xls
