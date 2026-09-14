@@ -1,7 +1,8 @@
 # Desenvolvimento e validação
 
 O projeto usa Docker para aplicação, PostgreSQL, migrations, lint e testes. No
-host são necessários apenas Docker Desktop, Git e um editor.
+host são necessários apenas Docker Desktop, Git e um editor; o venv do laço
+rápido, descrito no `AGENTS.md`, é opcional.
 
 ## Ambiente
 
@@ -59,8 +60,9 @@ alteração.
 
 O CI valida o Compose, reconstrói sem cache e executa o estágio `quality`. Ele
 também audita as dependências Python instaladas com `pip-audit` e a imagem de
-runtime com Trivy. O Dependabot acompanha dependências Python, imagens Docker e
-GitHub Actions. Não há análise estática de tipos nem varredura CodeQL.
+runtime com Trivy. O Dependabot acompanha o `uv.lock`, a imagem base e as
+GitHub Actions. O CodeQL roda pela configuração padrão do GitHub e é check
+obrigatório no `main`, ao lado de `Qualidade`. Não há análise estática de tipos.
 
 ## Validação proporcional
 

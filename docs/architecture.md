@@ -11,7 +11,7 @@ navegador
     ↓
 app/web
     ↓
-app/bets | app/draws | app/settings
+app/bets | app/draws | app/settings | app/accounts
     ↓
 SQLAlchemy → PostgreSQL
 ```
