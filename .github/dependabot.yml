@@ -2,7 +2,8 @@ version: 2
 updates:
   - package-ecosystem: uv
     directory: "/"
-    versioning-strategy: widen
+    # Mantém o piso declarado; só o altera quando for indispensável à atualização.
+    versioning-strategy: increase-if-necessary
     schedule:
       interval: weekly
       timezone: America/Sao_Paulo
