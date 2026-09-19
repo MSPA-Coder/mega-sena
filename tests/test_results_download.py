@@ -16,6 +16,17 @@ def test_default_results_source_url_is_valid_https_url():
     assert normalize_results_source_url(DEFAULT_RESULTS_SOURCE_URL) == DEFAULT_RESULTS_SOURCE_URL
 
 
+def test_results_source_url_rejects_non_official_public_host():
+    with pytest.raises(ValueError, match="fonte oficial"):
+        normalize_results_source_url("https://example.com/resultados.xlsx")
+
+
+def test_official_host_is_canonicalized_before_download():
+    assert normalize_results_source_url(
+        "HTTPS://SERVICEBUS3.CAIXA.GOV.BR/arquivo.xlsx"
+    ) == "https://servicebus3.caixa.gov.br/arquivo.xlsx"
+
+
 @pytest.mark.parametrize(
     "url",
     [

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from collections import Counter
 from collections.abc import Iterable
 from functools import lru_cache
 from itertools import combinations
@@ -23,6 +24,7 @@ TOTAL_DRAW_COMBINATIONS = math.comb(60, 6)
 # A união é calculada apenas quando o conjunto cabe confortavelmente na memória.
 # Acima desse limite, a interface apresenta somente o limite superior teórico.
 MAX_EXACT_COVERAGE_COMBINATIONS = 250_000
+FILTER_SCAN_BATCH_SIZE = 1_000
 
 
 @lru_cache(maxsize=1)
@@ -319,8 +321,11 @@ def count_draws_matching_filters(
     if range_min_occupied is None and range_max_per_band is None:
         return query.count()
     count = 0
-    for draw in query.all():
-        numbers = draw.numbers
+    rows = query.with_entities(
+        Draw.n1, Draw.n2, Draw.n3, Draw.n4, Draw.n5, Draw.n6
+    ).yield_per(FILTER_SCAN_BATCH_SIZE)
+    for row in rows:
+        numbers = list(row)
         if (
             range_min_occupied is not None
             and count_occupied_range_bands(numbers) < range_min_occupied
@@ -336,7 +341,7 @@ def count_draws_matching_filters(
 
 
 def calculate_individual_filter_targets(target_percentage: float) -> dict:
-    draws = Draw.query.with_entities(
+    rows = Draw.query.with_entities(
         Draw.consecutive_count,
         Draw.even_count,
         Draw.total_sum,
@@ -346,8 +351,7 @@ def calculate_individual_filter_targets(target_percentage: float) -> dict:
         Draw.n4,
         Draw.n5,
         Draw.n6,
-    ).all()
-    total = len(draws)
+    ).yield_per(FILTER_SCAN_BATCH_SIZE)
     try:
         target_percentage = float(target_percentage)
     except (TypeError, ValueError):
@@ -355,6 +359,21 @@ def calculate_individual_filter_targets(target_percentage: float) -> dict:
     if not math.isfinite(target_percentage):
         target_percentage = 80.0
     target_percentage = max(0.0, min(target_percentage, 100.0))
+    consecutive_counter: Counter[int] = Counter()
+    even_counter: Counter[int] = Counter()
+    sum_counter: Counter[int] = Counter()
+    occupied_range_counter: Counter[int] = Counter()
+    max_range_counter: Counter[int] = Counter()
+    total = 0
+    for row in rows:
+        total += 1
+        consecutive_counter[row.consecutive_count] += 1
+        even_counter[row.even_count] += 1
+        sum_counter[row.total_sum] += 1
+        numbers = [row.n1, row.n2, row.n3, row.n4, row.n5, row.n6]
+        occupied_range_counter[count_occupied_range_bands(numbers)] += 1
+        max_range_counter[max_range_band_count(numbers)] += 1
+
     target_count = math.ceil((target_percentage / 100) * total) if total else 0
 
     def metric(value: int | None) -> dict:
@@ -376,53 +395,52 @@ def calculate_individual_filter_targets(target_percentage: float) -> dict:
             "parameters": empty_parameters,
         }
 
-    consecutive_values = [row.consecutive_count for row in draws]
-    even_values = [row.even_count for row in draws]
-    sum_values = [row.total_sum for row in draws]
-    draw_numbers = [[row.n1, row.n2, row.n3, row.n4, row.n5, row.n6] for row in draws]
-    occupied_range_values = [
-        count_occupied_range_bands(numbers) for numbers in draw_numbers
-    ]
-    max_range_values = [max_range_band_count(numbers) for numbers in draw_numbers]
-
-    def first_at_or_above(candidates: Iterable[int], counter) -> dict:
+    def first_at_or_above(candidates: Iterable[int], counter: Counter[int], predicate) -> dict:
         for value in candidates:
-            if counter(value) >= target_count:
+            if sum(
+                count for item, count in counter.items() if predicate(item, value)
+            ) >= target_count:
                 return metric(value)
-        return metric(list(candidates)[-1])
+        candidates = list(candidates)
+        return metric(candidates[-1])
 
-    def last_at_or_above(candidates: Iterable[int], counter) -> dict:
+    def last_at_or_above(candidates: Iterable[int], counter: Counter[int], predicate) -> dict:
         selected_value = None
         for value in candidates:
-            if counter(value) >= target_count:
+            if sum(
+                count for item, count in counter.items() if predicate(item, value)
+            ) >= target_count:
                 selected_value = value
         return metric(selected_value)
 
-    unique_sums = sorted(set(sum_values))
+    unique_sums = sorted(sum_counter)
     parameters = {
         "consecutive_count": first_at_or_above(
             range(0, 7),
-            lambda value: sum(1 for item in consecutive_values if item <= value),
+            consecutive_counter,
+            lambda item, value: item <= value,
         ),
         "even_min": last_at_or_above(
-            range(0, 7), lambda value: sum(1 for item in even_values if item >= value)
+            range(0, 7), even_counter, lambda item, value: item >= value
         ),
         "even_max": first_at_or_above(
-            range(0, 7), lambda value: sum(1 for item in even_values if item <= value)
+            range(0, 7), even_counter, lambda item, value: item <= value
         ),
         "sum_min": last_at_or_above(
-            unique_sums, lambda value: sum(1 for item in sum_values if item >= value)
+            unique_sums, sum_counter, lambda item, value: item >= value
         ),
         "sum_max": first_at_or_above(
-            unique_sums, lambda value: sum(1 for item in sum_values if item <= value)
+            unique_sums, sum_counter, lambda item, value: item <= value
         ),
         "range_min_occupied": last_at_or_above(
             range(1, 7),
-            lambda value: sum(1 for item in occupied_range_values if item >= value),
+            occupied_range_counter,
+            lambda item, value: item >= value,
         ),
         "range_max_per_band": first_at_or_above(
             range(1, 7),
-            lambda value: sum(1 for item in max_range_values if item <= value),
+            max_range_counter,
+            lambda item, value: item <= value,
         ),
     }
     return {

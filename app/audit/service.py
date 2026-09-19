@@ -16,12 +16,15 @@ def record_event(
     actor: User | None = None,
     success: bool,
     context: dict[str, Any] | None = None,
+    commit: bool = True,
 ) -> AuditEvent:
-    """Grava um evento já sanitizado em transação própria.
+    """Adiciona um evento já sanitizado à transação corrente.
 
     O chamador nunca deve enviar senha, token, conteúdo de planilha ou dados
     completos de formulários. `context` existe para metadados operacionais
-    mínimos, como IP, rota e origem da importação.
+    mínimos, como IP, rota e origem da importação. Por compatibilidade, o
+    padrão ainda confirma o evento; operações compostas podem passar
+    ``commit=False`` e confirmar tudo atomicamente ao final.
     """
     event = AuditEvent(
         actor_user_id=actor.id if actor is not None else None,
@@ -32,5 +35,6 @@ def record_event(
         context=context or {},
     )
     db.session.add(event)
-    db.session.commit()
+    if commit:
+        db.session.commit()
     return event

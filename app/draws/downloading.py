@@ -13,6 +13,10 @@ DEFAULT_RESULTS_SOURCE_URL = (
     "https://servicebus3.caixa.gov.br/portaldeloterias/api/resultados/download?"
     "modalidade=Mega-Sena"
 )
+# A política de importação remota é deliberadamente uma allowlist exata. Isso
+# fecha SSRF e a janela de DNS rebinding sem depender de a resolução feita pela
+# validação ser a mesma resolução interna do cliente HTTP.
+OFFICIAL_RESULTS_HOSTS = frozenset({"servicebus3.caixa.gov.br"})
 MAX_REMOTE_DOWNLOAD_BYTES = 10 * 1024 * 1024
 MAX_REDIRECTS = 3
 _ALLOWED_CONTENT_TYPES = frozenset(
@@ -47,6 +51,14 @@ def normalize_results_source_url(value: object) -> str:
         or parsed.fragment
     ):
         raise ValueError("O link da planilha deve ser uma URL HTTPS pública válida.")
+    hostname = parsed.hostname.rstrip(".").lower() if parsed.hostname else ""
+    try:
+        hostname = hostname.encode("idna").decode("ascii")
+    except UnicodeError as exc:
+        raise ValueError("O link da planilha deve ser uma URL HTTPS pública válida.") from exc
+    if hostname not in OFFICIAL_RESULTS_HOSTS:
+        raise ValueError("O link da planilha deve apontar para uma fonte oficial da CAIXA.")
+
     try:
         port = parsed.port
     except ValueError as exc:
@@ -54,7 +66,10 @@ def normalize_results_source_url(value: object) -> str:
     if port not in (None, 443):
         raise ValueError("O link da planilha deve usar a porta HTTPS padrão.")
 
-    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, parsed.query, ""))
+    # Reconstrói o host canônico; não preserva variações Unicode ou um ponto
+    # final que poderiam escapar de comparações futuras com a allowlist.
+    netloc = hostname if port is None else f"{hostname}:{port}"
+    return urlunsplit((parsed.scheme.lower(), netloc, parsed.path, parsed.query, ""))
 
 
 def _ensure_public_host(url: str) -> None:

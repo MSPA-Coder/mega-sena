@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from sqlalchemy import text
+
 from ..bets.criteria import GENERATION_FILTER_KEYS, GenerationCriteria
 from ..core.numbers import parse_int
 from ..draws.downloading import DEFAULT_RESULTS_SOURCE_URL, normalize_results_source_url
@@ -57,7 +59,10 @@ def get_config_values() -> dict[str, str]:
     Uma chave ausente vale exatamente o padrão, então o banco não precisa ser
     semeado: a primeira gravação em Configurações é que cria as linhas.
     """
-    rows = {row.key: row.value for row in Config.query.all()}
+    rows = {
+        row.key: row.value
+        for row in Config.query.filter(Config.key.in_(DEFAULT_CONFIG)).all()
+    }
     return _normalize_config_values(
         {key: rows.get(key, DEFAULT_CONFIG[key]) for key in DEFAULT_CONFIG}
     )
@@ -65,13 +70,27 @@ def get_config_values() -> dict[str, str]:
 
 def update_config_values(values: dict[str, object]) -> dict[str, str]:
     normalized = _normalize_config_values(values)
-    rows = {row.key: row for row in Config.query.all()}
-    for key, value in normalized.items():
-        if key in rows:
-            rows[key].value = value
-        else:
-            db.session.add(Config(key=key, value=value))
-    db.session.commit()
+    try:
+        # `Config` começa vazio em uma instalação nova. Lockar apenas as linhas
+        # existentes não impediria dois primeiros salvamentos de disputarem o
+        # mesmo INSERT; o lock de tabela cobre as duas situações e dura até o
+        # commit desta transação.
+        db.session.execute(text("LOCK TABLE config IN SHARE ROW EXCLUSIVE MODE"))
+        rows = {
+            row.key: row
+            for row in Config.query.filter(Config.key.in_(DEFAULT_CONFIG))
+            .with_for_update()
+            .all()
+        }
+        for key, value in normalized.items():
+            if key in rows:
+                rows[key].value = value
+            else:
+                db.session.add(Config(key=key, value=value))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
     return normalized
 
 
@@ -98,7 +117,11 @@ def reset_all_data() -> tuple[int, int]:
     """Remove concursos e apostas, devolvendo suas quantidades anteriores."""
     bet_count = GeneratedBet.query.count()
     draw_count = Draw.query.count()
-    GeneratedBet.query.delete()
-    Draw.query.delete()
-    db.session.commit()
+    try:
+        GeneratedBet.query.delete()
+        Draw.query.delete()
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
     return draw_count, bet_count

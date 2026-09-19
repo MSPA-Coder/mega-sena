@@ -17,7 +17,9 @@ x-logging: &default-logging
 
 services:
   postgres:
-    image: postgres:17-alpine
+    # Digest do índice multi-arquitetura publicado em 17/09/2026 (17.11).
+    # A tag ajuda a leitura humana, mas não participa da resolução do build.
+    image: postgres:17-alpine@sha256:f02121de6f74d30d8a94cd1d9584125e2178d7e6c377d8130112d4e52d867995
     user: postgres
     read_only: true
     cap_drop:
@@ -126,7 +128,7 @@ services:
   # este contêiner morre no arranque e o `quality` só reporta "dependency failed
   # to start". No Docker Desktop do Windows não aparece: lá tudo chega 0777.
   postgres-teste:
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:f02121de6f74d30d8a94cd1d9584125e2178d7e6c377d8130112d4e52d867995
     profiles: ["quality"]
     user: postgres
     read_only: true

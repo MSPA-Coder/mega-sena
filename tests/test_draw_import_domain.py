@@ -41,9 +41,23 @@ class _TransactionalSession:
         self.before = {contest: deepcopy(vars(draw)) for contest, draw in rows.items()}
         self.commit_calls = 0
         self.rollback_calls = 0
+        self.execute_calls = []
+        self.audit_events = []
+        self.quarantine = []
+
+    def execute(self, statement):
+        self.execute_calls.append(str(statement))
+
+    def flush(self):
+        return None
 
     def add(self, draw):
-        self.rows[draw.contest] = draw
+        if draw.__class__.__name__ == "_FakeDraw":
+            self.rows[draw.contest] = draw
+        elif draw.__class__.__name__ == "_FakeBatch":
+            self.audit_events.append(draw)
+        else:
+            self.quarantine.append(draw)
 
     def commit(self):
         self.commit_calls += 1
@@ -176,3 +190,52 @@ def test_import_rolls_back_earlier_valid_changes_when_later_metadata_is_invalid(
     assert 202 not in rows
     assert session.commit_calls == 0
     assert session.rollback_calls == 1
+
+
+def test_import_uses_transaction_lock_and_quarantines_normalized_order(fake_store, monkeypatch):
+    rows, session = fake_store
+
+    class _FakeBatch:
+        next_id = 700
+
+        def __init__(self, **values):
+            self.id = self.next_id
+            type(self).next_id += 1
+            for key, value in values.items():
+                setattr(self, key, value)
+
+    class _FakeQuarantine:
+        def __init__(self, **values):
+            vars(self).update(values)
+
+    events = []
+    monkeypatch.setattr(importing, "ImportBatch", _FakeBatch)
+    monkeypatch.setattr(importing, "ImportQuarantine", _FakeQuarantine)
+    monkeypatch.setattr(importing, "record_event", lambda **kwargs: events.append(kwargs))
+
+    result = importing.import_results_from_xlsx(
+        _xlsx(
+            FULL_HEADERS,
+            [[303, "01/08/2026", 6, 5, 4, 3, 2, 1, 1, "1,00"]],
+        ),
+        provenance={"source_type": "manual_upload", "source_name": "resultados.xlsx"},
+        audit={"actor": None, "context": {"source": "upload"}},
+    )
+
+    assert result == {"imported": 1, "updated": 0, "ignored": 0}
+    assert session.execute_calls and "pg_advisory_xact_lock" in session.execute_calls[0]
+    assert session.quarantine[0].reason == "numbers_order_normalized"
+    assert session.quarantine[0].details == {"resolution": "normalized"}
+    assert events[0]["commit"] is False
+    assert events[0]["entity_id"] == 700
+
+
+def test_import_rejects_official_provenance_with_non_official_url(fake_store):
+    with pytest.raises(ValueError, match="fonte oficial"):
+        importing.import_results_from_xlsx(
+            _xlsx(FULL_HEADERS, [[304, "01/08/2026", 1, 2, 3, 4, 5, 6]]),
+            provenance={
+                "source_type": "official_link",
+                "source_url": "https://example.com/resultados.xlsx",
+            },
+        )

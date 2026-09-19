@@ -4,6 +4,7 @@ import logging
 import math
 import secrets
 from collections.abc import Iterable
+from hashlib import sha256
 from itertools import combinations, islice
 
 from sqlalchemy import func, text
@@ -23,6 +24,8 @@ from .criteria import (
 
 _log = logging.getLogger(__name__)
 MAX_SAVED_BETS = math.comb(MAX_BET_NUMBERS, MIN_BET_NUMBERS)
+MAX_RECENT_GENERATIONS = 20
+MAX_RECENT_BETS_PER_GENERATION = 200
 _RNG = secrets.SystemRandom()
 _GENERATION_ID_SEQUENCE = "generated_bets_generation_id_seq"
 
@@ -63,11 +66,83 @@ def _secure_random_candidate(quantity: int) -> list[int]:
     return sorted(_RNG.sample(range(1, 61), quantity))
 
 
-def _persist_bet_batch(bets: list[GeneratedBet]) -> int | None:
-    """Persiste um lote com identificador único fornecido pelo PostgreSQL."""
+def _batch_fingerprint(
+    quantity: int, numbers_csv: Iterable[str], idempotency_key: str | None = None
+) -> str:
+    """Deriva a identidade estável da confirmação já normalizada.
+
+    O schema legado não possui uma coluna de token de idempotência. A própria
+    confirmação normalizada é, portanto, a identidade do lote: repetir o POST
+    da mesma confirmação devolve o lote já persistido, inclusive depois de um
+    retry que atravesse outro worker do Gunicorn. Uma chave explícita pode ser
+    acrescentada por consumidores futuros sem quebrar os chamadores atuais.
+    """
+    payload = "\x1f".join(
+        [str(quantity), idempotency_key or "", *sorted(set(numbers_csv))]
+    )
+    return sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _lock_batch_fingerprint(fingerprint: str) -> None:
+    """Serializa confirmações iguais enquanto a transação atual estiver aberta."""
+    get_bind = getattr(db.session, "get_bind", None)
+    bind = get_bind() if get_bind is not None else None
+    if bind is not None and bind.dialect.name == "postgresql":
+        db.session.execute(
+            text(
+                "SELECT pg_advisory_xact_lock(" "hashtextextended(:fingerprint, 0))"
+            ),
+            {"fingerprint": fingerprint},
+        )
+
+
+def _find_existing_batch(quantity: int, numbers_csv: list[str]) -> int | None:
+    """Encontra exatamente o lote confirmado, sem materializar o histórico."""
+    if not numbers_csv or not hasattr(db.session, "query"):
+        return None
+    expected_count = len(numbers_csv)
+    candidates = (
+        db.session.query(GeneratedBet.generation_id)
+        .filter(
+            GeneratedBet.generation_id.isnot(None),
+            GeneratedBet.quantity == quantity,
+            GeneratedBet.numbers_csv.in_(numbers_csv),
+        )
+        .group_by(GeneratedBet.generation_id)
+        .having(func.count(GeneratedBet.id) == expected_count)
+        .having(func.count(func.distinct(GeneratedBet.numbers_csv)) == expected_count)
+        .all()
+    )
+    for (generation_id,) in candidates:
+        total = (
+            db.session.query(func.count(GeneratedBet.id))
+            .filter(
+                GeneratedBet.generation_id == generation_id,
+                GeneratedBet.quantity == quantity,
+            )
+            .scalar()
+        )
+        if total == expected_count:
+            return int(generation_id)
+    return None
+
+
+def _persist_bet_batch(
+    bets: list[GeneratedBet], *, idempotency_key: str | None = None
+) -> int | None:
+    """Persiste um lote uma vez e devolve o mesmo id em retries."""
     if not bets:
         return None
+    quantity = bets[0].quantity
+    numbers_csv = [bet.numbers_csv for bet in bets]
+    fingerprint = _batch_fingerprint(quantity, numbers_csv, idempotency_key)
     try:
+        _lock_batch_fingerprint(fingerprint)
+        existing_generation_id = _find_existing_batch(quantity, numbers_csv)
+        if existing_generation_id is not None:
+            db.session.commit()
+            return existing_generation_id
+
         # Interpolação deliberada: `nextval` recebe o nome da sequência como
         # identificador, que não pode ser parametrizado. O valor é constante do
         # módulo, nunca entrada do usuário — não há caminho de injeção.
@@ -179,7 +254,7 @@ def generate_closure_bets(
 
 
 def list_recent_generations(limit: int = 12) -> list[dict]:
-    limit = clamp_int(parse_int(limit) or 12, 1, 100)
+    limit = clamp_int(parse_int(limit) or 12, 1, MAX_RECENT_GENERATIONS)
     rows = (
         db.session.query(
             GeneratedBet.generation_id,
@@ -212,14 +287,18 @@ def list_recent_generations_with_bets(limit: int = 12) -> list[dict]:
     if not generation_ids:
         return generations
 
-    bets = (
-        GeneratedBet.query.filter(GeneratedBet.generation_id.in_(generation_ids))
-        .order_by(GeneratedBet.generation_id.desc(), GeneratedBet.id)
-        .all()
-    )
     bets_by_generation: dict[int, list[GeneratedBet]] = {}
-    for bet in bets:
-        bets_by_generation.setdefault(bet.generation_id, []).append(bet)
+    for generation in generations:
+        generation_id = generation["generation_id"]
+        bets_by_generation[generation_id] = (
+            GeneratedBet.query.filter(GeneratedBet.generation_id == generation_id)
+            .order_by(GeneratedBet.id)
+            .limit(MAX_RECENT_BETS_PER_GENERATION)
+            .all()
+        )
+        generation["bets_truncated"] = (
+            generation["bet_count"] > MAX_RECENT_BETS_PER_GENERATION
+        )
 
     for generation in generations:
         generation["bets"] = bets_by_generation.get(generation["generation_id"], [])
@@ -244,7 +323,12 @@ def delete_saved_bet(bet_id: int) -> GeneratedBet:
     return bet
 
 
-def save_generated_bets(quantity: int, bets: Iterable[str]) -> tuple[int, int | None]:
+def save_generated_bets(
+    quantity: int,
+    bets: Iterable[str],
+    *,
+    idempotency_key: str | None = None,
+) -> tuple[int, int | None]:
     quantity = clamp_int(
         parse_int(quantity) or MIN_BET_NUMBERS,
         MIN_BET_NUMBERS,
@@ -281,17 +365,26 @@ def save_generated_bets(quantity: int, bets: Iterable[str]) -> tuple[int, int | 
 
     # O servidor local do Flask pode atender requisicoes em threads diferentes;
     # a persistencia compartilhada serializa a alocacao do ID do lote.
-    generation_id = _persist_bet_batch(valid_bets)
+    generation_id = _persist_bet_batch(
+        valid_bets,
+        idempotency_key=idempotency_key,
+    )
     if generation_id is None:  # protegido pelo teste de valid_bets acima
         return 0, None
     _log.info("Apostas salvas: %d na geração #%d.", len(valid_bets), generation_id)
     return len(valid_bets), generation_id
 
 
-def save_closure_bets(numbers: Iterable[int]) -> tuple[int, int | None]:
+def save_closure_bets(
+    numbers: Iterable[int], *, idempotency_key: str | None = None
+) -> tuple[int, int | None]:
     base_numbers = _normalize_closure_numbers(numbers)
     serialized_bets = (
         ",".join(map(str, combination))
         for combination in combinations(base_numbers, MIN_BET_NUMBERS)
     )
-    return save_generated_bets(MIN_BET_NUMBERS, serialized_bets)
+    return save_generated_bets(
+        MIN_BET_NUMBERS,
+        serialized_bets,
+        idempotency_key=idempotency_key,
+    )
