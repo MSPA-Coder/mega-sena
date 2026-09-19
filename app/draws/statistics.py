@@ -2,13 +2,20 @@ from __future__ import annotations
 
 import math
 from collections import Counter
+from collections.abc import Iterable
 
 from ..extensions import db
 from ..models import Draw
 
+STATS_FETCH_BATCH_SIZE = 1_000
+
 
 def all_draw_numbers() -> list[list[int]]:
-    rows = db.session.query(Draw.n1, Draw.n2, Draw.n3, Draw.n4, Draw.n5, Draw.n6).order_by(Draw.contest).all()
+    rows = (
+        db.session.query(Draw.n1, Draw.n2, Draw.n3, Draw.n4, Draw.n5, Draw.n6)
+        .order_by(Draw.contest)
+        .yield_per(STATS_FETCH_BATCH_SIZE)
+    )
     return [list(row) for row in rows]
 
 
@@ -23,42 +30,67 @@ def build_stats(count: int | None = None) -> dict:
     query = Draw.query.order_by(Draw.contest.desc())
     if count is not None:
         query = query.limit(count)
-    draw_records = query.all()
-    draws = [draw.numbers for draw in draw_records]
-    total = len(draws)
-    flat = [n for draw in draws for n in draw]
-    freq = Counter(flat)
-    for n in range(1, 61):
-        freq.setdefault(n, 0)
+    rows = query.with_entities(
+        Draw.n1,
+        Draw.n2,
+        Draw.n3,
+        Draw.n4,
+        Draw.n5,
+        Draw.n6,
+        Draw.total_sum,
+        Draw.even_count,
+        Draw.consecutive_count,
+        Draw.winners_6,
+        Draw.winners_5,
+        Draw.winners_4,
+    ).yield_per(STATS_FETCH_BATCH_SIZE)
 
-    sums = [draw.total_sum for draw in draw_records]
-    even_counts = [draw.even_count for draw in draw_records]
-    consecutive_counts = [draw.consecutive_count for draw in draw_records]
-
+    total = 0
+    freq = Counter(dict.fromkeys(range(1, 61), 0))
     ranges = {"01-10": 0, "11-20": 0, "21-30": 0, "31-40": 0, "41-50": 0, "51-60": 0}
-    for n in flat:
-        start = ((n - 1) // 10) * 10 + 1
-        ranges[f"{start:02d}-{start+9:02d}"] += 1
+    sums: Counter[int] = Counter()
+    even_distribution_counter: Counter[int] = Counter()
+    consecutive_distribution_counter: Counter[int] = Counter()
+    prize_games = {"mega_sena": 0, "quina": 0, "quadra": 0}
+    prize_winners = {"mega_sena": 0, "quina": 0, "quadra": 0}
+
+    for row in rows:
+        numbers = list(row[:6])
+        total += 1
+        for number in numbers:
+            freq[number] += 1
+            start = ((number - 1) // 10) * 10 + 1
+            ranges[f"{start:02d}-{start+9:02d}"] += 1
+        sums[row.total_sum] += 1
+        even_distribution_counter[row.even_count] += 1
+        consecutive_distribution_counter[row.consecutive_count] += 1
+        for key, winners in (
+            ("mega_sena", row.winners_6),
+            ("quina", row.winners_5),
+            ("quadra", row.winners_4),
+        ):
+            prize_winners[key] += winners
+            prize_games[key] += winners > 0
 
     sum_histogram = _build_sum_histogram(sums)
-    even_distribution = dict(sorted(Counter(even_counts).items()))
-    consecutive_distribution = dict(sorted(Counter(consecutive_counts).items()))
+    even_distribution = dict(sorted(even_distribution_counter.items()))
+    consecutive_distribution = dict(sorted(consecutive_distribution_counter.items()))
 
     prize_cards = {
         "mega_sena": {
             "label": "Mega Sena",
-            "games": sum(1 for draw in draw_records if draw.winners_6 > 0),
-            "winners": sum(draw.winners_6 for draw in draw_records),
+            "games": prize_games["mega_sena"],
+            "winners": prize_winners["mega_sena"],
         },
         "quina": {
             "label": "Quina",
-            "games": sum(1 for draw in draw_records if draw.winners_5 > 0),
-            "winners": sum(draw.winners_5 for draw in draw_records),
+            "games": prize_games["quina"],
+            "winners": prize_winners["quina"],
         },
         "quadra": {
             "label": "Quadra",
-            "games": sum(1 for draw in draw_records if draw.winners_4 > 0),
-            "winners": sum(draw.winners_4 for draw in draw_records),
+            "games": prize_games["quadra"],
+            "winners": prize_winners["quadra"],
         },
     }
     mega_sena_games_with_winners = prize_cards["mega_sena"]["games"]
@@ -84,14 +116,18 @@ def build_stats(count: int | None = None) -> dict:
     }
 
 
-def _build_sum_histogram(sums: list[int], bin_size: int = 10) -> dict:
-    if not sums:
+def _build_sum_histogram(sums: Iterable[int], bin_size: int = 10) -> dict:
+    counter = Counter(sums)
+    if not counter:
         return {"bins": [], "max_frequency": 0, "y_ticks": [0]}
 
-    first_bin = (min(sums) // bin_size) * bin_size
-    last_bin = math.ceil((max(sums) + 1) / bin_size) * bin_size
-    counter = Counter(((total - first_bin) // bin_size) * bin_size + first_bin for total in sums)
-    max_frequency = max(counter.values()) if counter else 0
+    first_bin = (min(counter) // bin_size) * bin_size
+    last_bin = math.ceil((max(counter) + 1) / bin_size) * bin_size
+    binned_counter: Counter[int] = Counter()
+    for total, frequency in counter.items():
+        start = ((total - first_bin) // bin_size) * bin_size + first_bin
+        binned_counter[start] += frequency
+    max_frequency = max(binned_counter.values()) if binned_counter else 0
     tick_step = max(1, math.ceil(max_frequency / 4 / 10) * 10)
     y_ticks = list(range(0, tick_step * 5, tick_step))
     scale_max = y_ticks[-1]
@@ -103,9 +139,8 @@ def _build_sum_histogram(sums: list[int], bin_size: int = 10) -> dict:
             {
                 "start": start,
                 "end": end,
-                "count": counter.get(start, 0),
+                "count": binned_counter.get(start, 0),
                 "x_label": start if start % 50 == 0 else "",
             }
         )
     return {"bins": bins, "max_frequency": scale_max, "y_ticks": y_ticks}
-

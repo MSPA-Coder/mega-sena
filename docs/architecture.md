@@ -42,9 +42,12 @@ modo que a navegação sem JavaScript continua sendo um caminho completo:
 | `/bets/filter-targets/fragment` | os campos de critério preenchidos por alvo |
 | `/settings` | a confirmação da gravação |
 
-Toda resposta desse tipo sai com `Vary: HX-Request`, para que nenhum cache
-intermediário sirva um fragmento no lugar do documento inteiro. O helper
-`app/web/helpers.py::render_vary` é o único ponto que produz essas respostas.
+Toda resposta HTML sai com `Vary: HX-Request`, para que nenhum cache
+intermediário sirva um fragmento no lugar do documento inteiro. Essa garantia é
+aplicada pelo `sharedauth.security.registrar_cabecalhos`, registrado na factory,
+e vale para página inteira e fragmento; `app/web/helpers.py` apenas interpreta o
+cabeçalho para escolher qual template renderizar. Respostas estáticas não
+recebem esse `Vary`, pois não variam com HTMX.
 
 O JavaScript próprio (`app/static/base.js` e `app/static/bets.js`) cobre apenas
 o que HTML e HTMX não resolvem: alternância de tema, menu, confirmação de ação
@@ -115,6 +118,9 @@ memória e não toca o banco; as apostas só chegam ao PostgreSQL por
 `save_generated_bets` ou `save_closure_bets`, depois da confirmação na tela.
 Cada lote recebe seu identificador de uma sequence do próprio banco, que é o
 que impede duas gravações simultâneas de compartilharem um número de geração.
+O serviço também calcula uma impressão digital da confirmação normalizada e
+usa um advisory lock transacional: repetir o mesmo envio devolve o lote já
+gravado, sem criar apostas duplicadas, inclusive entre workers.
 
 ### `app/draws`
 
@@ -122,14 +128,20 @@ que impede duas gravações simultâneas de compartilharem um número de geraç�
 - `service.py`: consulta paginada dos concursos;
 - `statistics.py`: agregações do dashboard.
 
-`build_stats` calcula apenas o que o dashboard exibe. Ao acrescentar um
+`build_stats` calcula apenas o que o dashboard exibe. A consulta seleciona
+somente as colunas necessárias e agrega em fluxo, em lotes de 1.000 linhas;
+assim “Todos” preserva o contrato do histórico completo sem materializar
+objetos ORM nem listas proporcionais ao número de concursos. Ao acrescentar um
 indicador, acrescente também quem o mostra — uma agregação sem leitor custa
 tempo em toda carga da página e envelhece sem que nada falhe.
 
 ### `app/settings`
 
 Lê e grava as preferências da tela de apostas e executa a limpeza de concursos
-e apostas solicitada pelo usuário.
+e apostas solicitada pelo usuário. Leituras limitam-se às chaves conhecidas.
+Atualizações lockam a tabela `config` dentro da transação antes de ler e
+upsertar as linhas, cobrindo inclusive a primeira gravação em banco vazio e
+evitando a disputa entre dois salvamentos concorrentes.
 
 ### `app/accounts`
 

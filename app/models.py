@@ -88,6 +88,15 @@ class Draw(db.Model):
     accumulated_cents = db.Column(db.BigInteger, nullable=False, default=0)
     quina_rateio_cents = db.Column(db.BigInteger, nullable=False, default=0)
     quadra_rateio_cents = db.Column(db.BigInteger, nullable=False, default=0)
+    # Lote que forneceu a versão mais recente do concurso. A trilha completa
+    # fica em ImportBatch/ImportQuarantine; esta FK torna a proveniência atual
+    # consultável sem guardar o arquivo importado.
+    import_batch_id = db.Column(
+        db.BigInteger,
+        db.ForeignKey("import_batches.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     created_at = db.Column(db.DateTime, default=_utcnow, nullable=False)
 
     @property
@@ -130,12 +139,59 @@ class Config(db.Model):
     value = db.Column(db.String(200), nullable=False, default="")
 
 
+class ImportBatch(db.Model):
+    """Metadados de uma tentativa de importação, sem armazenar a planilha."""
+
+    __tablename__ = "import_batches"
+
+    id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    actor_user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    source_type = db.Column(db.String(32), nullable=False)
+    source_url = db.Column(db.String(500), nullable=True)
+    source_name = db.Column(db.String(255), nullable=True)
+    content_sha256 = db.Column(db.String(64), nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
+    completed_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    imported_count = db.Column(db.Integer, nullable=False, default=0)
+    updated_count = db.Column(db.Integer, nullable=False, default=0)
+    ignored_count = db.Column(db.Integer, nullable=False, default=0)
+    quarantined_count = db.Column(db.Integer, nullable=False, default=0)
+
+
+class ImportQuarantine(db.Model):
+    """Anomalias de uma planilha, preservadas como metadados mínimos."""
+
+    __tablename__ = "import_quarantine"
+
+    id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    import_batch_id = db.Column(
+        db.BigInteger,
+        db.ForeignKey("import_batches.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    row_number = db.Column(db.Integer, nullable=False)
+    contest = db.Column(db.Integer, nullable=True, index=True)
+    reason = db.Column(db.String(80), nullable=False)
+    details = db.Column(db.JSON, nullable=False, default=dict)
+    created_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
+
+
 class AuditEvent(db.Model):
     """Trilha de auditoria imutável para mutações e administração relevantes."""
 
     __tablename__ = "audit_events"
 
-    id = db.Column(db.BigInteger, primary_key=True)
+    id = db.Column(
+        db.BigInteger,
+        db.Sequence("audit_events_id_seq"),
+        primary_key=True,
+    )
     actor_user_id = db.Column(
         db.Integer,
         db.ForeignKey("users.id", ondelete="SET NULL"),

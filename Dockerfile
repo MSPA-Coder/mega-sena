@@ -83,7 +83,7 @@ RUN apt-get update \
 # próprio uma variável. O binário é autocontido e o estágio `quality` o copia
 # daqui, em vez de reinstalá-lo.
 RUN --mount=type=cache,target=/root/.cache/pip \
-    python -m pip install --upgrade "uv==0.12.10"
+    python -m pip install --no-cache-dir "uv==0.12.10"
 
 ENV UV_PROJECT_ENVIRONMENT=/opt/venv
 COPY pyproject.toml uv.lock README.md ./

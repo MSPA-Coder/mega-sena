@@ -11,12 +11,35 @@ from ..audit.service import record_event
 from ..draws.downloading import ResultsDownloadError, fetch_results_xlsx
 from ..draws.importing import import_results_from_xlsx
 from ..draws.service import search_contests
+from ..extensions import db
 from ..settings.service import get_results_source_url
 from . import bp
 from .helpers import audit_request_context, is_htmx_request, optional_int, plural
 
 _ALLOWED_UPLOAD_EXTENSIONS = frozenset({".xlsx"})
 _log = logging.getLogger(__name__)
+
+
+def _safe_upload_name(filename: str) -> str:
+    """Guarda só um nome de arquivo inofensivo como metadado de proveniência."""
+    name = filename.replace("\\", "/").rsplit("/", 1)[-1].strip()
+    return (name or "upload.xlsx")[:255]
+
+
+def _record_import_failure(*, source: str) -> None:
+    # Uma falha de importação já desfez a transação dos concursos. O evento de
+    # falha é deliberadamente separado para não desaparecer junto com ela.
+    db.session.rollback()
+    try:
+        record_event(
+            action="draws.import",
+            entity="draw",
+            actor=current_user,
+            success=False,
+            context=audit_request_context(source=source),
+        )
+    except Exception:
+        _log.exception("Não foi possível registrar a falha da importação.")
 
 
 def _contests_context() -> dict:
@@ -81,40 +104,60 @@ def import_upload():
 
     file.stream.seek(0)
     try:
-        result = import_results_from_xlsx(file.stream)
+        result = import_results_from_xlsx(
+            file.stream,
+            provenance={
+                "source_type": "manual_upload",
+                "source_name": _safe_upload_name(file.filename),
+            },
+            audit={
+                "action": "draws.import",
+                "entity": "draw",
+                "actor": current_user,
+                "context": audit_request_context(source="upload"),
+            },
+        )
     except RuntimeError as exc:
-        record_event(action="draws.import", entity="draw", actor=current_user, success=False, context=audit_request_context(source="upload"))
+        _record_import_failure(source="upload")
         return _import_feedback(str(exc))
     except Exception as exc:
         _log.exception("Erro inesperado na importação: %s", exc)
-        record_event(action="draws.import", entity="draw", actor=current_user, success=False, context=audit_request_context(source="upload"))
+        _record_import_failure(source="upload")
         return _import_feedback(
             "Erro inesperado ao processar o arquivo. Verifique se é uma planilha válida."
         )
 
-    record_event(action="draws.import", entity="draw", actor=current_user, success=True, context={**audit_request_context(source="upload"), **result})
     return _import_result_feedback(result, source="manual")
 
 
 @bp.post("/contests/import-link")
 def import_from_link():
     try:
-        source = fetch_results_xlsx(get_results_source_url())
-        result = import_results_from_xlsx(source)
+        source_url = get_results_source_url()
+        source = fetch_results_xlsx(source_url)
+        result = import_results_from_xlsx(
+            source,
+            provenance={"source_type": "official_link", "source_url": source_url},
+            audit={
+                "action": "draws.import",
+                "entity": "draw",
+                "actor": current_user,
+                "context": audit_request_context(source="link"),
+            },
+        )
     except ResultsDownloadError as exc:
-        record_event(action="draws.import", entity="draw", actor=current_user, success=False, context=audit_request_context(source="link"))
+        _record_import_failure(source="link")
         return _import_feedback(str(exc))
     except RuntimeError as exc:
-        record_event(action="draws.import", entity="draw", actor=current_user, success=False, context=audit_request_context(source="link"))
+        _record_import_failure(source="link")
         return _import_feedback(str(exc))
     except Exception as exc:
         _log.exception("Erro inesperado na importação pelo link: %s", exc)
-        record_event(action="draws.import", entity="draw", actor=current_user, success=False, context=audit_request_context(source="link"))
+        _record_import_failure(source="link")
         return _import_feedback(
             "Erro inesperado ao obter a planilha. Verifique o link configurado."
         )
 
-    record_event(action="draws.import", entity="draw", actor=current_user, success=True, context={**audit_request_context(source="link"), **result})
     return _import_result_feedback(result, source="pelo link")
 
 

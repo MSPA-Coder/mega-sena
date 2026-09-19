@@ -97,13 +97,18 @@ mais prováveis em um sorteio futuro.
 
 ## Apostas gravadas
 
-As apostas geradas só são persistidas depois da confirmação do usuário. Ao
-gravar:
+As apostas geradas só são persistidas depois da confirmação do usuário. A
+confirmação é idempotente: repetir o mesmo envio normalizado, por retry do
+navegador ou por concorrência entre workers, devolve o lote já gravado em vez
+de criar outro. Ao gravar:
 
 - dezenas são normalizadas;
 - duplicatas do mesmo envio são removidas;
 - as apostas recebem um identificador comum de geração;
-- lotes recentes ficam disponíveis para consulta.
+- até 20 lotes recentes ficam disponíveis para consulta; a tela carrega no
+  máximo as primeiras 200 apostas de cada lote para manter a resposta limitada.
+  O lote completo continua persistido e o fechamento completo continua sendo
+  recalculado no servidor.
 
 Um lote pode conter no máximo `C(20, 6) = 38.760` apostas, correspondente ao
 maior fechamento aceito pela interface.
