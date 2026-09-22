@@ -287,21 +287,33 @@ def list_recent_generations_with_bets(limit: int = 12) -> list[dict]:
     if not generation_ids:
         return generations
 
+    # Uma consulta para todos os lotes, e não uma por lote: o ROW_NUMBER corta
+    # cada lote no limite de exibição dentro do próprio banco.
+    ranked = (
+        db.session.query(
+            GeneratedBet.id.label("id"),
+            func.row_number()
+            .over(partition_by=GeneratedBet.generation_id, order_by=GeneratedBet.id)
+            .label("position"),
+        )
+        .filter(GeneratedBet.generation_id.in_(generation_ids))
+        .subquery()
+    )
+    bets = (
+        GeneratedBet.query.join(ranked, GeneratedBet.id == ranked.c.id)
+        .filter(ranked.c.position <= MAX_RECENT_BETS_PER_GENERATION)
+        .order_by(GeneratedBet.generation_id, GeneratedBet.id)
+        .all()
+    )
     bets_by_generation: dict[int, list[GeneratedBet]] = {}
-    for generation in generations:
-        generation_id = generation["generation_id"]
-        bets_by_generation[generation_id] = (
-            GeneratedBet.query.filter(GeneratedBet.generation_id == generation_id)
-            .order_by(GeneratedBet.id)
-            .limit(MAX_RECENT_BETS_PER_GENERATION)
-            .all()
-        )
-        generation["bets_truncated"] = (
-            generation["bet_count"] > MAX_RECENT_BETS_PER_GENERATION
-        )
+    for bet in bets:
+        bets_by_generation.setdefault(bet.generation_id, []).append(bet)
 
     for generation in generations:
         generation["bets"] = bets_by_generation.get(generation["generation_id"], [])
+        generation["bets_truncated"] = (
+            generation["bet_count"] > MAX_RECENT_BETS_PER_GENERATION
+        )
     return generations
 
 
