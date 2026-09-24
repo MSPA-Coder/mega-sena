@@ -76,9 +76,16 @@ servidor subir:
 flask --app run.py db upgrade
 ```
 
-Em Docker, `docker-entrypoint.sh` faz isso a cada início de contêiner
-(idempotente) antes de `exec` no processo do servidor. Fora do Docker, rode o
-comando manualmente após qualquer alteração de schema.
+No Compose, o serviço `migrate` faz isso a cada subida (idempotente), com o
+papel administrativo `POSTGRES_USER` -- superusuário, dono das tabelas --,
+antes de o `app` subir. O `app` conecta com o papel restrito `mega_sena_app`,
+que o serviço `db-provision` (`scripts/provision-db-runtime.sh`) cria ou
+atualiza a cada subida com DML e uso de sequências, sem DDL; com
+`DB_EXIGIR_PAPEL_RESTRITO=1`, `app/papel_do_banco.py` recusa uma conexão
+superusuária. O `docker-entrypoint.sh` ainda migra quando
+`MEGA_SENA_MIGRAR_NA_SUBIDA` não é `0`, para quem roda a imagem fora do
+Compose. Fora do Docker, rode o comando manualmente após qualquer alteração
+de schema.
 
 O Compose monta `postgres_password` e `secret_key` como Docker secrets. A
 fábrica lê a senha pelo caminho em `DB_PASSWORD_FILE` para construir a URL do

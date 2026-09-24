@@ -52,6 +52,83 @@ services:
       retries: 20
     stop_grace_period: 60s
 
+  # Cria ou atualiza, de forma idempotente, o papel restrito da aplicação. Roda
+  # a cada `up`, antes do `migrate`: concede acesso às tabelas existentes, e os
+  # privilégios padrão cobrem as que o `migrate` criar depois.
+  db-provision:
+    image: postgres:17-alpine@sha256:f02121de6f74d30d8a94cd1d9584125e2178d7e6c377d8130112d4e52d867995
+    user: postgres
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,mode=1777,size=16m
+      - /var/run/postgresql:rw,nosuid,nodev,noexec,mode=1777,size=16m
+    pids_limit: 64
+    mem_limit: 256m
+    cpus: "0.5"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: ${POSTGRES_DB:-mega_sena}
+      DB_ADMIN_USER: ${POSTGRES_USER:-mega_sena}
+      DB_ADMIN_PASSWORD_FILE: /run/secrets/postgres_password
+      DB_APP_USER: ${POSTGRES_APP_USER:-mega_sena_app}
+      DB_APP_PASSWORD_FILE: /run/secrets/postgres_app_password
+    secrets:
+      - postgres_password
+      - postgres_app_password
+    volumes:
+      - ./scripts/provision-db-runtime.sh:/usr/local/bin/provision-db-runtime.sh:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["sh", "/usr/local/bin/provision-db-runtime.sh"]
+    restart: "no"
+    logging: *default-logging
+
+  # Aplica as migrações com o papel administrativo (migração é DDL) e termina.
+  # O `app` só sobe depois dele, e com MEGA_SENA_MIGRAR_NA_SUBIDA=0.
+  migrate:
+    image: mega-sena:local
+    build:
+      context: .
+      target: runtime
+      secrets:
+        - local_ca
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=64m
+    pids_limit: 128
+    mem_limit: 512m
+    cpus: "1.0"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: ${POSTGRES_DB:-mega_sena}
+      DB_USER: ${POSTGRES_USER:-mega_sena}
+      DB_PASSWORD_FILE: /run/secrets/postgres_password
+      SECRET_KEY_FILE: /run/secrets/secret_key
+      TZ: America/Sao_Paulo
+    secrets:
+      - postgres_password
+      - secret_key
+    entrypoint: ["flask", "--app", "run.py", "db", "upgrade"]
+    command: []
+    depends_on:
+      postgres:
+        condition: service_healthy
+      db-provision:
+        condition: service_completed_successfully
+    restart: "no"
+    logging: *default-logging
+
   app:
     # Nome fixo em vez do derivado do diretorio. Sem isto o Compose batiza a
     # imagem a partir do nome da pasta, que muda conforme onde o repositorio
@@ -76,12 +153,17 @@ services:
     pids_limit: 256
     mem_limit: 512m
     cpus: "2.0"
+    # Papel restrito (só DML), provisionado pelo `db-provision`. As migrações
+    # ficam com o serviço `migrate`, e a aplicação recusa uma conexão
+    # superusuária (`app/papel_do_banco.py`).
     environment:
       DB_HOST: postgres
       DB_PORT: "5432"
       DB_NAME: ${POSTGRES_DB:-mega_sena}
-      DB_USER: ${POSTGRES_USER:-mega_sena}
-      DB_PASSWORD_FILE: /run/secrets/postgres_password
+      DB_USER: ${POSTGRES_APP_USER:-mega_sena_app}
+      DB_PASSWORD_FILE: /run/secrets/postgres_app_password
+      DB_EXIGIR_PAPEL_RESTRITO: "1"
+      MEGA_SENA_MIGRAR_NA_SUBIDA: "0"
       SECRET_KEY_FILE: /run/secrets/secret_key
       MEGA_SENA_HOST: 0.0.0.0
       MEGA_SENA_PORT: "5001"
@@ -91,13 +173,15 @@ services:
       MEGA_SENA_FORCE_HTTPS: ${MEGA_SENA_FORCE_HTTPS:-false}
       TZ: America/Sao_Paulo
     secrets:
-      - postgres_password
+      - postgres_app_password
       - secret_key
     ports:
       - "127.0.0.1:${APP_PORT:-5101}:5001"
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test:
         - CMD
@@ -195,5 +279,9 @@ secrets:
     file: .certs/local-root-ca.crt
   postgres_password:
     file: .secrets/postgres_password.txt
+  # Senha do papel restrito da aplicação. Precisa ser legível pelo uid 70 (o
+  # `db-provision` roda como `postgres`) e pelo usuário do `app`.
+  postgres_app_password:
+    file: .secrets/postgres_app_password.txt
   secret_key:
     file: .secrets/secret_key.txt

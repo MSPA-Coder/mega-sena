@@ -37,8 +37,9 @@ cp .env.vps.example .env.vps
 install -d -m 0700 .secrets .certs
 umask 077
 openssl rand -hex 32 > .secrets/postgres_password.txt
+openssl rand -hex 32 > .secrets/postgres_app_password.txt
 openssl rand -hex 48 > .secrets/secret_key.txt
-chmod 0444 .secrets/postgres_password.txt .secrets/secret_key.txt
+chmod 0444 .secrets/postgres_password.txt .secrets/postgres_app_password.txt .secrets/secret_key.txt
 touch .certs/local-root-ca.crt
 ```
 

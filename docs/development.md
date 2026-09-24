@@ -20,8 +20,9 @@ script pode migrá-los para arquivos; use `-RemoveLegacyValues` somente depois
 de validar a subida. `-Force` troca os segredos e exige tratar a senha do banco
 e a invalidação das sessões existentes.
 
-Sem `compose.dev.yaml`, o serviço usa a imagem imutável. O entrypoint executa
-`flask --app run.py db upgrade` antes do Gunicorn; `create_app()` apenas monta a
+Sem `compose.dev.yaml`, o serviço usa a imagem imutável. O serviço `migrate`
+executa `flask --app run.py db upgrade`, com o papel administrativo, antes do
+Gunicorn do `app`; `create_app()` apenas monta a
 aplicação e não consulta o banco, cria tabelas ou dados iniciais.
 
 ## Validação automatizada
