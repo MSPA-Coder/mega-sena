@@ -141,6 +141,12 @@ O venv é Windows e já pegou travamento de suíte que o contêiner nunca mostro
 lugar com `ruff` e `pip-audit` na versão que a CI usa. Itere no venv e passe
 pelo `quality` antes de commitar.
 
+O que merece teste, em que camada e em que forma está em `docs/TESTES.md`,
+comum aos repositórios; leia antes de escrever ou remover um teste. Diante de
+vermelho, decida de quem é o defeito antes de mexer: teste que mede texto
+literal reprova mudança legítima, e nesse caso quem se corrige é a asserção.
+Nunca escreva código para o teste passar.
+
 O estágio `quality` executa Ruff e toda a suíte pytest, incluindo os contratos
 de domínio de geração, fechamento e importação. O CI executa o Compose e esse
 estágio em mudanças para `main` e semanalmente, audita as dependências Python
