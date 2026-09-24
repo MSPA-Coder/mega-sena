@@ -230,7 +230,13 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
     # nenhuma delas tinha limite algum. O valor é generoso para o uso normal
     # (folga de tela em tela) e serve de rede para qualquer rota futura que
     # esqueça limite dedicado.
-    limiter = iniciar_limiter(app, limites_padrao=["300 per hour", "60 per minute"])
+    # `memory://` declarado, como no CRV e no ConfortoTermico: era o que ja
+    # valia por omissao, mas implicito o Flask-Limiter avisava a cada subida e
+    # em cada teste. Cada worker do gunicorn conta por conta propria; o nginx
+    # limita o /login na frente.
+    limiter = iniciar_limiter(
+        app, limites_padrao=["300 per hour", "60 per minute"], storage_uri="memory://"
+    )
     # Confirmação e aviso (modal + toast) comuns aos quatro apps -- ver
     # sharedauth/ui/__init__.py. Serve CSS/JS com ETag/304 e expõe
     # `sharedauth_icone` para os templates.
