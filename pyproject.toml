@@ -121,3 +121,9 @@ markers = [
   # exclui-la com `-m "not banco"`.
   "banco: exige um PostgreSQL de verdade (servico `postgres-teste` do Compose)",
 ]
+filterwarnings = [
+  # `flask_login` 0.6.3, a ultima publicada, chama `datetime.utcnow()` ao
+  # gravar o cookie de "lembrar de mim". O filtro e preso ao modulo dela para
+  # nao esconder o mesmo aviso vindo daqui. Rever quando sair versao nova.
+  "ignore:datetime.datetime.utcnow:DeprecationWarning:flask_login.*",
+]
