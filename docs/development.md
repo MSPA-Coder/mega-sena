@@ -14,7 +14,9 @@ docker compose --env-file .env.docker -f compose.yaml -f compose.dev.yaml up --b
 ```
 
 `provision_secrets.ps1` cria, sem exibir os valores,
-`.secrets/postgres_password.txt` e `.secrets/secret_key.txt`. Se um ambiente
+`.secrets/postgres_password.txt`, `.secrets/secret_key.txt` e
+`.secrets/postgres_app_password.txt` (a senha do papel restrito com que o
+`app` conecta; o `db-provision` a aplica a cada subida). Se um ambiente
 antigo ainda tiver `POSTGRES_PASSWORD` ou `SECRET_KEY` no `.env.docker`, o
 script pode migrá-los para arquivos; use `-RemoveLegacyValues` somente depois
 de validar a subida. `-Force` troca os segredos e exige tratar a senha do banco
