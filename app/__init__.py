@@ -213,6 +213,11 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
     app.jinja_env.globals["flashed_avisos"] = flashed_avisos
 
     db.init_app(app)
+    # Criar o engine não conecta: `create_app()` continua sem consultar o banco.
+    from .papel_do_banco import instalar as instalar_trava_de_papel
+
+    with app.app_context():
+        instalar_trava_de_papel(db.engine)
     migrate.init_app(
         app,
         db,

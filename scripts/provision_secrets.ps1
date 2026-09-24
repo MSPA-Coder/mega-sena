@@ -22,7 +22,10 @@ foreach ($line in Get-Content -LiteralPath $EnvFile) {
 
 function New-SecretValue {
     $bytes = [byte[]]::new(48)
-    [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+    # `RandomNumberGenerator::Fill` só existe no PowerShell 7; `Create()` e
+    # `GetBytes` funcionam também no Windows PowerShell 5.1.
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    try { $rng.GetBytes($bytes) } finally { $rng.Dispose() }
     return [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
 }
 
@@ -65,7 +68,10 @@ if ($PSCmdlet.ShouldProcess($SecretsDirectory, "criar diretório de segredos")) 
 
 $postgresResult = Write-SecretFile -Name "postgres_password.txt" -LegacyName "POSTGRES_PASSWORD"
 $sessionResult = Write-SecretFile -Name "secret_key.txt" -LegacyName "SECRET_KEY"
-foreach ($result in @($postgresResult, $sessionResult)) {
+# Senha do papel restrito da aplicação: ninguém a escolhe, o `db-provision` a
+# aplica ao papel a cada subida.
+$appResult = Write-SecretFile -Name "postgres_app_password.txt" -LegacyName "POSTGRES_APP_PASSWORD"
+foreach ($result in @($postgresResult, $sessionResult, $appResult)) {
     $status = if ($result.Written) { "Provisionado" } else { "Preservado" }
     Write-Output "${status}: .secrets/$($result.Name)"
 }

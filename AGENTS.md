@@ -44,7 +44,9 @@ que grava dados. Não acrescente camadas sem reduzir complexidade concreta.
 
 PostgreSQL é o único backend operacional. `create_app()` não consulta banco,
 não aplica migrações e não cria seed. `flask db upgrade` é etapa controlada:
-o `docker-entrypoint.sh` a executa antes do servidor no Compose. Banco novo
+no Compose, o serviço `migrate` a executa com o papel administrativo antes do
+`app`, que conecta com o papel restrito `mega_sena_app` (só DML, provisionado
+pelo `db-provision`) e recusa conexão superusuária. Banco novo
 pode permanecer sem linhas de configuração, pois a aplicação lê os padrões até
 a primeira gravação. Mudança persistente exige revisão Alembic nova; não
 reescreva uma revisão já aplicável nem use `stamp` ou `create_all()` como

@@ -20,8 +20,8 @@ Copy-Item .env.docker.example .env.docker
 docker compose --env-file .env.docker -f compose.yaml up --build -d
 ```
 
-A aplicação fica em <http://127.0.0.1:5101>. O entrypoint aplica todas as
-migrations pendentes antes de iniciar o Gunicorn. Os dados permanecem no volume
+A aplicação fica em <http://127.0.0.1:5101>. O serviço `migrate` aplica todas
+as migrations pendentes antes de o Gunicorn iniciar. Os dados permanecem no volume
 `postgres_data` após `docker compose down`; `down -v` os remove e só deve ser
 usado para descarte deliberado.
 
