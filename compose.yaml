@@ -270,6 +270,17 @@ services:
         condition: service_healthy
     profiles: ["quality"]
     cpus: "2.0"
+    # A suíte roda num contêiner descartável, mas com a mesma fronteira de
+    # privilégio do runtime. Só /tmp precisa continuar gravável durante os
+    # testes: os caches do Ruff e do pytest apontam para lá (ver o `Dockerfile`).
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=64m
+    pids_limit: 256
 
 volumes:
   postgres_data:
