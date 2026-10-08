@@ -12,6 +12,11 @@ mudança nasce na máquina de desenvolvimento, passa pelo GitHub e chega ao VPS
 por `~/deploy.sh megasena`. Não edite, commite nem faça merge no servidor. A
 deploy key é somente leitura e o script recusa uma árvore suja.
 
+Publique por branch, pull request com checks obrigatórios verdes e squash merge;
+só então o `main` remoto é elegível para o deploy. Não faça push direto ao
+`main` nem aguarde uma segunda rodada de CI manualmente: o script confere o
+commit que vai aplicar.
+
 Os dados vivem no volume Docker `mega-sena_postgres_data`, fora do checkout.
 `.secrets/` e `.certs/` também não são versionados e precisam ser preservados ou
 restaurados em um reclone. Nunca use `docker compose down --volumes` no VPS.
@@ -100,15 +105,14 @@ Docker não substitui backup.
 ## Implantação e mudanças de schema
 
 ```bash
-~/deploy.sh megasena --check
 ~/deploy.sh megasena
-~/deploy.sh --status
 ```
 
-Depois da implantação, confira os health checks do Compose, o login e o fluxo
-afetado. O `deploy.sh` central reverte automaticamente código e imagem quando o
-build ou os health checks falham; não intervenha manualmente no checkout do
-VPS.
+Depois da implantação, confira o login e o fluxo afetado. O próprio
+`deploy.sh` confere a elegibilidade do commit, os health checks e o endereço
+público, e reverte automaticamente código e imagem quando build ou saúde
+falham; não intervenha manualmente no checkout do VPS. `~/deploy.sh --status`
+continua disponível apenas para diagnóstico transversal.
 
 Essa reversão não desfaz migrations já aplicadas. Toda mudança de schema deve
 ter backup verificado e ser retrocompatível com a revisão anterior durante a
