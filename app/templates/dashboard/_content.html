@@ -36,7 +36,7 @@
         <h3>Quantidade de números pares</h3>
         <div>
           {% for qtd, total in stats.even_distribution.items() %}
-            <p><a class="history-filter-link" href="{{ url_for('web.contests', even_count=qtd) }}"><b>{{ qtd }}</b></a><strong>{{ total }}</strong><em>concursos</em><em>{{ (total / stats.total_draws * 100)|round(1) if stats.total_draws else 0 }}%</em></p>
+            <p><a class="history-filter-link" href="{{ url_for('web.contests', even_count=qtd) }}"><b>{{ qtd }}</b></a><strong>{{ total }}</strong><em>concursos</em><em>{{ (total / stats.total_draws * 100)|round(1)|unumber if stats.total_draws else 0 }}%</em></p>
           {% endfor %}
         </div>
       </div>
@@ -45,7 +45,7 @@
           <h3>Maior sequência consecutiva</h3>
           <div>
             {% for qtd, total in stats.consecutive_distribution.items() %}
-              <p><a class="history-filter-link" href="{{ url_for('web.contests', consecutive_count=qtd) }}"><b>{{ qtd }}</b></a><strong>{{ total }}</strong><em>concursos</em><em>{{ (total / stats.total_draws * 100)|round(1) if stats.total_draws else 0 }}%</em></p>
+              <p><a class="history-filter-link" href="{{ url_for('web.contests', consecutive_count=qtd) }}"><b>{{ qtd }}</b></a><strong>{{ total }}</strong><em>concursos</em><em>{{ (total / stats.total_draws * 100)|round(1)|unumber if stats.total_draws else 0 }}%</em></p>
             {% endfor %}
           </div>
         </div>
@@ -53,7 +53,7 @@
           <h3>Distribuição por faixas</h3>
           <div class="range-band-list">
             {% for faixa, total in stats.ranges.items() %}
-              <p><span>{{ faixa }}</span><strong>{{ total }}</strong><em>{{ (total / (stats.total_draws * 6) * 100)|round(1) if stats.total_draws else 0 }}%</em></p>
+              <p><span>{{ faixa }}</span><strong>{{ total }}</strong><em>{{ (total / (stats.total_draws * 6) * 100)|round(1)|unumber if stats.total_draws else 0 }}%</em></p>
             {% endfor %}
           </div>
         </div>

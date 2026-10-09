@@ -35,6 +35,7 @@ from ..bets.service import (
     save_generated_bets,
 )
 from ..core.formatting import format_int, format_percent
+from ..core.regional import adaptar_numero
 from ..draws.service import count_draws
 from ..settings.service import get_generation_defaults
 from . import bp
@@ -193,7 +194,7 @@ def _draw_filter_preview_payload(
         "count": count,
         "total": total,
         "percentage": round(percentage, 2),
-        "percentage_text": f"{percentage:.2f}%".replace(".", ","),
+        "percentage_text": adaptar_numero(f"{percentage:.2f}%".replace(".", ",")),
     }
 
 

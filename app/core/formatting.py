@@ -9,10 +9,12 @@ from __future__ import annotations
 
 from sharedauth.formatting import inteiro, moeda, percentual
 
+from .regional import adaptar_numero
+
 
 def format_int(value: int) -> str:
-    """Formata inteiro com separador de milhar brasileiro."""
-    return inteiro(value)
+    """Formata inteiro com separador de milhar (padrão do formato regional do usuário)."""
+    return adaptar_numero(inteiro(value))
 
 
 def format_percent(value: float) -> str:
@@ -21,7 +23,7 @@ def format_percent(value: float) -> str:
     Oito casas, e nao duas: uma chance de 1 em 50 milhoes some inteira com
     duas. Os zeros a direita saem para a coluna nao ficar ilegivel.
     """
-    return percentual(value, casas=8, remover_decimal_zero=True, simbolo=False)
+    return adaptar_numero(percentual(value, casas=8, remover_decimal_zero=True, simbolo=False))
 
 
 def format_brl_without_cents(cents: int | None) -> str:
@@ -33,4 +35,4 @@ def format_brl_without_cents(cents: int | None) -> str:
     """
     if not cents:
         return ""
-    return moeda(round(cents / 100), casas=0, ausente="")
+    return adaptar_numero(moeda(round(cents / 100), casas=0, ausente=""))

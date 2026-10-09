@@ -38,7 +38,7 @@
     <tbody>
       {% from "components/balls.html" import render_balls %}
       {% for d in pagination.items %}
-        <tr><td>{{ d.contest }}</td><td>{{ d.draw_date or '-' }}</td><td>{{ render_balls(d.numbers, 'ball small') }}</td><td>{{ d.consecutive_count }}</td><td>{{ d.even_count }}</td><td>{{ d.prize_cents|brl0 }}</td><td><span class="winners-count">{{ d.winners_6 }} {{ 'acertador' if d.winners_6 == 1 else 'acertadores' }}</span>{{ d.accumulated_cents|brl0 }}</td><td><span class="winners-count">{{ d.winners_5 }} {{ 'acertador' if d.winners_5 == 1 else 'acertadores' }}</span>{{ d.quina_rateio_cents|brl0 }}</td><td><span class="winners-count">{{ d.winners_4 }} {{ 'acertador' if d.winners_4 == 1 else 'acertadores' }}</span>{{ d.quadra_rateio_cents|brl0 }}</td></tr>
+        <tr><td>{{ d.contest }}</td><td>{{ d.draw_date|udate or '-' }}</td><td>{{ render_balls(d.numbers, 'ball small') }}</td><td>{{ d.consecutive_count }}</td><td>{{ d.even_count }}</td><td>{{ d.prize_cents|brl0 }}</td><td><span class="winners-count">{{ d.winners_6 }} {{ 'acertador' if d.winners_6 == 1 else 'acertadores' }}</span>{{ d.accumulated_cents|brl0 }}</td><td><span class="winners-count">{{ d.winners_5 }} {{ 'acertador' if d.winners_5 == 1 else 'acertadores' }}</span>{{ d.quina_rateio_cents|brl0 }}</td><td><span class="winners-count">{{ d.winners_4 }} {{ 'acertador' if d.winners_4 == 1 else 'acertadores' }}</span>{{ d.quadra_rateio_cents|brl0 }}</td></tr>
       {% else %}
         <tr><td colspan="9" class="empty-state">Nenhum concurso encontrado para o filtro selecionado.</td></tr>
       {% endfor %}
