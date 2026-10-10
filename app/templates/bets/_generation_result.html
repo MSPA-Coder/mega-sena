@@ -16,7 +16,7 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="{{ 'save_closure' if closure_mode else 'save' }}"><input type="hidden" name="quantity" value="{{ bets[0].quantity }}"><input type="hidden" name="amount" value="{{ selected_amount }}">
       {% if closure_mode %}<input type="hidden" name="closure_numbers" value="{{ closure_numbers }}">{% endif %}
       {% for key, value in selected_filters.items() %}{% if value is not none %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endif %}{% endfor %}
-      <div class="generated-bets-grid">{% for bet in bets %}<div class="bet-line">{% if not closure_mode %}<input type="hidden" name="bet" value="{{ bet.numbers_csv }}">{% endif %}{{ render_balls(bet.numbers) }}<small>Diversidade {{ "%.2f"|format(bet.score) }}</small></div>{% endfor %}</div>
+      <div class="generated-bets-grid">{% for bet in bets %}<div class="bet-line">{% if not closure_mode %}<input type="hidden" name="bet" value="{{ bet.numbers_csv }}">{% endif %}{{ render_balls(bet.numbers) }}<small>Diversidade {{ ("%.2f"|format(bet.score))|unumber }}</small></div>{% endfor %}</div>
       <div class="actions"><button type="submit">Gravar no banco</button><span id="save-indicator" class="htmx-indicator" role="status">Gravando…</span><a class="button secondary" href="{{ url_for('web.bet_generation', **generation_params) if generation_params is defined else url_for('web.bet_generation') }}">Não gravar</a></div>
     </form>
   {% elif feedback %}
