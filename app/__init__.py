@@ -6,7 +6,7 @@ import os
 from collections.abc import Mapping
 from pathlib import Path
 
-from flask import Flask, flash, make_response, redirect, render_template, request, url_for
+from flask import Flask, flash, g, make_response, redirect, render_template, request, url_for
 from flask_login import current_user
 from sharedauth.access import requer_login, requer_troca_de_senha
 from sharedauth.config import ler_flag, montar_url_postgres
@@ -24,6 +24,7 @@ from sharedauth.ui import registrar_ui
 from sqlalchemy import select
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+from .core import regional
 from .core.formatting import format_brl_without_cents
 from .extensions import db, login_manager, migrate
 from .web.helpers import flashed_avisos
@@ -208,6 +209,9 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
     app.config["SECRET_KEY"] = secret_key
 
     app.jinja_env.filters["brl0"] = format_brl_without_cents
+    app.jinja_env.filters["udate"] = regional.formatar_data
+    app.jinja_env.filters["unumber"] = regional.formatar_numero_simples
+    app.jinja_env.filters["udatetime"] = regional.formatar_data_hora
     # Ponte entre `flash()` e o toast do sharedauth -- ver o docstring de
     # `flashed_avisos` e o bloco que a consome em templates/base.html.
     app.jinja_env.globals["flashed_avisos"] = flashed_avisos
@@ -347,6 +351,33 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
     )
 
     # ------------------------------------------------------------------
+    # Formato regional (Brasil/EUA) do usuário: só apresentação. O usuário já é
+    # carregado pelo `user_loader` em toda requisição autenticada, então ler a
+    # coluna não custa consulta alguma. Estáticos ficam de fora.
+    # ------------------------------------------------------------------
+    @app.before_request
+    def _ativar_formato_regional() -> None:
+        formato = None
+        if request.endpoint not in (None, "static") and current_user.is_authenticated:
+            formato = current_user.regional_format
+        g.token_formato_regional = regional.ativar(formato)
+
+    @app.teardown_request
+    def _desativar_formato_regional(_exc: BaseException | None) -> None:
+        token = g.pop("token_formato_regional", None)
+        if token is not None:
+            try:
+                regional.desativar(token)
+            except ValueError:
+                # Contexto diferente do que ativou (teste com `with client`):
+                # volta ao padrão em vez de deixar o formato vazar.
+                regional.ativar(regional.DEFAULT_REGIONAL_FORMAT)
+
+    @app.context_processor
+    def _contexto_regional() -> dict[str, str]:
+        return {"regional_format": regional.formato_ativo()}
+
+    # ------------------------------------------------------------------
     # Cache-busting de assets estáticos: evita que o navegador continue
     # servindo um style.css antigo do cache após alterações de CSS.
     # ------------------------------------------------------------------
@@ -359,6 +390,7 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
                 "style.css",
                 "base.js",
                 "bets.js",
+                "regional.js",
                 "vendor/htmx-2.0.10.min.js",
             )
         ]

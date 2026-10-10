@@ -5,7 +5,7 @@
   {% endfor %}
 </div>
 {% if targets.total %}
-  <p id="filter-target-status" class="form-note" aria-live="polite" hx-swap-oob="outerHTML">Parâmetros preenchidos para pelo menos {{ target_percentage|round(2) }}% em cada critério isolado.</p>
+  <p id="filter-target-status" class="form-note" aria-live="polite" hx-swap-oob="outerHTML">Parâmetros preenchidos para pelo menos {{ target_percentage|round(2)|unumber }}% em cada critério isolado.</p>
 {% else %}
   <p id="filter-target-status" class="form-note" aria-live="polite" hx-swap-oob="outerHTML">Importe concursos para calcular os parâmetros.</p>
 {% endif %}

@@ -8,6 +8,7 @@ from sharedauth.passwords import conferir_hash, gerar_hash
 from sharedauth.session import identificador_de_sessao, marca_de_sessao
 from sqlalchemy import CheckConstraint
 
+from .core.regional import DEFAULT_REGIONAL_FORMAT
 from .extensions import db
 
 _CONSECUTIVE_COUNT_SQL = (
@@ -222,6 +223,9 @@ class User(UserMixin, db.Model):
     """
 
     __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint("regional_format IN ('br', 'us')", name="ck_users_regional_format_valid"),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), nullable=False, unique=True, index=True)
@@ -234,6 +238,14 @@ class User(UserMixin, db.Model):
     # senha que duas pessoas conhecem só deve valer até o primeiro acesso.
     must_change_password = db.Column(
         db.Boolean, nullable=False, default=False, server_default=db.text("false")
+    )
+    # Como datas e números aparecem e são digitados (`br` ou `us`). Só
+    # apresentação: o que é gravado e calculado não muda.
+    regional_format = db.Column(
+        db.String(2),
+        nullable=False,
+        default=DEFAULT_REGIONAL_FORMAT,
+        server_default=DEFAULT_REGIONAL_FORMAT,
     )
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
 

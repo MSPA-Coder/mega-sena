@@ -16,6 +16,7 @@ from sharedauth.passwords import (
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
+from ..core.regional import normalize_regional_format
 from ..extensions import db
 from ..models import ROLE_ADMIN, ROLE_OPERADOR, USER_ROLES, User
 
@@ -147,6 +148,18 @@ def change_own_password(
     user.set_password(senha_nova)
     user.must_change_password = False
     db.session.commit()
+
+
+def update_own_regional_format(user: User, regional_format: str | None) -> str:
+    """Grava o formato de datas e números do próprio dono (só apresentação).
+
+    Valor desconhecido cai no padrão Brasil: a tela oferece duas opções e o
+    banco recusa qualquer outra por CHECK.
+    """
+    normalizado = normalize_regional_format(regional_format)
+    user.regional_format = normalizado
+    db.session.commit()
+    return normalizado
 
 
 def set_active(user: User, active: bool, *, actor: User) -> None:

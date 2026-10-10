@@ -183,6 +183,21 @@ Alterações de schema são feitas em revisões de `migrations/versions/`, aplic
 por `flask db upgrade`. Backups são uma responsabilidade operacional separada,
 do BackupRestore (projeto irmão, fora deste repositório).
 
+## Formato regional (Brasil/EUA)
+
+Cada usuário escolhe em Preferências (`/preferencias`) como datas e números
+aparecem e são digitados (`users.regional_format`, padrão `br`). É só UX:
+banco, importação, sorteio e cálculos seguem como sempre foram.
+
+- `app/core/regional.py` guarda o formato da requisição numa `ContextVar`,
+  preenchida em `before_request` a partir de `current_user` (já carregado pelo
+  `user_loader`) e devolvida em `teardown_request`.
+- Números passam por `app/core/formatting.py` e pelo filtro `unumber`; datas, por
+  `udate` e `udatetime`. Texto de tela montado em Python usa `regional.formatar_*`.
+- `app/static/regional.js` troca os campos de data, mês e decimais (`step`
+  fracionário) por um campo de texto no formato escolhido; o original escondido
+  mantém `id`, `name` e valor, e vale também para conteúdo trazido por HTMX.
+
 ## Segurança e implantação
 
 O escopo padrão é local:

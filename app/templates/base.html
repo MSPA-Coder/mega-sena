@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="pt-br" data-theme="{{ 'dark' if request.cookies.get('theme') == 'dark' else 'light' }}">
+<html lang="pt-br" data-theme="{{ 'dark' if request.cookies.get('theme') == 'dark' else 'light' }}" data-regional="{{ regional_format }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -39,6 +39,7 @@
     {% if current_user.is_authenticated %}
     {# Trocar a propria senha nao exige papel nenhum: e a conta de quem esta
        logado, ao contrario de "Usuarios", que administra contas alheias. #}
+    <a class="{{ 'active' if request.endpoint == 'web.preferences' else '' }}" href="{{ url_for('web.preferences') }}">Preferências</a>
     <a class="{{ 'active' if request.endpoint == 'web.change_password' else '' }}" href="{{ url_for('web.change_password') }}">Minha senha</a>
     <form method="post" action="{{ url_for('web.logout') }}" class="logout-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -59,6 +60,7 @@
 {% endblock %}
 <script src="{{ url_for('static', filename='vendor/htmx-2.0.10.min.js') }}?v={{ asset_version }}" defer></script>
 <script src="{{ url_for('static', filename='base.js') }}?v={{ asset_version }}" defer></script>
+<script src="{{ url_for('static', filename='regional.js') }}?v={{ asset_version }}" defer></script>
 <script src="{{ url_for('sharedauth_ui.static', filename='sharedauth-ui.js') }}" defer></script>
 <main class="container">
   {% set avisos = flashed_avisos() %}

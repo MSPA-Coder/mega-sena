@@ -21,8 +21,13 @@ from flask import flash, redirect, render_template, request, url_for
 from flask.typing import ResponseReturnValue
 from flask_login import current_user, login_user
 
-from ..accounts.service import MIN_PASSWORD_LENGTH, change_own_password
+from ..accounts.service import MIN_PASSWORD_LENGTH, change_own_password, update_own_regional_format
 from ..audit.service import record_event
+from ..core.regional import (
+    REGIONAL_FORMAT_EXAMPLES,
+    REGIONAL_FORMAT_LABELS,
+    normalize_regional_format,
+)
 from . import bp
 from .helpers import audit_request_context
 
@@ -69,4 +74,26 @@ def change_password() -> ResponseReturnValue:
         obrigatoria=obrigatoria,
         erro=None,
         min_password_length=MIN_PASSWORD_LENGTH,
+    )
+
+
+@bp.route("/preferencias", methods=["GET", "POST"])
+def preferences() -> ResponseReturnValue:
+    """Formato de datas e números da própria conta (Brasil ou EUA).
+
+    Só apresentação: o que é gravado e calculado não muda. Mora aqui, e não em
+    `settings.py` (que exige `admin`), porque é a conta de quem está logado.
+    """
+    if request.method == "POST":
+        escolhido = update_own_regional_format(current_user, request.form.get("regional_format"))
+        flash(f"Formato de datas e números alterado para: {REGIONAL_FORMAT_LABELS[escolhido]}", "success")
+        return redirect(url_for("web.preferences"))
+
+    return render_template(
+        "account/preferences.html",
+        current_format=normalize_regional_format(current_user.regional_format),
+        options=[
+            (valor, rotulo, REGIONAL_FORMAT_EXAMPLES[valor])
+            for valor, rotulo in REGIONAL_FORMAT_LABELS.items()
+        ],
     )
