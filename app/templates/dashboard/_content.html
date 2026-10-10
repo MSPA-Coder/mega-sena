@@ -7,8 +7,8 @@
     <div class="card metric-card">
       <span>Concursos</span>
       <strong>{{ stats.total_draws }}</strong>
-      <p><small>Com acertadores</small><b>{{ stats.mega_sena_games_with_winners }}</b><em>{{ stats.mega_sena_games_with_winners_pct }}%</em></p>
-      <p><small>Sem acertadores</small><b>{{ stats.mega_sena_games_without_winners }}</b><em>{{ stats.mega_sena_games_without_winners_pct }}%</em></p>
+      <p><small>Com acertadores</small><b>{{ stats.mega_sena_games_with_winners }}</b><em>{{ stats.mega_sena_games_with_winners_pct|unumber }}%</em></p>
+      <p><small>Sem acertadores</small><b>{{ stats.mega_sena_games_without_winners }}</b><em>{{ stats.mega_sena_games_without_winners_pct|unumber }}%</em></p>
     </div>
     <div class="card metric-card winners-card tint-gold">
       <span>Acertadores</span>

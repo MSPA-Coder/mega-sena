@@ -143,3 +143,13 @@ def test_numero_simples_segue_o_formato(app, eua):
 
 def test_numero_simples_no_brasil_usa_virgula(app):
     assert app.jinja_env.filters["unumber"](80.0) == "80,0"
+
+
+def test_nenhum_template_formata_decimal_com_ponto_fixo():
+    """Decimal na tela passa por `unumber`; `%.2f` e `_pct` crus mostrariam ponto a quem usa Brasil."""
+    cru = []
+    for caminho in (RAIZ / "app" / "templates").rglob("*.html"):
+        texto = caminho.read_text(encoding="utf-8")
+        if re.search(r'\{\{\s*"%\.\d+f"\|format\([^)]*\)\s*\}\}', texto) or re.search(r"_pct\s*\}\}", texto):
+            cru.append(caminho.relative_to(RAIZ).as_posix())
+    assert not cru, cru
