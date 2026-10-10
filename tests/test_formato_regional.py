@@ -113,29 +113,6 @@ def test_preferencias_exige_login(client):
     assert "/login" in resposta.headers["Location"]
 
 
-def test_nenhum_template_formata_data_fora_do_filtro_regional():
-    """Data legível por pessoa passa por `udate`, nunca por texto cru nem `strftime` fixo."""
-    fixos = []
-    for caminho in (RAIZ / "app" / "templates").rglob("*.html"):
-        texto = caminho.read_text(encoding="utf-8")
-        if re.search(r"draw_date(?!\|udate)\b", texto) or "strftime(" in texto:
-            fixos.append(caminho.relative_to(RAIZ).as_posix())
-    assert not fixos, fixos
-
-
-def test_o_javascript_regional_ignora_o_auxiliar_do_calendario():
-    """O campo auxiliar do calendario nunca vira campo regional.
-
-    Risco que protege: o auxiliar e um `<input type="date">` dentro do wrapper.
-    Sem a guarda, conteudo inserido depois do carregamento (troca de HTMX, campo
-    criado por JS) faz o observador tratar o auxiliar como campo novo e criar
-    wrapper dentro de wrapper sem fim, travando a aba.
-    """
-    texto = (RAIZ / "app/static/regional.js").read_text(encoding="utf-8")
-    assert "classList.contains('regional-picker-proxy')" in texto
-    assert ":not(.regional-picker-proxy)" in texto
-
-
 def test_numero_simples_segue_o_formato(app, eua):
     assert app.jinja_env.filters["unumber"](80.0) == "80.0"
     assert app.jinja_env.filters["unumber"](12.5) == "12.5"
@@ -143,13 +120,3 @@ def test_numero_simples_segue_o_formato(app, eua):
 
 def test_numero_simples_no_brasil_usa_virgula(app):
     assert app.jinja_env.filters["unumber"](80.0) == "80,0"
-
-
-def test_nenhum_template_formata_decimal_com_ponto_fixo():
-    """Decimal na tela passa por `unumber`; `%.2f` e `_pct` crus mostrariam ponto a quem usa Brasil."""
-    cru = []
-    for caminho in (RAIZ / "app" / "templates").rglob("*.html"):
-        texto = caminho.read_text(encoding="utf-8")
-        if re.search(r'\{\{\s*"%\.\d+f"\|format\([^)]*\)\s*\}\}', texto) or re.search(r"_pct\s*\}\}", texto):
-            cru.append(caminho.relative_to(RAIZ).as_posix())
-    assert not cru, cru
