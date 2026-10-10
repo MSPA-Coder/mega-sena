@@ -30,12 +30,9 @@ REGIONAL_FORMAT_EXAMPLES: Final = {
 
 _formato: ContextVar[str] = ContextVar("formato_regional", default=DEFAULT_REGIONAL_FORMAT)
 
-# Padrões no vocabulário do ``strftime``. O curto (``dd-Mmm-aa``) tem o mês por
-# extenso abreviado, então só a ordem muda.
+# Padrões de data de cada formato, no vocabulário do ``strftime``.
 _PADRAO_DATA = {REGIONAL_FORMAT_BR: "%d/%m/%Y", REGIONAL_FORMAT_US: "%m/%d/%Y"}
-_PADRAO_DATA_CURTA = {REGIONAL_FORMAT_BR: "%d-%b-%y", REGIONAL_FORMAT_US: "%b-%d-%y"}
 _PADRAO_DIA_MES = {REGIONAL_FORMAT_BR: "%d/%m", REGIONAL_FORMAT_US: "%m/%d"}
-_PADRAO_DIA_MES_ANO2 = {REGIONAL_FORMAT_BR: "%d/%m/%y", REGIONAL_FORMAT_US: "%m/%d/%y"}
 
 
 def normalize_regional_format(value: str | None) -> str:
@@ -65,29 +62,11 @@ def formatar_data(valor: date | datetime | None, *, ausente: str = "") -> str:
     return valor.strftime(_PADRAO_DATA[_formato.get()])
 
 
-def formatar_data_curta(valor: date | datetime | None, *, ausente: str = "") -> str:
-    if not valor:
-        return ausente
-    return valor.strftime(_PADRAO_DATA_CURTA[_formato.get()])
-
-
 def formatar_data_hora(valor: datetime | None, *, segundos: bool = False, ausente: str = "") -> str:
     if not valor:
         return ausente
     hora = "%H:%M:%S" if segundos else "%H:%M"
     return valor.strftime(f"{_PADRAO_DATA[_formato.get()]} {hora}")
-
-
-def formatar_dia_mes(valor: date | datetime | None, *, ausente: str = "") -> str:
-    if not valor:
-        return ausente
-    return valor.strftime(_PADRAO_DIA_MES[_formato.get()])
-
-
-def formatar_dia_mes_ano2(valor: date | datetime | None, *, ausente: str = "") -> str:
-    if not valor:
-        return ausente
-    return valor.strftime(_PADRAO_DIA_MES_ANO2[_formato.get()])
 
 
 def adaptar_numero(texto: str) -> str:
