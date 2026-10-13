@@ -22,7 +22,9 @@ script pode migrá-los para arquivos; use `-RemoveLegacyValues` somente depois
 de validar a subida. `-Force` troca os segredos e exige tratar a senha do banco
 e a invalidação das sessões existentes.
 
-Sem `compose.dev.yaml`, o serviço usa a imagem imutável. O serviço `migrate`
+Sem `compose.dev.yaml`, o serviço não monta o código do host e reconstrói sem
+cache a partir das tags base móveis em cada subida. A CI verifica o build e os
+testes antes de integrar atualizações de dependências. O serviço `migrate`
 executa `flask --app run.py db upgrade`, com o papel administrativo, antes do
 Gunicorn do `app`; `create_app()` apenas monta a
 aplicação e não consulta o banco, cria tabelas ou dados iniciais.
@@ -37,12 +39,9 @@ docker compose --env-file .env.docker -f compose.yaml --profile quality run --bu
 
 **`--build` não é opcional.** O serviço `quality` não monta o código do
 host: o que ele executa é o que foi copiado para a imagem. `docker compose
-run` reconstrói apenas quando a imagem não existe — se ela já existe, o
-comando roda a versão anterior do código e passa em verde sem ter visto
-nenhuma das suas alterações. É uma falha silenciosa na direção pior: dá
-confiança sem dar evidência. O CI não corre esse risco porque reconstrói
-sem cache antes de executar; o comando local precisa do `--build` para ter
-o mesmo significado.
+run` reconstrói sem cache a partir das tags base atuais antes de executar os
+testes. A CI semanal repete build, testes e auditorias para conferir as
+atualizações automáticas do sistema e das dependências.
 
 A suíte protege os contratos HTTP e de segurança — autenticação por padrão,
 CSRF, cabeçalhos, proxy, health check, download e limite de login —, a
