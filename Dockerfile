@@ -7,16 +7,9 @@
 # -----------------------------------------------------------------------
 # base: certificados locais opcionais, sem ferramentas de banco no runtime.
 # -----------------------------------------------------------------------
-# Base fixada por DIGEST do indice multi-arquitetura, e nao pela tag.
-#
-# `python:3.14-slim` e um alvo movel: a tag e reapontada a cada republicacao, e
-# como o `deploy.sh` reconstroi no VPS, a imagem servida podia nascer de uma
-# base diferente da que a CI varreu. O digest e o mesmo raciocinio que ja fixa
-# as actions por SHA e o Trivy por digest.
-#
-# E digest de INDICE, nao de manifesto: assim continua valendo para amd64 e
-# arm64. O Dependabot atualiza esta linha.
-FROM python:3.14-slim@sha256:51dafde81dbdb6ebde285137a295cf18a47ca95234fe388a343719cb97305b3d AS base
+# A tag da série 3.15 acompanha correções de segurança. A CI semanal reconstrói
+# com `--pull`, testa a imagem e barra CVEs corrigíveis antes da adoção.
+FROM python:3.15-slim AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -32,7 +25,7 @@ RUN --mount=type=secret,id=local_ca,required=false \
 
 # Correcoes de seguranca da base e das ferramentas de empacotamento.
 #
-# `apt-get upgrade` porque a `python:3.14-slim` publicada carrega pacotes do
+# `apt-get upgrade` porque a `python:3.15-slim` publicada carrega pacotes do
 # Debian com CVE ja corrigido a montante; sem isto a correcao so chega quando a
 # imagem oficial for republicada. O `setuptools` que vem na base tambem fica
 # para tras -- o 70.3.0 tinha CVE-2025-47273, travessia de caminho.
@@ -79,11 +72,10 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
 
-# Versão fixa: o instalador que garante reprodutibilidade não pode ser ele
-# próprio uma variável. O binário é autocontido e o estágio `quality` o copia
-# daqui, em vez de reinstalá-lo.
+# O instalador acompanha a última versão e é validado pela mesma CI que testa
+# a aplicação. O binário autocontido é copiado pelo estágio `quality`.
 RUN --mount=type=cache,target=/root/.cache/pip \
-    python -m pip install --no-cache-dir "uv==0.12.10"
+    python -m pip install --no-cache-dir --upgrade uv
 
 ENV UV_PROJECT_ENVIRONMENT=/opt/venv
 COPY pyproject.toml uv.lock README.md ./

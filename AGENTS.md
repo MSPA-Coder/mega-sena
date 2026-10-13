@@ -96,9 +96,9 @@ versione a pasta e trate `-Force` como rotação coordenada.
 
 O Compose publica serviços apenas em loopback. Exposição externa requer HTTPS,
 `FORCE_HTTPS`, revisão de hosts confiáveis, segredo estável e estratégia de
-proxy. A imagem `runtime` usa gunicorn e usuário não-root. O modo padrão é
-imutável, com somente `compose.yaml`; inclua `compose.dev.yaml` explicitamente
-para montar código durante desenvolvimento.
+proxy. A imagem `runtime` usa gunicorn e usuário não-root. O modo padrão
+reconstrói sem cache a partir das tags base móveis em cada subida; inclua
+`compose.dev.yaml` explicitamente para montar código durante desenvolvimento.
 
 ## Operação, riscos e validação
 
@@ -110,36 +110,14 @@ docker compose --env-file .env.docker -f compose.yaml up --build -d
 docker compose --env-file .env.docker -f compose.yaml --profile quality run --build --rm quality
 ```
 
-`--build` faz parte do comando: o serviço `quality` não monta o código do
-host e `docker compose run` só reconstrói quando a imagem não existe. Sem
-ele, a validação roda a versão anterior do código e passa em verde.
+`--build` mantém a validação explícita e reproduzível: o serviço `quality` não
+monta o código do host, e Compose reconstrói sem cache com as tags base atuais
+antes de executar os testes.
 
-### Loop rápido no host
-
-O portão `quality` custa dezenas de segundos por rodada -- caro demais para o
-ciclo de edição. Para isso existe um venv por projeto:
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
-.\.venv\Scripts\python.exe -m pytest -q
-.\.venv\Scripts\python.exe -m ruff check .
-```
-
-O `.venv/` é uma pasta do projeto, já ignorada pelo Git: não altera o Python
-do sistema nem o PATH, e apagar a pasta desfaz a instalação por inteiro. A
-proibição que vale é outra, e continua de pé -- nada de instalar dependências
-do projeto no Python global do Windows.
-
-`sharedauth` é instalado direto do GitHub, na tag que `pyproject.toml` fixa e
-no commit que o `uv.lock` registra. O repositório é **público**: o build precisa
-só de `git` no PATH, nenhuma credencial.
-
-Os dois ambientes acham defeitos diferentes, então nenhum substitui o outro.
-O venv é Windows e já pegou travamento de suíte que o contêiner nunca mostrou
-(ver o docstring de `tests/conftest.py`); o contêiner é Linux e é o único
-lugar com `ruff` e `pip-audit` na versão que a CI usa. Itere no venv e passe
-pelo `quality` antes de commitar.
+O `.venv` do projeto é runtime-only, criado com `uv sync --locked --python
+3.15`. Lint, testes, banco e auditoria rodam nos serviços Compose. `sharedauth`
+é instalado do GitHub na tag declarada em `pyproject.toml` e no commit
+registrado em `uv.lock`.
 
 O que merece teste, em que camada e em que forma está em `docs/TESTES.md`,
 comum aos repositórios; leia antes de escrever ou remover um teste. Diante de

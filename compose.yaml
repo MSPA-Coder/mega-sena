@@ -6,20 +6,24 @@ x-logging: &default-logging
     max-size: 10m
     max-file: "3"
 
-# Base de produção-símile: imagem imutável (`Dockerfile` estágio `runtime`),
+# Base de produção-símile: imagem runtime (`Dockerfile` estágio `runtime`),
 # gunicorn como servidor WSGI, sem bind mount de código. Migrações e seed de
 # dados são aplicados por docker-entrypoint.sh como etapa controlada, antes
 # do processo do servidor iniciar — nunca dentro de `create_app()`.
 #
-# Uso padrão: `docker compose -f compose.yaml up` usa a imagem imutável, sem
-# bind mount de código. Desenvolvimento com edição ao vivo exige incluir
+# Uso padrão: `docker compose -f compose.yaml up` reconstrói sem cache a partir
+# das tags base móveis, sem bind mount de código. Edição ao vivo exige incluir
 # explicitamente `-f compose.dev.yaml`.
 
 services:
   postgres:
-    # Digest do índice multi-arquitetura publicado em 17/09/2026 (17.11).
-    # A tag ajuda a leitura humana, mas não participa da resolução do build.
-    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    image: mspa-postgres:17-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres
+      pull: true
+      no_cache: true
+    pull_policy: build
     user: postgres
     read_only: true
     cap_drop:
@@ -56,7 +60,13 @@ services:
   # a cada `up`, antes do `migrate`: concede acesso às tabelas existentes, e os
   # privilégios padrão cobrem as que o `migrate` criar depois.
   db-provision:
-    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    image: mspa-postgres:17-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres
+      pull: true
+      no_cache: true
+    pull_policy: build
     user: postgres
     read_only: true
     cap_drop:
@@ -93,8 +103,11 @@ services:
   # O `app` só sobe depois dele, e com MEGA_SENA_MIGRAR_NA_SUBIDA=0.
   migrate:
     image: mega-sena:local
+    pull_policy: build
     build:
       context: .
+      pull: true
+      no_cache: true
       target: runtime
       secrets:
         - local_ca
@@ -136,8 +149,11 @@ services:
     # vulnerabilidade precisa apontar para uma imagem por NOME, e nome que
     # depende do caminho do checkout nao serve de alvo.
     image: mega-sena:local
+    pull_policy: build
     build:
       context: .
+      pull: true
+      no_cache: true
       target: runtime
       secrets:
         - local_ca
@@ -212,7 +228,13 @@ services:
   # este contêiner morre no arranque e o `quality` só reporta "dependency failed
   # to start". No Docker Desktop do Windows não aparece: lá tudo chega 0777.
   postgres-teste:
-    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    image: mspa-postgres:17-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres
+      pull: true
+      no_cache: true
+    pull_policy: build
     profiles: ["quality"]
     user: postgres
     read_only: true
@@ -244,11 +266,12 @@ services:
   # Ruff e a suíte mínima de segurança. Fica atrás de um perfil para não subir
   # junto com a aplicação:
   # `docker compose --profile quality run --build --rm quality`.
-  # O `--build` é necessário: este serviço não monta o código do host, e
-  # `docker compose run` reutiliza a imagem existente sem reconstruí-la.
+  # `--build` reconstrói explicitamente a imagem de qualidade a partir do
+  # código atual. A CI semanal também faz build sem cache.
   quality:
     build:
       context: .
+      pull: true
       target: quality
       secrets:
         - local_ca
