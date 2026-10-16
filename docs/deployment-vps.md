@@ -18,8 +18,10 @@ só então o `main` remoto é elegível para o deploy. Não faça push direto ao
 commit que vai aplicar.
 
 Os dados vivem no volume Docker `mega-sena_postgres_data`, fora do checkout.
-`.secrets/` e `.certs/` também não são versionados e precisam ser preservados ou
-restaurados em um reclone. Nunca use `docker compose down --volumes` no VPS.
+`.secrets/` também não é versionado e precisa ser preservado ou restaurado em um
+reclone. `.certs/local-root-ca.crt` só é necessário se o host do VPS intercepta
+HTTPS durante o build; nesse caso, preserve/restaure a raiz CA correspondente.
+Nunca use `docker compose down --volumes` no VPS.
 
 ## Primeira instalação
 
@@ -39,13 +41,12 @@ mkdir -p ~/apps
 git clone git@github-megasena:MSPA-Coder/mega-sena.git ~/apps/mega-sena
 cd ~/apps/mega-sena
 cp .env.vps.example .env.vps
-install -d -m 0700 .secrets .certs
+install -d -m 0700 .secrets
 umask 077
 openssl rand -hex 32 > .secrets/postgres_password.txt
 openssl rand -hex 32 > .secrets/postgres_app_password.txt
 openssl rand -hex 48 > .secrets/secret_key.txt
 chmod 0444 .secrets/postgres_password.txt .secrets/postgres_app_password.txt .secrets/secret_key.txt
-touch .certs/local-root-ca.crt
 ```
 
 Os redirecionamentos gravam os valores sem exibi-los. Mantenha `.secrets/` com

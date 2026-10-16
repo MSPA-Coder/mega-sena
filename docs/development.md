@@ -9,7 +9,23 @@ rápido, descrito no `AGENTS.md`, é opcional.
 ```powershell
 Copy-Item .env.docker.example .env.docker
 .\scripts\provision_secrets.ps1
+```
+
+Só exporte uma CA local se o host intercepta HTTPS (por exemplo, por
+antivírus ou proxy) e a autoridade raiz dessa inspeção já existe no repositório
+de certificados do Windows. O script cria `.certs/` e exporta para
+`.certs/local-root-ca.crt`; sem inspeção TLS, não o execute e não crie esse
+arquivo. Por padrão ele procura a raiz do Avast; para outro certificado,
+informe o padrão do subject:
+
+```powershell
 .\scripts\export_local_ca.ps1
+# Exemplo para outra CA: .\scripts\export_local_ca.ps1 -SubjectPattern '*Nome da CA*'
+```
+
+Depois, suba a pilha de desenvolvimento:
+
+```powershell
 docker compose --env-file .env.docker -f compose.yaml -f compose.dev.yaml up --build -d
 ```
 

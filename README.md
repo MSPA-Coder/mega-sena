@@ -16,7 +16,23 @@ host.
 ```powershell
 Copy-Item .env.docker.example .env.docker
 .\scripts\provision_secrets.ps1
+```
+
+Só se o host intercepta HTTPS (por exemplo, por antivírus ou proxy), e a
+autoridade raiz dessa inspeção já está no repositório de certificados do
+Windows, exporte-a para o build antes de subir a pilha:
+
+```powershell
 .\scripts\export_local_ca.ps1
+```
+
+O padrão do script procura a raiz do Avast; para outro certificado, informe o
+padrão do subject com `-SubjectPattern`. Sem inspeção TLS, não execute o script
+nem crie `.certs/local-root-ca.crt`.
+
+Depois, suba a pilha:
+
+```powershell
 docker compose --env-file .env.docker -f compose.yaml up --build -d
 ```
 
