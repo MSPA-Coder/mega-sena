@@ -285,6 +285,7 @@ def bet_generation():
                     avisos=[{"mensagem": str(exc), "severidade": "error"}],
                 ),
                 400,
+                {"X-Bets-Validation": "1"},
             )
         closure_numbers = request.form.get("closure_numbers", "")
         selected_quantity = quantity

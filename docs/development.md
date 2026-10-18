@@ -1,5 +1,22 @@
 # Desenvolvimento e validação
 
+## Piloto de navegador isolado
+
+Construa com `docker compose -p mega-browser-tests -f compose.browser.yaml build`.
+Com os mesmos `-p` e `-f`, suba `up -d --no-build --wait browser-web`, execute
+`run --rm browser-tests` e finalize com `down`. Somente PostgreSQL tmpfs do
+piloto é descartado; não há volumes operacionais. `BROWSER_APP_IMAGE` e
+`BROWSER_POSTGRES_IMAGE` aceitam candidatos já construídos, sem rebuild.
+Fixtures montadas externamente não entram no runtime. Sem portas no host,
+contas reais ou dependências externas reais. Falhas deixam PNG em
+`.browser-results` (ignorado pelo Git).
+
+O piloto Chromium cobre geração sem escrita, confirmação/replay/evento único,
+fechamento, prévia, erro visível preservando formulário e percentual BR/EUA.
+O 400 de critério recebe marcador explícito para HTMX; erros genéricos e CSRF
+não recebem essa permissão de troca.
+
+
 O projeto usa Docker para aplicação, PostgreSQL, migrations, lint e testes. No
 host são necessários apenas Docker Desktop, Git e um editor; o venv do laço
 rápido, descrito no `AGENTS.md`, é opcional.
