@@ -11,7 +11,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mega-sena"
-version = "2.2.0"
+version = "1.7.0"
 description = "Importacao de resultados da Mega-Sena, estatisticas e geracao de apostas."
 readme = "README.md"
 # Python 3.15 é a série padronizada nos venvs, imagens Docker e CI da frota.
