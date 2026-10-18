@@ -21,7 +21,9 @@ from flask import flash, redirect, render_template, request, url_for
 from flask.typing import ResponseReturnValue
 from flask_login import current_user, login_user
 
-from ..accounts.service import MIN_PASSWORD_LENGTH, change_own_password, update_own_regional_format
+from ..accounts.commands import change_own_password
+from ..accounts.service import MIN_PASSWORD_LENGTH, update_own_regional_format
+from ..audit.contracts import AuditContext
 from ..audit.service import record_event
 from ..core.regional import (
     REGIONAL_FORMAT_EXAMPLES,
@@ -43,9 +45,17 @@ def change_password() -> ResponseReturnValue:
                 request.form.get("current_password", ""),
                 request.form.get("new_password", ""),
                 request.form.get("password_confirm", ""),
+                audit=AuditContext(current_user.id, audit_request_context()),
             )
         except ValueError as exc:
-            record_event(action="users.change_own_password", entity="user", entity_id=current_user.id, actor=current_user, success=False, context=audit_request_context())
+            record_event(
+                action="users.change_own_password",
+                entity="user",
+                entity_id=current_user.id,
+                actor=current_user,
+                success=False,
+                context=audit_request_context(),
+            )
             # Todas as recusas de `sharedauth.passwords.validar_troca` são
             # `ValueError`; a mensagem de cada uma já é adequada à pessoa.
             #
@@ -57,8 +67,6 @@ def change_password() -> ResponseReturnValue:
                 erro=str(exc),
                 min_password_length=MIN_PASSWORD_LENGTH,
             ), 400
-
-        record_event(action="users.change_own_password", entity="user", entity_id=current_user.id, actor=current_user, success=True, context=audit_request_context())
 
         # Renova a sessão de quem acabou de trocar. O identificador no cookie
         # carrega a marca da senha ANTIGA (ver `User.get_id`), então sem isto a
@@ -86,7 +94,10 @@ def preferences() -> ResponseReturnValue:
     """
     if request.method == "POST":
         escolhido = update_own_regional_format(current_user, request.form.get("regional_format"))
-        flash(f"Formato de datas e números alterado para: {REGIONAL_FORMAT_LABELS[escolhido]}", "success")
+        flash(
+            f"Formato de datas e números alterado para: {REGIONAL_FORMAT_LABELS[escolhido]}",
+            "success",
+        )
         return redirect(url_for("web.preferences"))
 
     return render_template(

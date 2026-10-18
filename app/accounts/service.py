@@ -36,7 +36,12 @@ def list_users() -> list[User]:
 
 
 def create_user(
-    username: str, password: str, *, role: str = ROLE_OPERADOR, actor: User
+    username: str,
+    password: str,
+    *,
+    role: str = ROLE_OPERADOR,
+    actor: User,
+    commit: bool = True,
 ) -> User:
     _require_admin(actor)
     _lock_user_policy()
@@ -57,7 +62,10 @@ def create_user(
     usuario.must_change_password = True
     db.session.add(usuario)
     try:
-        db.session.commit()
+        if commit:
+            db.session.commit()
+        else:
+            db.session.flush()
     except IntegrityError as exc:
         db.session.rollback()
         raise UserManagementError("Já existe um usuário com esse nome.") from exc
@@ -65,7 +73,7 @@ def create_user(
 
 
 def provision_cli_user(
-    username: str, password: str, *, role: str | None = None
+    username: str, password: str, *, role: str | None = None, commit: bool = True
 ) -> User:
     """Provisiona o acesso confiável da CLI sem abrir um bypass da tela.
 
@@ -87,15 +95,14 @@ def provision_cli_user(
     if existente is not None:
         existente.set_password(password)
         existente.is_active_user = True
-        db.session.commit()
+        if commit:
+            db.session.commit()
         return existente
 
     total = db.session.scalar(db.select(func.count(User.id))) or 0
     if total == 0:
         if role == ROLE_OPERADOR:
-            raise UserManagementError(
-                "O primeiro usuário deve ser administrador."
-            )
+            raise UserManagementError("O primeiro usuário deve ser administrador.")
         role = ROLE_ADMIN
     role = role or ROLE_OPERADOR
     _validate_role(role)
@@ -103,14 +110,17 @@ def provision_cli_user(
     usuario.set_password(password)
     db.session.add(usuario)
     try:
-        db.session.commit()
+        if commit:
+            db.session.commit()
+        else:
+            db.session.flush()
     except IntegrityError as exc:
         db.session.rollback()
         raise UserManagementError("Já existe um usuário com esse nome.") from exc
     return usuario
 
 
-def reset_password(user: User, *, actor: User) -> str:
+def reset_password(user: User, *, actor: User, commit: bool = True) -> str:
     """Redefine a senha de outra conta e devolve a senha temporária gerada.
 
     O administrador não escolhe mais a senha: uma senha escolhida por ele é
@@ -125,12 +135,13 @@ def reset_password(user: User, *, actor: User) -> str:
     senha_temporaria = gerar_senha_temporaria()
     user.set_password(senha_temporaria)
     user.must_change_password = True
-    db.session.commit()
+    if commit:
+        db.session.commit()
     return senha_temporaria
 
 
 def change_own_password(
-    user: User, senha_atual: str, senha_nova: str, confirmacao: str
+    user: User, senha_atual: str, senha_nova: str, confirmacao: str, *, commit: bool = True
 ) -> None:
     """Troca a senha do próprio dono e desliga a obrigação de trocar.
 
@@ -147,7 +158,8 @@ def change_own_password(
     )
     user.set_password(senha_nova)
     user.must_change_password = False
-    db.session.commit()
+    if commit:
+        db.session.commit()
 
 
 def update_own_regional_format(user: User, regional_format: str | None) -> str:
@@ -162,7 +174,7 @@ def update_own_regional_format(user: User, regional_format: str | None) -> str:
     return normalizado
 
 
-def set_active(user: User, active: bool, *, actor: User) -> None:
+def set_active(user: User, active: bool, *, actor: User, commit: bool = True) -> None:
     _require_admin(actor)
     _lock_user_policy()
     db.session.refresh(actor)
@@ -176,14 +188,13 @@ def set_active(user: User, active: bool, *, actor: User) -> None:
             "isso bloquearia o acesso de todo mundo."
         )
     if not active and user.is_admin and _is_last_active_admin(user):
-        raise UserManagementError(
-            "Não é possível desativar o único administrador ativo."
-        )
+        raise UserManagementError("Não é possível desativar o único administrador ativo.")
     user.is_active_user = active
-    db.session.commit()
+    if commit:
+        db.session.commit()
 
 
-def set_role(user: User, role: str, *, actor: User) -> None:
+def set_role(user: User, role: str, *, actor: User, commit: bool = True) -> None:
     _require_admin(actor)
     _lock_user_policy()
     db.session.refresh(actor)
@@ -195,11 +206,10 @@ def set_role(user: User, role: str, *, actor: User) -> None:
         and role != ROLE_ADMIN
         and (_is_last_admin(user) or _is_last_active_admin(user))
     ):
-        raise UserManagementError(
-            "Não é possível remover o papel do único administrador ativo."
-        )
+        raise UserManagementError("Não é possível remover o papel do único administrador ativo.")
     user.role = role
-    db.session.commit()
+    if commit:
+        db.session.commit()
 
 
 def _validate_role(role: str) -> None:
@@ -244,8 +254,6 @@ def _is_last_active_user(user: User) -> bool:
     if not user.is_active_user:
         return False
     outros_ativos = db.session.scalar(
-        db.select(func.count(User.id)).where(
-            User.is_active_user.is_(True), User.id != user.id
-        )
+        db.select(func.count(User.id)).where(User.is_active_user.is_(True), User.id != user.id)
     )
     return not outros_ativos

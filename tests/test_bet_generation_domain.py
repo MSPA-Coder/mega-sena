@@ -122,7 +122,7 @@ def test_generation_is_in_memory_skips_draws_and_respects_filters_and_diversity(
     def must_not_persist(_bets):
         raise AssertionError("generate_bets must not persist before confirmation")
 
-    monkeypatch.setattr(service, "_persist_bet_batch", must_not_persist)
+    monkeypatch.setattr(service, "stage_bet_batch", must_not_persist)
 
     bets = service.generate_bets(
         6,

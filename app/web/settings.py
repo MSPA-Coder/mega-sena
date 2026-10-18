@@ -15,9 +15,11 @@ import logging
 from flask import flash, redirect, render_template, request, url_for
 from flask_login import current_user
 
+from ..audit.contracts import AuditContext
 from ..audit.service import record_event
 from ..bets.criteria import GENERATION_LIMITS
-from ..settings.service import get_config_values, reset_all_data, update_config_values
+from ..settings.commands import reset_all_data, update_config_values
+from ..settings.service import get_config_values
 from . import bp
 from .authorization import admin_required
 from .helpers import audit_request_context, is_htmx_request
@@ -39,9 +41,17 @@ def settings_page():
 @admin_required
 def save_settings():
     try:
-        update_config_values(request.form)
+        update_config_values(
+            request.form, audit=AuditContext(current_user.id, audit_request_context())
+        )
     except ValueError as exc:
-        record_event(action="settings.update", entity="config", actor=current_user, success=False, context=audit_request_context())
+        record_event(
+            action="settings.update",
+            entity="config",
+            actor=current_user,
+            success=False,
+            context=audit_request_context(),
+        )
         if is_htmx_request():
             return render_template(
                 "settings/_feedback.html",
@@ -50,7 +60,6 @@ def save_settings():
         flash(str(exc), "error")
         return redirect(url_for("web.settings_page"))
     _log.info("Configuracoes atualizadas.")
-    record_event(action="settings.update", entity="config", actor=current_user, success=True, context=audit_request_context())
     if is_htmx_request():
         return render_template(
             "settings/_feedback.html",
@@ -63,10 +72,11 @@ def save_settings():
 @bp.post("/reset")
 @admin_required
 def reset_database():
-    draw_count, bet_count = reset_all_data()
+    draw_count, bet_count = reset_all_data(
+        audit=AuditContext(current_user.id, audit_request_context())
+    )
     _log.warning("Base reiniciada: %d concursos e %d apostas apagados.", draw_count, bet_count)
     message = "Base reiniciada: concursos e apostas apagados."
-    record_event(action="data.reset", entity="draws_and_generated_bets", actor=current_user, success=True, context={**audit_request_context(), "draw_count": draw_count, "bet_count": bet_count})
     if is_htmx_request():
         return render_template(
             "settings/_feedback.html",

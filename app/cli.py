@@ -11,7 +11,8 @@ import click
 from flask import Flask
 from sharedauth.passwords import SenhaMuitoCurtaError, validar_tamanho
 
-from .accounts.service import UserManagementError, provision_cli_user
+from .accounts.commands import provision_cli_user
+from .accounts.service import UserManagementError
 from .extensions import db
 from .models import ROLE_ADMIN, ROLE_OPERADOR, User
 

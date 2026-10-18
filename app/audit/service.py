@@ -6,6 +6,7 @@ from typing import Any
 
 from ..extensions import db
 from ..models import AuditEvent, User
+from .contracts import AuditContext
 
 
 def record_event(
@@ -14,6 +15,7 @@ def record_event(
     entity: str,
     entity_id: str | int | None = None,
     actor: User | None = None,
+    actor_user_id: int | None = None,
     success: bool,
     context: dict[str, Any] | None = None,
     commit: bool = True,
@@ -27,7 +29,7 @@ def record_event(
     ``commit=False`` e confirmar tudo atomicamente ao final.
     """
     event = AuditEvent(
-        actor_user_id=actor.id if actor is not None else None,
+        actor_user_id=actor.id if actor is not None else actor_user_id,
         action=action,
         entity=entity,
         entity_id=None if entity_id is None else str(entity_id),
@@ -38,3 +40,23 @@ def record_event(
     if commit:
         db.session.commit()
     return event
+
+
+def add_success(
+    audit: AuditContext,
+    *,
+    action: str,
+    entity: str,
+    entity_id: int | None = None,
+    details: dict[str, Any] | None = None,
+) -> None:
+    """Adiciona à transação do caso de uso; nunca confirma separadamente."""
+    record_event(
+        action=action,
+        entity=entity,
+        entity_id=entity_id,
+        actor_user_id=audit.actor_id,
+        success=True,
+        context={**audit.context, **(details or {})},
+        commit=False,
+    )

@@ -26,13 +26,8 @@ def _normalize_config_values(values: dict[str, object]) -> dict[str, str]:
     criteria = GenerationCriteria.from_mapping(
         {
             "quantity": values.get("bet_quantity", DEFAULT_CONFIG["bet_quantity"]),
-            "amount": values.get(
-                "generation_amount", DEFAULT_CONFIG["generation_amount"]
-            ),
-            **{
-                key: values.get(key, DEFAULT_CONFIG[key])
-                for key in GENERATION_FILTER_KEYS
-            },
+            "amount": values.get("generation_amount", DEFAULT_CONFIG["generation_amount"]),
+            **{key: values.get(key, DEFAULT_CONFIG[key]) for key in GENERATION_FILTER_KEYS},
         },
         default_quantity=int(DEFAULT_CONFIG["bet_quantity"]),
         default_amount=int(DEFAULT_CONFIG["generation_amount"]),
@@ -59,16 +54,13 @@ def get_config_values() -> dict[str, str]:
     Uma chave ausente vale exatamente o padrão, então o banco não precisa ser
     semeado: a primeira gravação em Configurações é que cria as linhas.
     """
-    rows = {
-        row.key: row.value
-        for row in Config.query.filter(Config.key.in_(DEFAULT_CONFIG)).all()
-    }
+    rows = {row.key: row.value for row in Config.query.filter(Config.key.in_(DEFAULT_CONFIG)).all()}
     return _normalize_config_values(
         {key: rows.get(key, DEFAULT_CONFIG[key]) for key in DEFAULT_CONFIG}
     )
 
 
-def update_config_values(values: dict[str, object]) -> dict[str, str]:
+def update_config_values(values: dict[str, object], *, commit: bool = True) -> dict[str, str]:
     normalized = _normalize_config_values(values)
     try:
         # `Config` começa vazio em uma instalação nova. Lockar apenas as linhas
@@ -78,16 +70,15 @@ def update_config_values(values: dict[str, object]) -> dict[str, str]:
         db.session.execute(text("LOCK TABLE config IN SHARE ROW EXCLUSIVE MODE"))
         rows = {
             row.key: row
-            for row in Config.query.filter(Config.key.in_(DEFAULT_CONFIG))
-            .with_for_update()
-            .all()
+            for row in Config.query.filter(Config.key.in_(DEFAULT_CONFIG)).with_for_update().all()
         }
         for key, value in normalized.items():
             if key in rows:
                 rows[key].value = value
             else:
                 db.session.add(Config(key=key, value=value))
-        db.session.commit()
+        if commit:
+            db.session.commit()
     except Exception:
         db.session.rollback()
         raise
@@ -113,14 +104,15 @@ def get_results_source_url() -> str:
     return get_config_values()["results_source_url"]
 
 
-def reset_all_data() -> tuple[int, int]:
+def reset_all_data(*, commit: bool = True) -> tuple[int, int]:
     """Remove concursos e apostas, devolvendo suas quantidades anteriores."""
     bet_count = GeneratedBet.query.count()
     draw_count = Draw.query.count()
     try:
         GeneratedBet.query.delete()
         Draw.query.delete()
-        db.session.commit()
+        if commit:
+            db.session.commit()
     except Exception:
         db.session.rollback()
         raise
