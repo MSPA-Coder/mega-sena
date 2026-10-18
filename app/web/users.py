@@ -7,16 +7,16 @@ import logging
 from flask import abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user
 
+from ..accounts.commands import create_user as create_account
+from ..accounts.commands import reset_password as reset_account_password
+from ..accounts.commands import set_active, set_role
 from ..accounts.service import (
     MIN_PASSWORD_LENGTH,
     ROLE_ADMIN,
     ROLE_OPERADOR,
     list_users,
-    set_active,
-    set_role,
 )
-from ..accounts.service import create_user as create_account
-from ..accounts.service import reset_password as reset_account_password
+from ..audit.contracts import AuditContext
 from ..audit.service import record_event
 from ..extensions import db
 from ..models import User
@@ -72,11 +72,22 @@ def create_user():
     password = request.form.get("password", "")
     role = request.form.get("role", ROLE_OPERADOR)
     try:
-        usuario = create_account(username, password, role=role, actor=current_user)
+        create_account(
+            username,
+            password,
+            role=role,
+            actor=current_user,
+            audit=AuditContext(current_user.id, audit_request_context()),
+        )
     except ValueError as exc:
-        record_event(action="users.create", entity="user", actor=current_user, success=False, context=audit_request_context())
+        record_event(
+            action="users.create",
+            entity="user",
+            actor=current_user,
+            success=False,
+            context=audit_request_context(),
+        )
         return _users_feedback(str(exc))
-    record_event(action="users.create", entity="user", entity_id=usuario.id, actor=current_user, success=True, context={**audit_request_context(), "username": username.strip(), "role": role})
     _log.info("Usuario criado.")
     return _users_feedback(f"Usuário '{username.strip()}' criado.", severidade="success")
 
@@ -95,11 +106,21 @@ def reset_user_password(user_id: int):
     """
     usuario = _get_user_or_404(user_id)
     try:
-        senha_temporaria = reset_account_password(usuario, actor=current_user)
+        senha_temporaria = reset_account_password(
+            usuario,
+            actor=current_user,
+            audit=AuditContext(current_user.id, audit_request_context()),
+        )
     except ValueError as exc:
-        record_event(action="users.password_reset", entity="user", entity_id=user_id, actor=current_user, success=False, context=audit_request_context())
+        record_event(
+            action="users.password_reset",
+            entity="user",
+            entity_id=user_id,
+            actor=current_user,
+            success=False,
+            context=audit_request_context(),
+        )
         return _users_feedback(str(exc))
-    record_event(action="users.password_reset", entity="user", entity_id=user_id, actor=current_user, success=True, context=audit_request_context())
 
     _log.info("Senha redefinida por administrador.")
     if is_htmx_request():
@@ -128,11 +149,22 @@ def toggle_user_active(user_id: int):
     if not active and usuario.id == current_user.id:
         return _users_feedback("Você não pode desativar sua própria conta.")
     try:
-        set_active(usuario, active, actor=current_user)
+        set_active(
+            usuario,
+            active,
+            actor=current_user,
+            audit=AuditContext(current_user.id, audit_request_context()),
+        )
     except ValueError as exc:
-        record_event(action="users.set_active", entity="user", entity_id=user_id, actor=current_user, success=False, context=audit_request_context())
+        record_event(
+            action="users.set_active",
+            entity="user",
+            entity_id=user_id,
+            actor=current_user,
+            success=False,
+            context=audit_request_context(),
+        )
         return _users_feedback(str(exc))
-    record_event(action="users.set_active", entity="user", entity_id=user_id, actor=current_user, success=True, context={**audit_request_context(), "active": active})
     estado = "ativado" if active else "desativado"
     return _users_feedback(f"Usuário '{usuario.username}' {estado}.", severidade="success")
 
@@ -143,12 +175,21 @@ def change_user_role(user_id: int):
     usuario = _get_user_or_404(user_id)
     role = request.form.get("role", "")
     try:
-        set_role(usuario, role, actor=current_user)
+        set_role(
+            usuario,
+            role,
+            actor=current_user,
+            audit=AuditContext(current_user.id, audit_request_context()),
+        )
     except ValueError as exc:
-        record_event(action="users.set_role", entity="user", entity_id=user_id, actor=current_user, success=False, context=audit_request_context())
+        record_event(
+            action="users.set_role",
+            entity="user",
+            entity_id=user_id,
+            actor=current_user,
+            success=False,
+            context=audit_request_context(),
+        )
         return _users_feedback(str(exc))
-    record_event(action="users.set_role", entity="user", entity_id=user_id, actor=current_user, success=True, context={**audit_request_context(), "role": role})
     nome = "administrador" if role == ROLE_ADMIN else "operador"
-    return _users_feedback(
-        f"Usuário '{usuario.username}' agora é {nome}.", severidade="success"
-    )
+    return _users_feedback(f"Usuário '{usuario.username}' agora é {nome}.", severidade="success")

@@ -8,6 +8,7 @@ from flask import flash, make_response, redirect, render_template, request, url_
 from flask_login import current_user
 from werkzeug.datastructures import MultiDict
 
+from ..audit.contracts import AuditContext
 from ..audit.service import record_event
 from ..bets.combinatorics import (
     TOTAL_DRAW_COMBINATIONS,
@@ -16,6 +17,7 @@ from ..bets.combinatorics import (
     count_distinct_internal_combinations,
     count_draws_matching_filters,
 )
+from ..bets.commands import confirm_closure_bets, confirm_generated_bets, delete_saved_bet
 from ..bets.criteria import (
     GENERATION_FILTER_KEYS,
     GENERATION_LIMITS,
@@ -27,12 +29,9 @@ from ..bets.criteria import (
 )
 from ..bets.service import (
     count_closure_bets,
-    delete_saved_bet,
     generate_bets,
     generate_closure_bets,
     list_recent_generations_with_bets,
-    save_closure_bets,
-    save_generated_bets,
 )
 from ..core.formatting import format_int, format_percent
 from ..core.regional import adaptar_numero
@@ -106,12 +105,8 @@ def _coverage_metrics(
     )
     exact_count = exact_combination_count
     if exact_count is None and concrete_bets is not None:
-        exact_count = count_distinct_internal_combinations(
-            bet.numbers for bet in concrete_bets
-        )
-    exact_probability = (
-        exact_count / TOTAL_DRAW_COMBINATIONS if exact_count is not None else None
-    )
+        exact_count = count_distinct_internal_combinations(bet.numbers for bet in concrete_bets)
+    exact_probability = exact_count / TOTAL_DRAW_COMBINATIONS if exact_count is not None else None
     return {
         "theoretical_upper_combinations_formatted": format_int(theoretical_upper),
         "theoretical_upper_probability_percent_formatted": format_percent(
@@ -122,9 +117,7 @@ def _coverage_metrics(
             format_int(exact_count) if exact_count is not None else None
         ),
         "exact_probability_percent_formatted": (
-            format_percent(exact_probability * 100)
-            if exact_probability is not None
-            else None
+            format_percent(exact_probability * 100) if exact_probability is not None else None
         ),
         "exact_probability_one_in_formatted": (
             format_int(math.ceil(1 / exact_probability)) if exact_probability else "0"
@@ -158,9 +151,7 @@ def _read_generation_state(
             source[key] = "" if value is None else str(value)
 
     criteria_factory = (
-        GenerationCriteria.from_mapping_strict
-        if strict
-        else GenerationCriteria.from_mapping
+        GenerationCriteria.from_mapping_strict if strict else GenerationCriteria.from_mapping
     )
     params = criteria_factory(
         source,
@@ -208,18 +199,12 @@ def _preview_context(values: MultiDict) -> dict:
         selected_amount,
         closure_mode,
         closure_base_count,
-    ) = _apply_closure_mode(
-        closure_numbers, quantity, selected_filters, selected_amount
-    )
-    combination_report = build_combination_report(
-        quantity=quantity, filters=selected_filters
-    )
+    ) = _apply_closure_mode(closure_numbers, quantity, selected_filters, selected_amount)
+    combination_report = build_combination_report(quantity=quantity, filters=selected_filters)
     coverage_metrics = _coverage_metrics(
         combination_report,
         selected_amount,
-        exact_combination_count=(
-            math.comb(closure_base_count, 6) if closure_mode else None
-        ),
+        exact_combination_count=(math.comb(closure_base_count, 6) if closure_mode else None),
     )
     return {
         "filter_preview": _draw_filter_preview_payload(selected_filters),
@@ -246,21 +231,13 @@ def rationale():
             selected_amount,
         )
     )
-    combination_report = build_combination_report(
-        quantity=quantity, filters=selected_filters
-    )
+    combination_report = build_combination_report(quantity=quantity, filters=selected_filters)
     coverage_metrics = _coverage_metrics(
         combination_report,
         selected_amount,
-        exact_combination_count=(
-            math.comb(closure_base_count, 6) if closure_mode else None
-        ),
+        exact_combination_count=(math.comb(closure_base_count, 6) if closure_mode else None),
     )
-    return_filters = (
-        selected_filters
-        if not closure_mode
-        else dict.fromkeys(GENERATION_FILTER_KEYS)
-    )
+    return_filters = selected_filters if not closure_mode else dict.fromkeys(GENERATION_FILTER_KEYS)
     return_params = _generation_params(return_quantity, return_filters, return_amount)
     if closure_numbers:
         return_params["closure_numbers"] = closure_numbers
@@ -291,9 +268,7 @@ def bet_generation():
     feedback: str | None = None
     htmx_request = is_htmx_request()
     closure_numbers = request.args.get("closure_numbers", "")
-    selected_quantity, selected_filters, selected_amount = _read_generation_state(
-        request.args
-    )
+    selected_quantity, selected_filters, selected_amount = _read_generation_state(request.args)
     recent_generations = list_recent_generations_with_bets()
     if request.method == "POST":
         action = request.form.get("action", "generate")
@@ -310,6 +285,7 @@ def bet_generation():
                     avisos=[{"mensagem": str(exc), "severidade": "error"}],
                 ),
                 400,
+                {"X-Bets-Validation": "1"},
             )
         closure_numbers = request.form.get("closure_numbers", "")
         selected_quantity = quantity
@@ -317,16 +293,19 @@ def bet_generation():
             action = "closure"
         if action in {"save", "save_closure"}:
             save_quantity = optional_int(request.form.get("quantity")) or quantity
+            audit = AuditContext(current_user.id, audit_request_context(source=action))
             try:
                 if action == "save_closure":
                     save_quantity = MIN_BET_NUMBERS
-                    saved, generation_id = save_closure_bets(
-                        _parse_number_list(closure_numbers)
+                    result = confirm_closure_bets(
+                        _parse_number_list(closure_numbers),
+                        audit=audit,
                     )
                 else:
-                    saved, generation_id = save_generated_bets(
+                    result = confirm_generated_bets(
                         quantity=save_quantity,
                         bets=request.form.getlist("bet"),
+                        audit=audit,
                     )
             except RuntimeError as exc:
                 record_event(
@@ -347,22 +326,10 @@ def bet_generation():
                 return redirect(
                     url_for(
                         "web.bet_generation",
-                        **_generation_params(
-                            quantity, selected_filters, selected_amount
-                        ),
+                        **_generation_params(quantity, selected_filters, selected_amount),
                     )
                 )
-            record_event(
-                action="bets.save",
-                entity="generated_bet_batch",
-                entity_id=generation_id,
-                actor=current_user,
-                success=True,
-                context={
-                    **audit_request_context(source=action),
-                    "saved_count": saved,
-                },
-            )
+            saved, generation_id = result.saved_count, result.generation_id
             feedback = (
                 f"{format_int(saved)} "
                 f"{plural(saved, 'aposta gravada', 'apostas gravadas')} no banco de dados."
@@ -443,9 +410,7 @@ def bet_generation():
         combination_report,
         selected_amount,
         bets if bets else None,
-        exact_combination_count=(
-            math.comb(closure_base_count, 6) if closure_mode else None
-        ),
+        exact_combination_count=(math.comb(closure_base_count, 6) if closure_mode else None),
     )
     context = {
         "bets": bets,
@@ -484,7 +449,7 @@ def bet_generation():
 @bp.post("/bets/saved/<int:bet_id>/delete")
 def delete_bet(bet_id: int):
     try:
-        deleted = delete_saved_bet(bet_id)
+        delete_saved_bet(bet_id, audit=AuditContext(current_user.id, audit_request_context()))
     except RuntimeError as exc:
         record_event(
             action="bets.delete",
@@ -496,17 +461,6 @@ def delete_bet(bet_id: int):
         )
         flash(str(exc), "error")
     else:
-        record_event(
-            action="bets.delete",
-            entity="generated_bet",
-            entity_id=bet_id,
-            actor=current_user,
-            success=True,
-            context={
-                **audit_request_context(),
-                "generation_id": deleted.generation_id,
-            },
-        )
         flash("Aposta salva excluída.", "success")
     return redirect(url_for("web.bet_generation"))
 

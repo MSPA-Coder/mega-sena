@@ -78,3 +78,6 @@ Thumbs.db
 # Planilhas de resultados importadas manualmente.
 *.xls
 *.xlsx
+
+# Evidências sintéticas do piloto Chromium.
+.browser-results/

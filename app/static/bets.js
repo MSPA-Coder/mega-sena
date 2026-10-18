@@ -1,4 +1,14 @@
 (() => {
+  // HTMX não troca fragmentos 4xx por padrão. Esta recusa é uma resposta
+  // de validação esperada da geração, não uma tela genérica de erro/CSRF.
+  document.body.addEventListener("htmx:beforeSwap", (event) => {
+    const detail = event.detail;
+    if (detail.xhr.status === 400 && detail.target?.id === "generation-result" &&
+        detail.xhr.getResponseHeader("X-Bets-Validation") === "1") {
+      detail.shouldSwap = true;
+      detail.isError = false;
+    }
+  });
   function setupGenerationToggles(root) {
     root.querySelectorAll("[data-generation-toggle]").forEach((button) => {
       if (button.dataset.bound === "true") return;

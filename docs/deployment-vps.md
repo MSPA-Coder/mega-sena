@@ -1,5 +1,33 @@
 # Operação, dados e backup
 
+## Entrega por imagem validada
+
+No VPS, use somente `~/deploy.sh megasena` depois da instalação da
+infraestrutura compatível de `manutencao/main`. `compose.release.yaml` recebe
+`APP_IMAGE` e `POSTGRES_IMAGE` por digest; não execute um build Compose para
+atualizar esse ambiente. O Compose base continua servindo ao desenvolvimento
+AMD64 local, que é validação separada da entrega ARM64.
+
+A CI nativa ARM64 constrói um runtime e um PostgreSQL. `Dockerfile.verify`
+adiciona ferramentas sobre o candidato e confere que as versões de runtime
+não mudaram. Ruff/mypy/pytest, Chromium e Trivy validam os candidatos;
+`Runtime contracts` recebe esses mesmos IDs via artefato para conferir
+imutabilidade, health e papel restrito (app/migrate). Só depois dos dois jobs,
+o job de publicação envia os mesmos IDs ao GHCR, sem reconstruir.
+
+Pacotes: `ghcr.io/mspa-coder/mega-sena` e `mega-sena-postgres`, tags
+`run-<run_id>-<tentativa>`. Visibilidade pública só após conferir conteúdo
+publicável; nenhuma conta, .env, .secrets, chave privada ou fixture entra no
+runtime. Repositório público não torna um pacote automaticamente público.
+
+O deploy exige run completo verde de main no SHA exato, revisão/run e
+arquitetura em **ambas** as imagens. Confere os IDs anteriores disponíveis
+antes de alterar código/serviços; depois sobe `--no-build --pull never`.
+Rollback restaura IDs por papel e código, nunca dados/schema. Só o serviço
+PostgreSQL recebe `mspa.backup.postgres=true`, preservando a descoberta do
+backup mesmo com digest ou ID local. `--refresh` escolhe o novo run verde do
+mesmo commit. Aguarde a publicação de main antes de implantar.
+
 ## Topologia atual
 
 O MegaSena roda em um VPS Oracle com Ubuntu, atrás de Nginx e TLS, em
@@ -14,8 +42,8 @@ deploy key é somente leitura e o script recusa uma árvore suja.
 
 Publique por branch, pull request com checks obrigatórios verdes e squash merge;
 só então o `main` remoto é elegível para o deploy. Não faça push direto ao
-`main` nem aguarde uma segunda rodada de CI manualmente: o script confere o
-commit que vai aplicar.
+`main`; aguarde a CI de main publicar os artefatos daquele SHA. A CI de PR
+não publica nem substitui o run de entrega que o deploy confere.
 
 Os dados vivem no volume Docker `mega-sena_postgres_data`, fora do checkout.
 `.secrets/` também não é versionado e precisa ser preservado ou restaurado em um

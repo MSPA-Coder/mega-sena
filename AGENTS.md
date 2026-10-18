@@ -131,8 +131,10 @@ estágio em mudanças para `main` e semanalmente, audita as dependências Python
 instaladas com `pip-audit` e a imagem servida com Trivy. O Dependabot cobre
 dependências Python, imagens Docker e GitHub Actions. O CodeQL roda em
 configuração padrão (Python e Actions, semanal) e é status check obrigatório no
-ruleset do `main`, ao lado de `Qualidade`. Não há análise estática de tipos --
-nem `mypy` nem `pyright`. Isso não dispensa a validação proporcional:
+ruleset do `main`, ao lado de `Qualidade`. O mypy estrito no `quality` cobre
+números/critérios, contexto e resultados/comando de confirmação. O escopo
+explícito em `pyproject.toml` cresce por fronteira, sem ignores em massa.
+Isso não dispensa a validação proporcional:
 percorra manualmente o fluxo alterado. Mudanças de
 autenticação, sessão, CSRF ou autorização executam o comando `quality`; mudanças
 de Docker ou dependências também exigem rebuild e subida da pilha.
@@ -148,6 +150,12 @@ volume e só cabe com autorização explícita. Preserve alterações locais nã
 relacionadas e não imprima segredos.
 
 ## Implantação em produção
+
+Produção usa `compose.release.yaml`, imagens por digest de run verde de main,
+com revisão/run e arquitetura conferidos antes do fast-forward. Não reconstrua
+no VPS; use `~/deploy.sh megasena`. O CI ARM64 valida a mesma candidata em
+qualidade, Chromium, scanners e Runtime contracts, e publica só após os gates.
+Ver ADR 0003 e docs/deployment-vps.md. O Compose base mantém o build local.
 
 O sistema roda em um VPS Oracle atrás de Nginx com TLS, em
 `https://megasena-mspa.duckdns.org`, a partir de `/home/ubuntu/apps/mega-sena`.

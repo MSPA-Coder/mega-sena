@@ -114,7 +114,9 @@ de fora.
 ### `app/bets`
 
 - `criteria.py`: normalização e avaliação dos critérios de geração;
-- `service.py`: geração, fechamento, gravação e consulta de apostas;
+- `service.py`: geração, fechamento, escrita preparada e consulta de apostas;
+- `commands.py`: confirmação/exclusão e auditoria no mesmo commit;
+- `contracts.py`: resultados imutáveis de confirmação, replay e exclusão;
 - `combinatorics.py`: universo de resultados, filtros e cobertura.
 
 `GenerationCriteria` é a representação comum dos parâmetros usados pela
@@ -122,12 +124,20 @@ interface, pelos serviços e pelo relatório combinatório.
 
 Gerar e gravar são operações separadas. `generate_bets` produz candidatas em
 memória e não toca o banco; as apostas só chegam ao PostgreSQL por
-`save_generated_bets` ou `save_closure_bets`, depois da confirmação na tela.
+`confirm_generated_bets` ou `confirm_closure_bets`, depois da confirmação na tela.
 Cada lote recebe seu identificador de uma sequence do próprio banco, que é o
 que impede duas gravações simultâneas de compartilharem um número de geração.
 O serviço também calcula uma impressão digital da confirmação normalizada e
 usa um advisory lock transacional: repetir o mesmo envio devolve o lote já
 gravado, sem criar apostas duplicadas, inclusive entre workers.
+
+Os comandos recebem ator/contexto explícitos, mantêm lock, apostas e evento de
+sucesso na mesma transação e fazem rollback integral quando o evento falha.
+Replay devolve o identificador original, sem um segundo evento de criação.
+Exclusão, configurações/reset e administração de contas usam a mesma fronteira
+explícita em seus módulos `commands.py`; senhas nunca entram nos metadados.
+As políticas administrativas continuam no serviço, não no objeto de auditoria.
+Falhas de negócio podem ser registradas depois do rollback, em outra transação.
 
 ### `app/draws`
 

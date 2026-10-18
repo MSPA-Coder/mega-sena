@@ -1,5 +1,31 @@
 # Desenvolvimento e validação
 
+## Gate de tipos incremental
+
+O estágio `quality` executa Ruff, `mypy` estrito e pytest. O conjunto pequeno
+de fronteiras está em `tool.mypy.files` no `pyproject.toml`; imports mantêm
+seus tipos (`follow_imports=silent`), sem esconder erros dos arquivos
+selecionados. Amplie por fronteira, com contratos concretos, sem `Any` ou
+ignores generalizados. As anotações não substituem validação de payloads,
+restrições do PostgreSQL ou os testes de navegador.
+
+## Piloto de navegador isolado
+
+Construa com `docker compose -p mega-browser-tests -f compose.browser.yaml build`.
+Com os mesmos `-p` e `-f`, suba `up -d --no-build --wait browser-web`, execute
+`run --rm browser-tests` e finalize com `down`. Somente PostgreSQL tmpfs do
+piloto é descartado; não há volumes operacionais. `BROWSER_APP_IMAGE` e
+`BROWSER_POSTGRES_IMAGE` aceitam candidatos já construídos, sem rebuild.
+Fixtures montadas externamente não entram no runtime. Sem portas no host,
+contas reais ou dependências externas reais. Falhas deixam PNG em
+`.browser-results` (ignorado pelo Git).
+
+O piloto Chromium cobre geração sem escrita, confirmação/replay/evento único,
+fechamento, prévia, erro visível preservando formulário e percentual BR/EUA.
+O 400 de critério recebe marcador explícito para HTMX; erros genéricos e CSRF
+não recebem essa permissão de troca.
+
+
 O projeto usa Docker para aplicação, PostgreSQL, migrations, lint e testes. No
 host são necessários apenas Docker Desktop, Git e um editor; o venv do laço
 rápido, descrito no `AGENTS.md`, é opcional.

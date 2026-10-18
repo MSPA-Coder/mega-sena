@@ -16,6 +16,7 @@ from ..core.numbers import (
 from ..draws.statistics import all_draw_numbers
 from ..extensions import db
 from ..models import GeneratedBet
+from .contracts import ConfirmationResult
 from .criteria import (
     MAX_BET_NUMBERS,
     MIN_BET_NUMBERS,
@@ -33,23 +34,17 @@ _GENERATION_ID_SEQUENCE = "generated_bets_generation_id_seq"
 def _passes_generation_filters(numbers: list[int], filters: dict | None) -> bool:
     if not filters:
         return True
-    return GenerationCriteria.from_mapping(filters, default_amount=1).matches_candidate(
-        numbers
-    )
+    return GenerationCriteria.from_mapping(filters, default_amount=1).matches_candidate(numbers)
 
 
 def _diversity_score(numbers: list[int], existing_candidates: list[list[int]]) -> float:
     if not existing_candidates:
         return 1.0
-    max_overlap = max(
-        len(set(numbers) & set(candidate)) for candidate in existing_candidates
-    )
+    max_overlap = max(len(set(numbers) & set(candidate)) for candidate in existing_candidates)
     return max(0.0, 1.0 - (max_overlap / max(len(numbers), 1)))
 
 
-def _passes_diversity_control(
-    numbers: list[int], created_numbers: list[list[int]]
-) -> bool:
+def _passes_diversity_control(numbers: list[int], created_numbers: list[list[int]]) -> bool:
     if not created_numbers:
         return True
     # Evita apostas praticamente iguais dentro da mesma geração.
@@ -57,8 +52,7 @@ def _passes_diversity_control(
     max_allowed_overlap = max(0, len(numbers) - 2)
     current = set(numbers)
     return all(
-        len(current & set(candidate)) <= max_allowed_overlap
-        for candidate in created_numbers
+        len(current & set(candidate)) <= max_allowed_overlap for candidate in created_numbers
     )
 
 
@@ -66,20 +60,16 @@ def _secure_random_candidate(quantity: int) -> list[int]:
     return sorted(_RNG.sample(range(1, 61), quantity))
 
 
-def _batch_fingerprint(
-    quantity: int, numbers_csv: Iterable[str], idempotency_key: str | None = None
-) -> str:
+def _batch_fingerprint(quantity: int, numbers_csv: Iterable[str]) -> str:
     """Deriva a identidade estável da confirmação já normalizada.
 
     O schema legado não possui uma coluna de token de idempotência. A própria
     confirmação normalizada é, portanto, a identidade do lote: repetir o POST
     da mesma confirmação devolve o lote já persistido, inclusive depois de um
     retry que atravesse outro worker do Gunicorn. Uma chave explícita pode ser
-    acrescentada por consumidores futuros sem quebrar os chamadores atuais.
+    acrescentada apenas com um contrato persistido próprio, se houver consumidor.
     """
-    payload = "\x1f".join(
-        [str(quantity), idempotency_key or "", *sorted(set(numbers_csv))]
-    )
+    payload = "\x1f".join([str(quantity), "", *sorted(set(numbers_csv))])
     return sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -89,9 +79,7 @@ def _lock_batch_fingerprint(fingerprint: str) -> None:
     bind = get_bind() if get_bind is not None else None
     if bind is not None and bind.dialect.name == "postgresql":
         db.session.execute(
-            text(
-                "SELECT pg_advisory_xact_lock(" "hashtextextended(:fingerprint, 0))"
-            ),
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:fingerprint, 0))"),
             {"fingerprint": fingerprint},
         )
 
@@ -127,36 +115,24 @@ def _find_existing_batch(quantity: int, numbers_csv: list[str]) -> int | None:
     return None
 
 
-def _persist_bet_batch(
-    bets: list[GeneratedBet], *, idempotency_key: str | None = None
-) -> int | None:
-    """Persiste um lote uma vez e devolve o mesmo id em retries."""
+def stage_bet_batch(bets: list[GeneratedBet]) -> ConfirmationResult:
+    """Prepara a escrita com o lock aberto; só o comando confirma a transação."""
     if not bets:
-        return None
+        return ConfirmationResult(0, None)
     quantity = bets[0].quantity
     numbers_csv = [bet.numbers_csv for bet in bets]
-    fingerprint = _batch_fingerprint(quantity, numbers_csv, idempotency_key)
-    try:
-        _lock_batch_fingerprint(fingerprint)
-        existing_generation_id = _find_existing_batch(quantity, numbers_csv)
-        if existing_generation_id is not None:
-            db.session.commit()
-            return existing_generation_id
-
-        # Interpolação deliberada: `nextval` recebe o nome da sequência como
-        # identificador, que não pode ser parametrizado. O valor é constante do
-        # módulo, nunca entrada do usuário — não há caminho de injeção.
-        generation_id = db.session.execute(
-            text(f"SELECT nextval('{_GENERATION_ID_SEQUENCE}')")  # noqa: S608
-        ).scalar_one()
-        for bet in bets:
-            bet.generation_id = generation_id
-        db.session.add_all(bets)
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-        raise
-    return int(generation_id)
+    fingerprint = _batch_fingerprint(quantity, numbers_csv)
+    _lock_batch_fingerprint(fingerprint)
+    existing_generation_id = _find_existing_batch(quantity, numbers_csv)
+    if existing_generation_id is not None:
+        return ConfirmationResult(len(bets), existing_generation_id, replayed=True)
+    generation_id = int(
+        db.session.execute(text(f"SELECT nextval('{_GENERATION_ID_SEQUENCE}')")).scalar_one()
+    )
+    for bet in bets:
+        bet.generation_id = generation_id
+    db.session.add_all(bets)
+    return ConfirmationResult(len(bets), generation_id)
 
 
 def generate_bets(
@@ -166,8 +142,8 @@ def generate_bets(
 ) -> list[GeneratedBet]:
     """Gera candidatas em memória; gravar é uma decisão posterior do usuário.
 
-    Nada aqui persiste: as apostas só chegam ao banco por `save_generated_bets`
-    ou `save_closure_bets`, depois da confirmação na tela.
+    Nada aqui persiste: as apostas só chegam ao banco pelos comandos de
+    confirmação, depois da revisão na tela.
     """
     quantity = clamp_int(
         parse_int(quantity) or MIN_BET_NUMBERS,
@@ -223,9 +199,7 @@ def _normalize_closure_numbers(numbers: Iterable[int]) -> list[int]:
             "Informe pelo menos 6 dezenas distintas para gerar um fechamento matemático."
         )
     if len(base_numbers) > MAX_BET_NUMBERS:
-        raise RuntimeError(
-            f"Use no máximo {MAX_BET_NUMBERS} dezenas no fechamento matemático."
-        )
+        raise RuntimeError(f"Use no máximo {MAX_BET_NUMBERS} dezenas no fechamento matemático.")
     if any(number < 1 or number > 60 for number in base_numbers):
         raise RuntimeError("As dezenas do fechamento devem estar entre 1 e 60.")
     return base_numbers
@@ -264,9 +238,7 @@ def list_recent_generations(limit: int = 12) -> list[dict]:
         )
         .filter(GeneratedBet.generation_id.isnot(None))
         .group_by(GeneratedBet.generation_id)
-        .order_by(
-            func.max(GeneratedBet.created_at).desc(), GeneratedBet.generation_id.desc()
-        )
+        .order_by(func.max(GeneratedBet.created_at).desc(), GeneratedBet.generation_id.desc())
         .limit(limit)
         .all()
     )
@@ -311,36 +283,24 @@ def list_recent_generations_with_bets(limit: int = 12) -> list[dict]:
 
     for generation in generations:
         generation["bets"] = bets_by_generation.get(generation["generation_id"], [])
-        generation["bets_truncated"] = (
-            generation["bet_count"] > MAX_RECENT_BETS_PER_GENERATION
-        )
+        generation["bets_truncated"] = generation["bet_count"] > MAX_RECENT_BETS_PER_GENERATION
     return generations
 
 
-def delete_saved_bet(bet_id: int) -> GeneratedBet:
+def stage_delete_bet(bet_id: int) -> GeneratedBet:
     """Exclui uma aposta salva, sem tocar nos concursos importados.
 
     O id é conferido no servidor; assim o botão da interface não é a única
     barreira e uma tentativa de remover algo inexistente recebe erro explícito.
     """
-    bet = db.session.get(GeneratedBet, bet_id)
+    bet = db.session.get(GeneratedBet, bet_id, with_for_update=True)
     if bet is None:
         raise RuntimeError("A aposta salva não foi encontrada.")
     db.session.delete(bet)
-    try:
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-        raise
     return bet
 
 
-def save_generated_bets(
-    quantity: int,
-    bets: Iterable[str],
-    *,
-    idempotency_key: str | None = None,
-) -> tuple[int, int | None]:
+def prepare_generated_bets(quantity: int, bets: Iterable[str]) -> list[GeneratedBet]:
     quantity = clamp_int(
         parse_int(quantity) or MIN_BET_NUMBERS,
         MIN_BET_NUMBERS,
@@ -350,9 +310,7 @@ def save_generated_bets(
     seen_bets: set[str] = set()
     for index, numbers_csv in enumerate(bets, start=1):
         if index > MAX_SAVED_BETS:
-            raise RuntimeError(
-                f"Uma geração pode conter no máximo {MAX_SAVED_BETS} apostas."
-            )
+            raise RuntimeError(f"Uma geração pode conter no máximo {MAX_SAVED_BETS} apostas.")
         nums = [parse_int(n) for n in numbers_csv.split(",")]
         if (
             len(nums) != quantity
@@ -372,31 +330,16 @@ def save_generated_bets(
                 )
             )
 
-    if not valid_bets:
-        return 0, None
-
-    # O servidor local do Flask pode atender requisicoes em threads diferentes;
-    # a persistencia compartilhada serializa a alocacao do ID do lote.
-    generation_id = _persist_bet_batch(
-        valid_bets,
-        idempotency_key=idempotency_key,
-    )
-    if generation_id is None:  # protegido pelo teste de valid_bets acima
-        return 0, None
-    _log.info("Apostas salvas: %d na geração #%d.", len(valid_bets), generation_id)
-    return len(valid_bets), generation_id
+    return valid_bets
 
 
-def save_closure_bets(
-    numbers: Iterable[int], *, idempotency_key: str | None = None
-) -> tuple[int, int | None]:
+def prepare_closure_bets(numbers: Iterable[int]) -> list[GeneratedBet]:
     base_numbers = _normalize_closure_numbers(numbers)
     serialized_bets = (
         ",".join(map(str, combination))
         for combination in combinations(base_numbers, MIN_BET_NUMBERS)
     )
-    return save_generated_bets(
+    return prepare_generated_bets(
         MIN_BET_NUMBERS,
         serialized_bets,
-        idempotency_key=idempotency_key,
     )
