@@ -499,7 +499,7 @@ wheels = [
 
 [[package]]
 name = "mega-sena"
-version = "2.2.0"
+version = "1.7.0"
 source = { editable = "." }
 dependencies = [
     { name = "defusedxml" },
