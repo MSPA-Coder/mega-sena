@@ -151,6 +151,12 @@ relacionadas e não imprima segredos.
 
 ## Implantação em produção
 
+Produção usa `compose.release.yaml`, imagens por digest de run verde de main,
+com revisão/run e arquitetura conferidos antes do fast-forward. Não reconstrua
+no VPS; use `~/deploy.sh megasena`. O CI ARM64 valida a mesma candidata em
+qualidade, Chromium, scanners e Runtime contracts, e publica só após os gates.
+Ver ADR 0003 e docs/deployment-vps.md. O Compose base mantém o build local.
+
 O sistema roda em um VPS Oracle atrás de Nginx com TLS, em
 `https://megasena-mspa.duckdns.org`, a partir de `/home/ubuntu/apps/mega-sena`.
 

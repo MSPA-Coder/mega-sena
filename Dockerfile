@@ -87,6 +87,11 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # runtime: usuário não-root; o override local pode montar o código.
 # -----------------------------------------------------------------------
 FROM base AS runtime
+ARG ARTIFACT_REVISION=local
+ARG ARTIFACT_RUN=local
+LABEL org.opencontainers.image.source="https://github.com/MSPA-Coder/mega-sena" \
+      org.opencontainers.image.revision="${ARTIFACT_REVISION}" \
+      br.com.mspa.ci-run="${ARTIFACT_RUN}"
 
 ENV PATH="/opt/venv/bin:${PATH}"
 
