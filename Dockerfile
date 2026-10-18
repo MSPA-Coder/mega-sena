@@ -171,4 +171,4 @@ USER mega_sena
 ENV RUFF_CACHE_DIR=/tmp/ruff-cache \
     PYTEST_ADDOPTS="-o cache_dir=/tmp/pytest-cache"
 ENTRYPOINT []
-CMD ["sh", "-c", "ruff check . && pytest"]
+CMD ["sh", "-c", "ruff check . && mypy && pytest"]

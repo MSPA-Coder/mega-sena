@@ -250,7 +250,7 @@ class GenerationCriteria:
             "quantity": self.quantity,
             "amount": self.amount,
         }
-        values.update(self.filters())
+        values.update({key: value for key, value in self.filters().items() if value is not None})
         return values
 
 

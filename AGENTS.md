@@ -131,8 +131,10 @@ estágio em mudanças para `main` e semanalmente, audita as dependências Python
 instaladas com `pip-audit` e a imagem servida com Trivy. O Dependabot cobre
 dependências Python, imagens Docker e GitHub Actions. O CodeQL roda em
 configuração padrão (Python e Actions, semanal) e é status check obrigatório no
-ruleset do `main`, ao lado de `Qualidade`. Não há análise estática de tipos --
-nem `mypy` nem `pyright`. Isso não dispensa a validação proporcional:
+ruleset do `main`, ao lado de `Qualidade`. O mypy estrito no `quality` cobre
+números/critérios, contexto e resultados/comando de confirmação. O escopo
+explícito em `pyproject.toml` cresce por fronteira, sem ignores em massa.
+Isso não dispensa a validação proporcional:
 percorra manualmente o fluxo alterado. Mudanças de
 autenticação, sessão, CSRF ou autorização executam o comando `quality`; mudanças
 de Docker ou dependências também exigem rebuild e subida da pilha.
