@@ -163,10 +163,10 @@ obrigatórios e auto-merge.
 O deploy (`~/deploy.sh megasena`) só roda quando o usuário mandar. O servidor
 monta a imagem a partir do código do `main`, sem esperar nem baixar nada da
 CI, confere a saúde e volta sozinho para a versão anterior se falhar.
-`~/deploy.sh --status` compara VPS × GitHub. Na quarta-feira, o
-`reconstruir-bases.timer` reconstrói só a versão que já está no ar, para pegar
-correções de segurança das imagens-base, sem trazer commits novos. Ver
-docs/deployment-vps.md.
+`~/deploy.sh --status` compara VPS × GitHub. Nada muda em produção sem o
+usuário mandar. As correções de segurança das imagens-base (Debian/Python)
+entram só quando ele pedir: testa localmente com as bases novas e depois roda
+`~/deploy.sh megasena --refresh`. Ver docs/deployment-vps.md.
 
 O sistema roda em um VPS Oracle atrás de Nginx com TLS, em
 `https://megasena-mspa.duckdns.org`, a partir de `/home/ubuntu/apps/mega-sena`.
