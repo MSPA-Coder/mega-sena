@@ -43,12 +43,15 @@ deploy key é somente leitura e o script recusa uma árvore suja.
 Publique por branch, pull request com checks obrigatórios verdes e squash merge
 (com auto-merge: `gh pr merge <n> --auto --squash`); só então o `main` remoto é
 elegível para o deploy. Não faça push direto ao `main`. A CI de PR não publica
-nem substitui o run de entrega que o deploy confere. O deploy é automático: o
-`atualizar-stacks.timer` roda a cada 5 minutos e, quando o `main` avança,
-espera em silêncio a CI de main publicar os artefatos daquele SHA, faz backup
-verificado e roda `~/deploy.sh megasena`. Ele alerta uma vez se a CI reprovar
-ou o deploy for revertido, e não repete aquele commit até o `main` andar de
-novo. Não é preciso aguardar a CI nem rodar o deploy à mão depois do merge.
+nem substitui o run de entrega que o deploy confere. Depois do merge, a CI de
+main roda e publica os artefatos daquele SHA. O deploy de commits novos é só à
+mão, com autorização do usuário: quando a mudança estiver pronta e só faltar o
+deploy, o agente avisa o usuário e roda `~/deploy.sh megasena` somente com o
+sim dele. Ninguém precisa vigiar a CI de main: o script recusa sozinho
+enquanto ela não estiver verde; se ainda estiver rodando, tenta-se de novo
+minutos depois. O `reconstruir-bases.timer` (quartas, 12:00 UTC) continua
+reconstruindo as imagens-base e, se o `main` tiver avançado, aplica também os
+commits ainda não implantados.
 
 Os dados vivem no volume Docker `mega-sena_postgres_data`, fora do checkout.
 `.secrets/` também não é versionado e precisa ser preservado ou restaurado em um
@@ -142,9 +145,8 @@ Docker não substitui backup.
 ~/deploy.sh megasena
 ```
 
-O `atualizar-stacks.timer` chama esse comando sozinho quando o `main` avança;
-rode-o à mão só para adiantar ou repetir um deploy. Depois da implantação,
-confira o login e o fluxo afetado. O próprio
+Rode-o só com a autorização do usuário. Depois da implantação, confira o login
+e o fluxo afetado. O próprio
 `deploy.sh` confere a elegibilidade do commit, os health checks e o endereço
 público, e reverte automaticamente código e imagem quando build ou saúde
 falham; não intervenha manualmente no checkout do VPS. `~/deploy.sh --status`
