@@ -85,6 +85,11 @@ run` reconstrói sem cache a partir das tags base atuais antes de executar os
 testes. A CI semanal repete build, testes e auditorias para conferir as
 atualizações automáticas do sistema e das dependências.
 
+Esse comando completo não roda mais na máquina antes do PR: a CI do PR executa
+exatamente o mesmo contêiner. Durante o desenvolvimento, rode só os testes
+focados no que mudou, e o comando completo apenas para reproduzir uma falha da
+CI.
+
 A suíte protege os contratos HTTP e de segurança — autenticação por padrão,
 CSRF, cabeçalhos, proxy, health check, download e limite de login —, a
 integridade do grafo Alembic e a configuração de bootstrap. Os testes de

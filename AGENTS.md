@@ -136,8 +136,13 @@ números/critérios, contexto e resultados/comando de confirmação. O escopo
 explícito em `pyproject.toml` cresce por fronteira, sem ignores em massa.
 Isso não dispensa a validação proporcional:
 percorra manualmente o fluxo alterado. Mudanças de
-autenticação, sessão, CSRF ou autorização executam o comando `quality`; mudanças
-de Docker ou dependências também exigem rebuild e subida da pilha.
+autenticação, sessão, CSRF ou autorização executam os testes focados dessas
+camadas; mudanças de Docker ou dependências também exigem rebuild e subida da
+pilha.
+
+O `quality` completo não roda mais na máquina antes do PR: a CI do PR executa
+exatamente o mesmo contêiner. Localmente, rode só os testes focados no que
+mudou, e o `quality` completo apenas para reproduzir uma falha da CI.
 
 Antes de manutenção de dados ou schema, gere e confira backup pelo
 BackupRestore, projeto irmão (`python cli.py backup --projeto mega_sena
@@ -156,6 +161,20 @@ com revisão/run e arquitetura conferidos antes do fast-forward. Não reconstrua
 no VPS; use `~/deploy.sh megasena`. O CI ARM64 valida a mesma candidata em
 qualidade, Chromium, scanners e Runtime contracts, e publica só após os gates.
 Ver ADR 0003 e docs/deployment-vps.md. O Compose base mantém o build local.
+
+O `main` é protegido: toda mudança entra por PR com squash merge, histórico
+linear e os checks obrigatórios verdes. A branch não precisa estar atualizada
+em relação ao `main`; não faça merge do `main` nela só para o PR entrar. O
+auto-merge está ligado: depois de `gh pr create`, rode
+`gh pr merge <n> --auto --squash`, e o PR entra sozinho quando os checks
+passarem. Nunca `--admin`, nunca push forçado, nunca rebase em branch
+publicada. A combinação de PRs é verificada pela CI do `main` depois do merge,
+e o VPS implanta sozinho: o `atualizar-stacks.timer` roda a cada 5 minutos,
+espera a CI do `main`, faz backup verificado e roda `~/deploy.sh megasena`.
+Ele alerta uma vez se a CI reprovar ou o deploy for revertido, e não repete
+aquele commit até o `main` andar de novo. `~/deploy.sh megasena` à mão serve
+para adiantar ou repetir um deploy, e `~/deploy.sh --status` mostra VPS ×
+GitHub.
 
 O sistema roda em um VPS Oracle atrás de Nginx com TLS, em
 `https://megasena-mspa.duckdns.org`, a partir de `/home/ubuntu/apps/mega-sena`.
@@ -187,7 +206,8 @@ Mantenha dependências em faixas limitadas e atualize-as deliberadamente. Para
 atualização mínima/patch, execute a validação proporcional e registre impacto
 na documentação quando houver. Para mudança de versão menor ou maior, confirme
 compatibilidade com Python, PostgreSQL, Flask e o contrato de implantação;
-reconstrua a imagem do zero e execute `quality`. Quebras de contrato, schema ou
+reconstrua a imagem do zero e execute os testes focados; o `quality` completo
+roda na CI do PR. Quebras de contrato, schema ou
 interfaces exigem decisão explícita, migração/rollback, consumidores atualizados
 e uma nova revisão Alembic quando houver persistência. Compatibilidade só é
 mantida enquanto houver consumidor conhecido.

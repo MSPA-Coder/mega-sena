@@ -86,7 +86,10 @@ docker compose --env-file .env.docker -f compose.yaml --profile quality run --bu
 monta o código do host; Compose reconstrói sem cache com as tags base atuais
 antes dos testes.
 
-Esse estágio executa Ruff e pytest. Mudanças relevantes também exigem percorrer
+Esse estágio executa Ruff e pytest. A CI do PR roda exatamente o mesmo
+contêiner, então ele não roda mais na máquina antes do PR: localmente, rode só
+os testes focados no que mudou, e o completo apenas para reproduzir uma falha
+da CI. Mudanças relevantes também exigem percorrer
 manualmente o fluxo afetado; alterações persistentes exigem backup e validação
 das migrations em PostgreSQL vazio.
 
