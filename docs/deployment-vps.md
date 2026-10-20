@@ -1,32 +1,16 @@
 # Operação, dados e backup
 
-## Entrega por imagem validada
+## Build no servidor
 
-No VPS, use somente `~/deploy.sh megasena` depois da instalação da
-infraestrutura compatível de `manutencao/main`. `compose.release.yaml` recebe
-`APP_IMAGE` e `POSTGRES_IMAGE` por digest; não execute um build Compose para
-atualizar esse ambiente. O Compose base continua servindo ao desenvolvimento
-AMD64 local, que é validação separada da entrega ARM64.
-
-A CI nativa ARM64 constrói um runtime e um PostgreSQL. `Dockerfile.verify`
-adiciona ferramentas sobre o candidato e confere que as versões de runtime
-não mudaram. Ruff/mypy/pytest, Chromium e Trivy validam os candidatos;
-`Runtime contracts` recebe esses mesmos IDs via artefato para conferir
-imutabilidade, health e papel restrito (app/migrate). Só depois dos dois jobs,
-o job de publicação envia os mesmos IDs ao GHCR, sem reconstruir.
-
-Pacotes: `ghcr.io/mspa-coder/mega-sena` e `mega-sena-postgres`, tags
-`run-<run_id>-<tentativa>`. Visibilidade pública só após conferir conteúdo
-publicável; nenhuma conta, .env, .secrets, chave privada ou fixture entra no
-runtime. Repositório público não torna um pacote automaticamente público.
-
-O deploy exige run completo verde de main no SHA exato, revisão/run e
-arquitetura em **ambas** as imagens. Confere os IDs anteriores disponíveis
-antes de alterar código/serviços; depois sobe `--no-build --pull never`.
-Rollback restaura IDs por papel e código, nunca dados/schema. Só o serviço
-PostgreSQL recebe `mspa.backup.postgres=true`, preservando a descoberta do
-backup mesmo com digest ou ID local. `--refresh` escolhe o novo run verde do
-mesmo commit. Aguarde a publicação de main antes de implantar.
+No VPS, use somente `~/deploy.sh megasena`, e só quando o usuário mandar. O
+script (de `manutencao/main`) monta as imagens no próprio servidor a partir do
+código do `main`, sem esperar a CI nem baixar nada do GHCR; confere a saúde e
+volta sozinho para o código e a imagem anteriores se falhar, nunca para
+dados/schema. Só o serviço PostgreSQL recebe `mspa.backup.postgres=true`, o
+que preserva a descoberta do backup. `~/deploy.sh --status` compara VPS ×
+GitHub. Na quarta-feira, o `reconstruir-bases.timer` reconstrói só a versão
+que já está no ar, para pegar correções de segurança das imagens-base, sem
+trazer commits novos.
 
 ## Topologia atual
 
@@ -40,10 +24,9 @@ mudança nasce na máquina de desenvolvimento, passa pelo GitHub e chega ao VPS
 por `~/deploy.sh megasena`. Não edite, commite nem faça merge no servidor. A
 deploy key é somente leitura e o script recusa uma árvore suja.
 
-Publique por branch, pull request com checks obrigatórios verdes e squash merge;
-só então o `main` remoto é elegível para o deploy. Não faça push direto ao
-`main`; aguarde a CI de main publicar os artefatos daquele SHA. A CI de PR
-não publica nem substitui o run de entrega que o deploy confere.
+Publique com commit direto no `main` e `git push`, depois da verificação
+completa na máquina; não há PR nem espera de CI, que roda depois do push só
+como aviso.
 
 Os dados vivem no volume Docker `mega-sena_postgres_data`, fora do checkout.
 `.secrets/` também não é versionado e precisa ser preservado ou restaurado em um
@@ -138,10 +121,9 @@ Docker não substitui backup.
 ```
 
 Depois da implantação, confira o login e o fluxo afetado. O próprio
-`deploy.sh` confere a elegibilidade do commit, os health checks e o endereço
-público, e reverte automaticamente código e imagem quando build ou saúde
-falham; não intervenha manualmente no checkout do VPS. `~/deploy.sh --status`
-continua disponível apenas para diagnóstico transversal.
+`deploy.sh` confere os health checks e o endereço público, e reverte
+automaticamente código e imagem quando build ou saúde falham; não intervenha
+manualmente no checkout do VPS. `~/deploy.sh --status` compara VPS × GitHub.
 
 Essa reversão não desfaz migrations já aplicadas. Toda mudança de schema deve
 ter backup verificado e ser retrocompatível com a revisão anterior durante a

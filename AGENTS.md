@@ -137,7 +137,9 @@ explícito em `pyproject.toml` cresce por fronteira, sem ignores em massa.
 Isso não dispensa a validação proporcional:
 percorra manualmente o fluxo alterado. Mudanças de
 autenticação, sessão, CSRF ou autorização executam o comando `quality`; mudanças
-de Docker ou dependências também exigem rebuild e subida da pilha.
+de Docker ou dependências também exigem rebuild e subida da pilha. Em qualquer
+mudança de código, rode o `quality` completo na máquina antes do commit: é
+essa verificação que vale, e a CI depois do push é só aviso.
 
 Antes de manutenção de dados ou schema, gere e confira backup pelo
 BackupRestore, projeto irmão (`python cli.py backup --projeto mega_sena
@@ -151,11 +153,20 @@ relacionadas e não imprima segredos.
 
 ## Implantação em produção
 
-Produção usa `compose.release.yaml`, imagens por digest de run verde de main,
-com revisão/run e arquitetura conferidos antes do fast-forward. Não reconstrua
-no VPS; use `~/deploy.sh megasena`. O CI ARM64 valida a mesma candidata em
-qualidade, Chromium, scanners e Runtime contracts, e publica só após os gates.
-Ver ADR 0003 e docs/deployment-vps.md. O Compose base mantém o build local.
+Depois da verificação completa na máquina, faça commit direto no `main` e
+`git push`, sem PR e sem esperar nada. A regra do `main` continua impedindo
+apagá-lo ou reescrever o histórico: nada de push forçado nem de rebase do
+`main`. A CI do GitHub roda depois de cada push só como aviso e não bloqueia
+nada; se falhar, investigue. O Dependabot continua por PR, com os checks
+obrigatórios e auto-merge.
+
+O deploy (`~/deploy.sh megasena`) só roda quando o usuário mandar. O servidor
+monta a imagem a partir do código do `main`, sem esperar nem baixar nada da
+CI, confere a saúde e volta sozinho para a versão anterior se falhar.
+`~/deploy.sh --status` compara VPS × GitHub. Na quarta-feira, o
+`reconstruir-bases.timer` reconstrói só a versão que já está no ar, para pegar
+correções de segurança das imagens-base, sem trazer commits novos. Ver
+docs/deployment-vps.md.
 
 O sistema roda em um VPS Oracle atrás de Nginx com TLS, em
 `https://megasena-mspa.duckdns.org`, a partir de `/home/ubuntu/apps/mega-sena`.
@@ -194,7 +205,7 @@ mantida enquanto houver consumidor conhecido.
 
 ## Barreiras de segurança no CI
 
-Duas verificações reprovam o PR e respondem perguntas diferentes:
+Duas verificações reprovam a CI e respondem perguntas diferentes:
 
 - **`pip-audit`** roda dentro da imagem `quality` e pergunta se alguma
   dependência Python *instalada* tem CVE conhecido. Auditar o ambiente
