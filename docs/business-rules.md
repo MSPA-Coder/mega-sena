@@ -61,9 +61,9 @@ concurso.
 Filtros restritivos podem impedir que a quantidade solicitada seja alcançada.
 Nesse caso, o sistema entrega as apostas encontradas e informa a redução, em vez
 de continuar tentando indefinidamente: cada geração tem um orçamento de cerca
-de 3 segundos. Só duas gerações rodam ao mesmo tempo; uma terceira é recusada
-com a mensagem de aguardar, para que gerações pesadas não ocupem todos os
-processos do servidor.
+de 3 segundos. Cada processo do servidor roda no máximo duas gerações ao mesmo tempo; as
+seguintes são recusadas na hora com a mensagem de aguardar, para que gerações
+pesadas não ocupem todas as threads e o `/health` continue respondendo.
 
 Valores fora dos limites, texto em campos numéricos e pares mínimo/máximo
 contraditórios são recusados com erro 400 e uma mensagem visível. O servidor
@@ -124,6 +124,11 @@ A lista de concursos pode ser filtrada por número do concurso, quantidade de
 pares, maior sequência consecutiva e presença de acertador da Mega Sena, e tem
 salto direto para uma página.
 
+Na importação, valor monetário de texto com um único separador e exatamente três
+dígitos depois (`1.234`, `1,234`) é recusado como ambíguo — pode ser mil
+duzentos e trinta e quatro ou um vírgula duzentos e trinta e quatro. Valores
+com centavos (`1.234,56`) e células numéricas não são afetados.
+
 Cada aposta salva pode ser excluída individualmente, com confirmação. A
 exclusão remove somente a aposta escolhida; concursos importados não são
 afetados.
@@ -161,6 +166,11 @@ o Nginx aplica ao `POST /login` um `limit_req` compartilhado, que é parte
 obrigatória da proteção atual junto com HTTPS e hosts confiáveis. Outra
 topologia exposta precisa de proteção de borda equivalente ou armazenamento
 compartilhado para o limitador; o contador em memória não basta em produção.
+
+O logout invalida o cookie de sessão emitido (não só o apaga no navegador): a
+marca da sessão inclui uma época por usuário, que o logout incrementa. Uma cópia
+do cookie deixa de valer, e as sessões abertas em outros aparelhos da mesma
+conta também caem. Trocar a senha tem o mesmo efeito.
 
 Após o login, o parâmetro `next` só aceita caminhos locais. URLs com esquema ou
 host externo, barras invertidas e formas percent-encoded que possam ser

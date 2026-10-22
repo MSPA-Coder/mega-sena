@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 import unicodedata
 from collections.abc import Iterable
 from datetime import UTC, date, datetime
@@ -97,6 +98,11 @@ def _money_to_cents(value: object) -> int:
             )
             if not text or len(text) > 64:
                 raise ValueError("valor monetário inválido")
+            if re.fullmatch(r"\d+[.,]\d{3}", text):
+                # `1.234` é mil duzentos e trinta e quatro ou um vírgula
+                # duzentos e trinta e quatro? Não há como saber, e um dos dois
+                # estaria 1000 vezes errado: recusa em vez de adivinhar.
+                raise ValueError("valor monetário ambíguo")
             if "," in text and "." in text:
                 text = (
                     text.replace(".", "").replace(",", ".")

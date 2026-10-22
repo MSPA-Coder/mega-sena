@@ -82,8 +82,27 @@
     flex-wrap: wrap;
   }
 
+  .pagination,
+  .pagination-compact {
+    flex-wrap: wrap;
+  }
+
+  .pagination .button,
+  .pagination span {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .pagination .button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding-block: 0;
+  }
+
   .page-jump {
     margin: 8px 0 0;
+    flex-basis: 100%;
   }
 
   input,

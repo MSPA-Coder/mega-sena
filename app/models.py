@@ -239,6 +239,12 @@ class User(UserMixin, db.Model):
     must_change_password = db.Column(
         db.Boolean, nullable=False, default=False, server_default=db.text("false")
     )
+    # Incrementada no logout: entra na marca da sessão (`get_id`), então todo
+    # cookie emitido antes deixa de valer. Época 0 = marca igual à que existia
+    # antes da coluna, para o deploy não derrubar as sessões abertas.
+    session_epoch = db.Column(
+        db.Integer, nullable=False, default=0, server_default=db.text("0")
+    )
     # Como datas e números aparecem e são digitados (`br` ou `us`). Só
     # apresentação: o que é gravado e calculado não muda.
     regional_format = db.Column(
@@ -255,6 +261,12 @@ class User(UserMixin, db.Model):
     def check_password(self, password: str) -> bool:
         return conferir_hash(self.password_hash, password)
 
+    @property
+    def session_material(self) -> str:
+        """O que a marca da sessão protege: o hash da senha e a época de logout."""
+        epoca = self.session_epoch or 0
+        return self.password_hash if epoca == 0 else f"{self.password_hash}:{epoca}"
+
     def get_id(self) -> str:
         """Identificador guardado no cookie: o id **e** a marca da senha.
 
@@ -269,7 +281,7 @@ class User(UserMixin, db.Model):
         """
         return identificador_de_sessao(
             self.id,
-            marca_de_sessao(self.password_hash, chave_secreta=current_app.secret_key),
+            marca_de_sessao(self.session_material, chave_secreta=current_app.secret_key),
         )
 
     @property
