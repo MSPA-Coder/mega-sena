@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 import math
 import secrets
+import threading
+import time
 from collections.abc import Iterable
 from hashlib import sha256
 from itertools import combinations, islice
@@ -29,6 +31,14 @@ MAX_RECENT_GENERATIONS = 20
 MAX_RECENT_BETS_PER_GENERATION = 200
 _RNG = secrets.SystemRandom()
 _GENERATION_ID_SEQUENCE = "generated_bets_generation_id_seq"
+# A geração é CPU pura e segura o worker inteiro: filtros severos com apostas de
+# 20 dezenas custam vários segundos, e três pedidos simultâneos passavam do
+# timeout de 60 s do gunicorn. O orçamento de tempo limita cada pedido e as
+# vagas limitam quantos rodam ao mesmo tempo em cada processo, deixando threads
+# livres para o resto do sistema.
+GENERATION_TIME_BUDGET_SECONDS = 3.0
+MAX_CONCURRENT_GENERATIONS = 2
+_GENERATION_SLOTS = threading.BoundedSemaphore(MAX_CONCURRENT_GENERATIONS)
 
 
 def _passes_generation_filters(numbers: list[int], filters: dict | None) -> bool:
@@ -145,6 +155,21 @@ def generate_bets(
     Nada aqui persiste: as apostas só chegam ao banco pelos comandos de
     confirmação, depois da revisão na tela.
     """
+    if not _GENERATION_SLOTS.acquire(blocking=False):
+        raise RuntimeError(
+            "Há outras gerações em andamento. Aguarde alguns segundos e tente de novo."
+        )
+    try:
+        return _generate_bets(quantity, amount, filters)
+    finally:
+        _GENERATION_SLOTS.release()
+
+
+def _generate_bets(
+    quantity: int,
+    amount: int,
+    filters: dict | None,
+) -> list[GeneratedBet]:
     quantity = clamp_int(
         parse_int(quantity) or MIN_BET_NUMBERS,
         MIN_BET_NUMBERS,
@@ -164,7 +189,12 @@ def generate_bets(
     # Limite razoável: evita loop infinito com filtros muito restritivos.
     # 2000 tentativas por aposta é suficiente para qualquer configuração prática.
     max_attempts = amount * 2000
+    deadline = time.monotonic() + GENERATION_TIME_BUDGET_SECONDS
     while len(created) < amount and attempts < max_attempts:
+        # Conferido a cada 256 tentativas: o relógio não pode custar mais que
+        # o próprio sorteio.
+        if attempts % 256 == 0 and time.monotonic() > deadline:
+            break
         attempts += 1
         nums = _secure_random_candidate(quantity)
         if quantity == 6 and tuple(nums) in existing_draws:

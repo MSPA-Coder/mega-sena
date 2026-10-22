@@ -1,0 +1,20 @@
+{#- Campos dos filtros da geração: uma definição só, usada pela tela e pelo
+    fragmento de "Calcular parâmetros". Os limites vêm de `generation_limits`
+    (app/bets/criteria.py), então o `min`/`max` da tela é o mesmo que o servidor
+    aplica. -#}
+{% set FILTER_FIELDS = [
+  ('consecutive_count', 'Maior sequência consecutiva permitida', 'filter-consecutive-count'),
+  ('even_min', 'Mínimo de números pares', 'filter-even-min'),
+  ('even_max', 'Máximo de números pares', 'filter-even-max'),
+  ('sum_min', 'Soma inicial', 'filter-sum-min'),
+  ('sum_max', 'Soma final', 'filter-sum-max'),
+  ('range_min_occupied', 'Mínimo de faixas ocupadas', 'filter-range-min-occupied'),
+  ('range_max_per_band', 'Máximo de dezenas por faixa', 'filter-range-max-per-band'),
+] %}
+{% macro render_filter_fields(values, limits) %}
+<div id="filter-target-fields" class="filter-target-fields">
+  {% for name, label, element_id in FILTER_FIELDS %}
+    <label>{{ label }}<input id="{{ element_id }}" type="number" inputmode="numeric" name="{{ name }}" min="{{ limits[name][0] }}" max="{{ limits[name][1] }}" placeholder="Opcional" value="{{ values[name] if values[name] is not none else '' }}"></label>
+  {% endfor %}
+</div>
+{% endmacro %}

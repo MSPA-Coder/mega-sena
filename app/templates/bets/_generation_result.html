@@ -1,6 +1,6 @@
 {% from "components/balls.html" import render_balls %}
 <section id="generation-result" class="panel" aria-live="polite">
-  {% if feedback %}<div class="flash">{{ feedback }}</div>{% endif %}
+  {% if feedback %}<div class="flash{{ ' flash-error' if feedback_error }}"{% if feedback_error %} role="alert"{% endif %}>{{ feedback }}</div>{% endif %}
   {% if bets %}
     <div class="panel-header"><h2>{{ 'Prévia do fechamento' if closure_preview_truncated else 'Apostas geradas' }}</h2></div>
     {% if coverage_metrics.exact_coverage_available %}
@@ -13,9 +13,9 @@
           hx-post="{{ url_for('web.bet_generation') }}" hx-target="#generation-result" hx-swap="outerHTML"
           hx-disabled-elt="find button[type='submit']" hx-indicator="#save-indicator"
           hx-confirm="Gravar estas apostas no banco?">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="{{ 'save_closure' if closure_mode else 'save' }}"><input type="hidden" name="quantity" value="{{ bets[0].quantity }}"><input type="hidden" name="amount" value="{{ selected_amount }}">
-      {% if closure_mode %}<input type="hidden" name="closure_numbers" value="{{ closure_numbers }}">{% endif %}
-      {% for key, value in selected_filters.items() %}{% if value is not none %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endif %}{% endfor %}
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="{{ 'save_closure' if closure_mode else 'save' }}"><input type="hidden" name="quantity" value="{{ bets[0].quantity }}">
+      {#- Fechamento grava só as dezenas-base: o servidor recalcula as combinações. Quantidade de apostas e filtros não existem nesse modo e, enviados, seriam recusados (C(n,6) passa de 100). -#}
+      {% if closure_mode %}<input type="hidden" name="closure_numbers" value="{{ closure_numbers }}">{% else %}<input type="hidden" name="amount" value="{{ selected_amount }}">{% for key, value in selected_filters.items() %}{% if value is not none %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endif %}{% endfor %}{% endif %}
       <div class="generated-bets-grid">{% for bet in bets %}<div class="bet-line">{% if not closure_mode %}<input type="hidden" name="bet" value="{{ bet.numbers_csv }}">{% endif %}{{ render_balls(bet.numbers) }}<small>Diversidade {{ ("%.2f"|format(bet.score))|unumber }}</small></div>{% endfor %}</div>
       <div class="actions"><button type="submit">Gravar no banco</button><span id="save-indicator" class="htmx-indicator" role="status">Gravando…</span><a class="button secondary" href="{{ url_for('web.bet_generation', **generation_params) if generation_params is defined else url_for('web.bet_generation') }}">Não gravar</a></div>
     </form>

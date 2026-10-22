@@ -5,10 +5,6 @@
 }
 
 @media (max-width: 850px) {
-  :root {
-    --sticky-header-reserve: 176px;
-  }
-
   .cards,
   .grid.two,
   .form-grid {
@@ -60,15 +56,72 @@
     flex-wrap: wrap;
   }
 
-  .target-action-row {
-    grid-template-columns: 1fr;
+  form.generator-form,
+  .generator-form .target-action-row {
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  .target-action-row .form-actions {
+  .generator-form .target-action-row .form-actions {
+    flex-wrap: wrap;
     justify-content: flex-start;
   }
 
   .frequency-chart {
     grid-auto-columns: 14px;
+  }
+}
+
+/* Celular: a página inteira rola, sem painéis com rolagem própria; alvos de
+   toque de 44px e campos com 16px (abaixo disso o iOS dá zoom ao focar). */
+@media (max-width: 850px) {
+  .contests-filter {
+    align-items: stretch;
+  }
+
+  .contests-filter label {
+    flex-wrap: wrap;
+  }
+
+  .page-jump {
+    margin: 8px 0 0;
+  }
+
+  input,
+  select,
+  textarea {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  input[type="checkbox"],
+  input[type="radio"] {
+    min-height: 0;
+    width: 22px;
+    height: 22px;
+  }
+
+  button,
+  .button {
+    min-height: 44px;
+  }
+
+  .inline-form button,
+  .bet-line button,
+  .generation-line button,
+  .page-jump button {
+    min-height: 44px;
+    padding: 8px 14px;
+  }
+
+  .topbar a,
+  .theme-toggle,
+  .nav-toggle {
+    min-height: 44px;
+  }
+
+  .contests-filter input[type="number"],
+  .page-jump input {
+    width: 100%;
+    max-width: 140px;
   }
 }

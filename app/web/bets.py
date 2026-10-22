@@ -34,6 +34,7 @@ from ..bets.service import (
     list_recent_generations_with_bets,
 )
 from ..core.formatting import format_int, format_percent
+from ..core.numbers import MAX_INT32
 from ..core.regional import adaptar_numero
 from ..draws.service import count_draws
 from ..settings.service import get_generation_defaults
@@ -162,6 +163,21 @@ def _read_generation_state(
     return params.quantity, selected_filters, params.amount
 
 
+def _state_or_defaults(
+    values: MultiDict,
+) -> tuple[int, dict[str, int | None], int, str | None]:
+    """Lê o estado da tela a partir da URL sem corrigi-lo em silêncio.
+
+    Valor fora dos limites ou contraditório volta aos padrões salvos e a
+    mensagem acompanha o resultado, para a pessoa saber que a URL foi recusada.
+    """
+    closure_requested = bool(values.get("closure_numbers", "").strip())
+    try:
+        return (*_read_generation_state(values, strict=not closure_requested), None)
+    except InvalidGenerationCriteriaError as exc:
+        return (*_read_generation_state(MultiDict()), str(exc))
+
+
 def _active_filters(selected_filters: dict[str, int | None]) -> dict[str, int]:
     return {key: value for key, value in selected_filters.items() if value is not None}
 
@@ -192,7 +208,12 @@ def _draw_filter_preview_payload(
 def _preview_context(values: MultiDict) -> dict:
     """Build the read-only preview shown beside the generation form."""
     closure_numbers = values.get("closure_numbers", "")
-    quantity, selected_filters, selected_amount = _read_generation_state(values)
+    try:
+        quantity, selected_filters, selected_amount = _read_generation_state(
+            values, strict=not closure_numbers.strip()
+        )
+    except InvalidGenerationCriteriaError as exc:
+        return {"validation_error": str(exc)}
     (
         quantity,
         selected_filters,
@@ -220,7 +241,7 @@ def _preview_context(values: MultiDict) -> dict:
 @bp.route("/rationale")
 def rationale():
     closure_numbers = request.args.get("closure_numbers", "")
-    quantity, selected_filters, selected_amount = _read_generation_state(request.args)
+    quantity, selected_filters, selected_amount, state_error = _state_or_defaults(request.args)
     return_quantity = quantity
     return_amount = selected_amount
     quantity, selected_filters, selected_amount, closure_mode, closure_base_count = (
@@ -250,6 +271,7 @@ def rationale():
         closure_base_count=closure_base_count,
         selected_quantity=quantity,
         return_params=return_params,
+        state_error=state_error,
     )
 
 
@@ -266,15 +288,26 @@ def bet_generation():
     closure_total = 0
     closure_preview_truncated = False
     feedback: str | None = None
+    feedback_error = False
     htmx_request = is_htmx_request()
     closure_numbers = request.args.get("closure_numbers", "")
-    selected_quantity, selected_filters, selected_amount = _read_generation_state(request.args)
+    selected_quantity, selected_filters, selected_amount, state_error = _state_or_defaults(
+        request.args
+    )
+    if state_error:
+        feedback, feedback_error = state_error, True
     recent_generations = list_recent_generations_with_bets()
     if request.method == "POST":
         action = request.form.get("action", "generate")
+        # Fechamento ignora quantidade de apostas e filtros (o servidor recalcula
+        # tudo a partir das dezenas-base): o formulário de gravação os envia só
+        # por herança da tela e não pode ser recusado por causa deles.
+        closure_requested = action in {"closure", "save_closure"} or bool(
+            request.form.get("closure_numbers", "").strip()
+        )
         try:
             quantity, selected_filters, selected_amount = _read_generation_state(
-                request.form, strict=True
+                request.form, strict=not closure_requested
             )
         except InvalidGenerationCriteriaError as exc:
             return (
@@ -282,6 +315,7 @@ def bet_generation():
                     "bets/_generation_result.html",
                     bets=[],
                     feedback=str(exc),
+                    feedback_error=True,
                     avisos=[{"mensagem": str(exc), "severidade": "error"}],
                 ),
                 400,
@@ -320,6 +354,7 @@ def bet_generation():
                         "bets/_generation_result.html",
                         bets=[],
                         feedback=str(exc),
+                        feedback_error=True,
                         avisos=[{"mensagem": str(exc), "severidade": "error"}],
                     )
                 flash(str(exc), "error")
@@ -384,11 +419,12 @@ def bet_generation():
                     )
                 else:
                     feedback = (
-                        f"{generated} {plural(generated, 'aposta gerada', 'apostas geradas')}. "
+                        f"{generated} {plural(generated, 'aposta gerada', 'apostas geradas')} "
+                        f"de {quantity} dezenas. "
                         "Revise e escolha se deseja gravar no banco de dados."
                     )
         except RuntimeError as exc:
-            feedback = str(exc)
+            feedback, feedback_error = str(exc), True
 
     filter_preview = _draw_filter_preview_payload(selected_filters)
     (
@@ -431,6 +467,7 @@ def bet_generation():
             selected_quantity, selected_filters, selected_amount
         ),
         "feedback": feedback,
+        "feedback_error": feedback_error,
     }
     if htmx_request:
         # Sem `flash()` aqui de propósito: o `feedback` de gerar/fechamento já
@@ -446,7 +483,7 @@ def bet_generation():
     )
 
 
-@bp.post("/bets/saved/<int:bet_id>/delete")
+@bp.post(f"/bets/saved/<int(max={MAX_INT32}):bet_id>/delete")
 def delete_bet(bet_id: int):
     try:
         delete_saved_bet(bet_id, audit=AuditContext(current_user.id, audit_request_context()))
@@ -481,6 +518,7 @@ def filter_targets_fragment():
             "bets/_filter_targets.html",
             target_percentage=target_percentage,
             targets=targets,
+            generation_limits=GENERATION_LIMITS,
         )
     )
     response.headers["HX-Trigger-After-Settle"] = "bets-preview"

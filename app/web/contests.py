@@ -47,17 +47,20 @@ def _contests_context() -> dict:
     winners_only = request.args.get("winners_only") == "1"
     consecutive_count = optional_int(request.args.get("consecutive_count"))
     even_count = optional_int(request.args.get("even_count"))
+    contest = optional_int(request.args.get("contest"))
     result = search_contests(
         page=page,
         winners_only=winners_only,
         consecutive_count=consecutive_count,
         even_count=even_count,
+        contest=contest,
     )
     return {
         "pagination": result.pagination,
         "winners_only": result.winners_only,
         "consecutive_count": result.consecutive_count,
         "even_count": result.even_count,
+        "contest": result.contest,
         "active_filters": result.active_filters,
         "contests_summary": result.summary,
         "pagination_args": {

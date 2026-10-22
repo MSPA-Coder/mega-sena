@@ -415,8 +415,10 @@ def calculate_individual_filter_targets(target_percentage: float) -> dict:
 
     unique_sums = sorted(sum_counter)
     parameters = {
+        # De 1 a 6: o filtro aceita "ate N" com N >= 1, e "ate 1" ja equivale a
+        # "nenhuma sequencia" (a maior sequencia medida e 0 ou pelo menos 2).
         "consecutive_count": first_at_or_above(
-            range(0, 7),
+            range(1, 7),
             consecutive_counter,
             lambda item, value: item <= value,
         ),

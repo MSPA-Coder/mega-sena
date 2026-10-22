@@ -50,8 +50,9 @@ concurso.
 - Cada aposta gerada tem de 6 a 20 dezenas distintas entre 1 e 60.
 - Uma geração solicita de 1 a 100 apostas.
 - Critérios em branco ficam desativados.
-- Os critérios disponíveis tratam de sequência consecutiva, pares, soma,
-  quantidade de faixas ocupadas e concentração em uma faixa.
+- Os critérios disponíveis tratam de sequência consecutiva (de 1 a 6; em branco
+  desativa), pares, soma, quantidade de faixas ocupadas e concentração em uma
+  faixa.
 - Para apostas com mais de seis dezenas, todas as combinações internas de seis
   dezenas precisam satisfazer os critérios escolhidos.
 - Uma combinação de seis dezenas idêntica a um concurso importado é descartada.
@@ -59,11 +60,16 @@ concurso.
 
 Filtros restritivos podem impedir que a quantidade solicitada seja alcançada.
 Nesse caso, o sistema entrega as apostas encontradas e informa a redução, em vez
-de continuar tentando indefinidamente.
+de continuar tentando indefinidamente: cada geração tem um orçamento de cerca
+de 3 segundos. Só duas gerações rodam ao mesmo tempo; uma terceira é recusada
+com a mensagem de aguardar, para que gerações pesadas não ocupem todos os
+processos do servidor.
 
 Valores fora dos limites, texto em campos numéricos e pares mínimo/máximo
 contraditórios são recusados com erro 400 e uma mensagem visível. O servidor
 não limita, inverte nem ignora silenciosamente um filtro enviado pelo usuário.
+A prévia (`/bets/preview`), o racional e a gravação das configurações seguem a
+mesma regra: o erro aparece na tela em vez de o valor ser trocado em silêncio.
 
 Os parâmetros da URL representam o estado da tela. Sem parâmetros na URL, são
 usados os valores salvos em **Configurações**.
@@ -111,7 +117,12 @@ de criar outro. Ao gravar:
   recalculado no servidor.
 
 Um lote pode conter no máximo `C(20, 6) = 38.760` apostas, correspondente ao
-maior fechamento aceito pela interface.
+maior fechamento aceito pela interface. Gravar um fechamento envia somente as
+dezenas-base: quantidade de dezenas, de apostas e filtros da tela não participam.
+
+A lista de concursos pode ser filtrada por número do concurso, quantidade de
+pares, maior sequência consecutiva e presença de acertador da Mega Sena, e tem
+salto direto para uma página.
 
 Cada aposta salva pode ser excluída individualmente, com confirmação. A
 exclusão remove somente a aposta escolhida; concursos importados não são
@@ -142,7 +153,8 @@ o último administrador ativo desativado, desativar a própria conta ou deixar
 zero usuários ativos. A migração de papéis atribui `admin` às contas legadas
 para preservar o acesso existente; novos usuários são `operador` por padrão.
 O primeiro usuário é criado como administrador pelo comando `criar-usuario`.
-A senha mínima é definida por `MIN_PASSWORD_LENGTH` em
+O nome de usuário aceita até 80 caracteres (tamanho da coluna); acima disso a
+criação é recusada com mensagem. A senha mínima é definida por `MIN_PASSWORD_LENGTH` em
 `app/accounts/service.py`. O limite de tentativas de login é local à memória de
 cada processo, reinicia com ele e não coordena workers ou instâncias. No VPS,
 o Nginx aplica ao `POST /login` um `limit_req` compartilhado, que é parte

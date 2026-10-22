@@ -221,18 +221,45 @@ td,
 form {
   box-sizing: border-box;
   max-width: 100%;
-  max-height: calc(100vh - var(--sticky-header-reserve));
-  max-height: calc(100dvh - var(--sticky-header-reserve));
-  overflow-y: auto;
-  overflow-x: hidden;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
-  padding-right: var(--form-scrollbar-space);
 }
 
-form.panel {
-  max-height: calc(100vh - var(--sticky-header-reserve));
-  max-height: calc(100dvh - var(--sticky-header-reserve));
+/* Só para leitores de tela. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Aparece ao receber foco (primeiro Tab da página). */
+.skip-link {
+  position: absolute;
+  left: 12px;
+  top: -64px;
+  z-index: 100;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--primary-strong);
+  font-weight: 700;
+  box-shadow: var(--shadow);
+}
+
+.skip-link:focus {
+  top: 12px;
+}
+
+main:focus {
+  outline: none;
+}
+
+.container > .card {
+  margin-bottom: 18px;
 }
 
 .panel,
