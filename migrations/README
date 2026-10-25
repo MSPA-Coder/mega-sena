@@ -14,8 +14,9 @@ aplicação. Para aplicá-lo explicitamente em uma pilha já iniciada:
 docker compose --env-file .env.docker -f compose.yaml exec app flask --app run.py db upgrade
 ```
 
-Antes de alterar schema ou dados, gere e confira o backup pelo projeto irmão
-BackupRestore, conforme [`docs/deployment-vps.md`](../docs/deployment-vps.md).
+Antes de alterar schema ou dados em produção, confira no projeto irmão
+BackupRestore que há um dump recente do VPS, conforme
+[`docs/deployment-vps.md`](../docs/deployment-vps.md).
 Toda mudança de schema deve criar uma nova revision. Não reescreva revisions já
 aplicáveis e não use `stamp` ou `db.create_all()` como bootstrap.
 

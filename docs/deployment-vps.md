@@ -102,14 +102,19 @@ curl -I https://megasena-mspa.duckdns.org/
 Backup, catálogo, verificação e ensaio de restauração são responsabilidade do
 projeto irmão BackupRestore. Este repositório não contém script próprio de
 backup ou restauração. Antes de manutenção de dados, migration ou implantação
-que possa alterar o schema, execute no ambiente do BackupRestore:
+que possa alterar o schema em produção, confira no ambiente do BackupRestore
+que existe um dump recente do VPS (projeto `mega_sena_vps`):
 
 ```powershell
-python cli.py backup --projeto mega_sena --tipos banco
+python cli.py listar --projeto mega_sena_vps
 ```
 
-Considere o backup concluído somente quando o BackupRestore registrar a
-verificação prevista por ele. Agendamento, retenção, localização dos artefatos e
+O dump de produção é feito pelo agente do servidor e entra no catálogo pela
+`sincronizar-vps`; o comando `backup` do BackupRestore não alcança a produção.
+O `backup --projeto mega_sena` cobre só o banco local de testes. Se não houver
+dump do dia, avise o mantenedor antes de seguir. Considere o backup válido
+somente quando o BackupRestore o registrar como verificado.
+Agendamento, retenção, localização dos artefatos e
 procedimento de restauração pertencem à documentação e à configuração desse
 projeto central; não mantenha uma segunda receita aqui. A existência do volume
 Docker não substitui backup.

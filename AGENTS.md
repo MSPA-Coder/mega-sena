@@ -141,10 +141,13 @@ de Docker ou dependências também exigem rebuild e subida da pilha. Em qualquer
 mudança de código, rode o `quality` completo na máquina antes do commit: é
 essa verificação que vale, e a CI depois do push é só aviso.
 
-Antes de manutenção de dados ou schema, gere e confira backup pelo
-BackupRestore, projeto irmão (`python cli.py backup --projeto mega_sena
---tipos banco`); ele centraliza dump, catálogo e verificação dos quatro
-projetos mantidos por ele, e este repositório não tem rotina própria. Mudança de
+Antes de manutenção de dados ou schema em produção, confira no BackupRestore,
+projeto irmão, que há um dump recente do VPS (`python cli.py listar --projeto
+mega_sena_vps`, rodado na pasta dele): quem o produz é o agente do servidor, e
+o catálogo o recebe pela `sincronizar-vps`. Se não houver dump do dia, avise o
+mantenedor antes de seguir. O `backup --projeto mega_sena` cobre apenas o banco
+local de testes e não protege a produção. O BackupRestore centraliza dump,
+catálogo e verificação, e este repositório não tem rotina própria. Mudança de
 schema exige ainda bootstrap em
 PostgreSQL vazio, pela cadeia Alembic, e teste de upgrade/downgrade quando a
 revisão os alterar. `docker compose down` preserva dados; `down -v` remove o
@@ -158,7 +161,7 @@ Depois da verificação completa na máquina, faça commit direto no `main` e
 apagá-lo ou reescrever o histórico: nada de push forçado nem de rebase do
 `main`. A CI do GitHub roda depois de cada push só como aviso e não bloqueia
 nada; se falhar, investigue. O Dependabot continua por PR, com os checks
-obrigatórios e auto-merge.
+obrigatórios; o merge é manual (o workflow de auto-merge foi removido).
 
 O deploy (`~/deploy.sh megasena`) só roda quando o usuário mandar. O servidor
 monta a imagem a partir do código do `main`, sem esperar nem baixar nada da
