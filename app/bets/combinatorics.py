@@ -180,6 +180,33 @@ def count_distinct_internal_combinations(bets: Iterable[Iterable[int]]) -> int |
     )
 
 
+def count_prize_coverage(bets: Iterable[Iterable[int]]) -> dict[int, int] | None:
+    """Conta resultados distintos que dão pelo menos 4, 5 ou 6 acertos.
+
+    O teto limita a soma de resultados a enumerar antes de construir os sets;
+    acima dele não se apresenta aproximação como se fosse contagem exata.
+    """
+    normalized = [tuple(sorted(set(bet))) for bet in bets]
+    work = sum(
+        sum(math.comb(len(bet), hits) * math.comb(60 - len(bet), 6 - hits)
+            for hits in range(4, min(6, len(bet)) + 1))
+        for bet in normalized
+    )
+    if work > MAX_EXACT_COVERAGE_COMBINATIONS:
+        return None
+    covered: dict[int, set[int]] = {4: set(), 5: set(), 6: set()}
+    for bet in normalized:
+        outside = set(range(1, 61)) - set(bet)
+        for hits in range(4, min(6, len(bet)) + 1):
+            inside_masks = [sum(1 << n for n in group) for group in combinations(bet, hits)]
+            outside_masks = [sum(1 << n for n in group)
+                             for group in combinations(outside, 6 - hits)]
+            outcomes = {inside | other for inside in inside_masks for other in outside_masks}
+            for threshold in range(4, hits + 1):
+                covered[threshold].update(outcomes)
+    return {threshold: len(outcomes) for threshold, outcomes in covered.items()}
+
+
 def build_combination_report(quantity: int = 6, filters: dict | None = None) -> dict:
     filters = coerce_generation_filters(filters)
     quantity = max(

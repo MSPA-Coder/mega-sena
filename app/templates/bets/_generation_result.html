@@ -4,16 +4,22 @@
   {% if bets %}
     <div class="panel-header"><h2>{{ 'Prévia do fechamento' if closure_preview_truncated else 'Apostas geradas' }}</h2></div>
     {% if coverage_metrics.exact_coverage_available %}
-    <p class="muted">{% if closure_preview_truncated %}Cobertura exata do fechamento completo que será recalculado ao gravar{% else %}Cobertura exata destas apostas{% endif %}: {{ coverage_metrics.exact_covered_combinations_formatted }} combinações distintas. Probabilidade real: {{ coverage_metrics.exact_probability_percent_formatted }}% (1 em {{ coverage_metrics.exact_probability_one_in_formatted }}), sobre C(60, 6).</p>
+    <p class="muted">{% if closure_preview_truncated %}Cobertura exata de sena do fechamento completo que será recalculado ao gravar{% else %}Cobertura exata de sena destas apostas{% endif %}: {{ coverage_metrics.exact_covered_combinations_formatted }} combinações distintas. Probabilidade de sena: {{ coverage_metrics.exact_probability_percent_formatted }}% (1 em {{ coverage_metrics.exact_probability_one_in_formatted }}), sobre C(60, 6).</p>
     {% else %}
     <p class="muted">A união exata não foi calculada para este volume. {{ coverage_metrics.theoretical_upper_combinations_formatted }} é apenas o limite superior teórico; a probabilidade real pode ser menor por sobreposição.</p>
     {% endif %}
     {% if closure_preview_truncated %}<p class="muted">Exibindo as primeiras {{ bets|length }} de {{ closure_total_formatted }} apostas. Ao gravar, o fechamento completo será recalculado a partir das dezenas informadas.</p>{% endif %}
+    <h3>Cobertura conjunta de prêmios</h3>
+    <p class="muted">Resultados possíveis que dariam pelo menos um prêmio no lote; cada resultado é contado uma vez. As categorias incluem as superiores e não devem ser somadas. O cálculo não prevê o sorteio.</p>
+    {% if prize_coverage %}
+    <ul>{% for coverage in prize_coverage %}<li>{{ coverage.label }}: {{ coverage.count }} resultados ({{ coverage.percent }}%)</li>{% endfor %}</ul>
+    {% else %}<p class="muted">Cobertura exata indisponível para este volume{% if closure_preview_truncated %} ou para prévia parcial do fechamento{% endif %}.</p>{% endif %}
     <form method="post" action="{{ url_for('web.bet_generation') }}"
           hx-post="{{ url_for('web.bet_generation') }}" hx-target="#generation-result" hx-swap="outerHTML"
           hx-disabled-elt="find button[type='submit']" hx-indicator="#save-indicator"
           hx-confirm="Gravar estas apostas no banco?">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="{{ 'save_closure' if closure_mode else 'save' }}"><input type="hidden" name="quantity" value="{{ bets[0].quantity }}">
+      <input type="hidden" name="exclude_previous" value="{{ 1 if exclude_previous else 0 }}"><input type="hidden" name="prioritize_coverage" value="{{ 1 if prioritize_coverage else 0 }}">
       {#- Fechamento grava só as dezenas-base: o servidor recalcula as combinações. Quantidade de apostas e filtros não existem nesse modo e, enviados, seriam recusados (C(n,6) passa de 100). -#}
       {% if closure_mode %}<input type="hidden" name="closure_numbers" value="{{ closure_numbers }}">{% else %}<input type="hidden" name="amount" value="{{ selected_amount }}">{% for key, value in selected_filters.items() %}{% if value is not none %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endif %}{% endfor %}{% endif %}
       <label>Concurso<input type="number" name="contest" min="1" max="2147483647" value="{{ suggested_contest }}" required></label>

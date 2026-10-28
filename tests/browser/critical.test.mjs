@@ -28,9 +28,12 @@ test('gerar não grava; confirmar e repetir preservam lote e auditoria', async (
     await page.goto(base + '/bets');
     const before = await state(page);
     await page.locator('#generation-amount').fill('2');
+    await page.locator('[name=exclude_previous]').selectOption('0');
+    await page.locator('[name=prioritize_coverage]').selectOption('1');
     await page.locator('#generate-bets').click();
     await page.locator('#generation-result [name=bet]').first().waitFor({state: 'attached'});
     assert.equal(await page.locator('#generation-result [name=bet]').count(), 2);
+    assert.match(await page.locator('#generation-result').innerText(), /Quadra ou mais:.*resultados/);
     assert.deepEqual(await state(page), before);
     const confirmation = await page.locator('#generation-result form').evaluate(form => [...new FormData(form)]);
     await page.getByRole('button', {name: 'Gravar no banco', exact: true}).click();

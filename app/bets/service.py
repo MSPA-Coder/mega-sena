@@ -151,6 +151,9 @@ def generate_bets(
     quantity: int,
     amount: int,
     filters: dict | None = None,
+    *,
+    exclude_previous: bool = True,
+    prioritize_coverage: bool = False,
 ) -> list[GeneratedBet]:
     """Gera candidatas em memória; gravar é uma decisão posterior do usuário.
 
@@ -162,7 +165,7 @@ def generate_bets(
             "Há outras gerações em andamento. Aguarde alguns segundos e tente de novo."
         )
     try:
-        return _generate_bets(quantity, amount, filters)
+        return _generate_bets(quantity, amount, filters, exclude_previous, prioritize_coverage)
     finally:
         _GENERATION_SLOTS.release()
 
@@ -171,6 +174,8 @@ def _generate_bets(
     quantity: int,
     amount: int,
     filters: dict | None,
+    exclude_previous: bool,
+    prioritize_coverage: bool,
 ) -> list[GeneratedBet]:
     quantity = clamp_int(
         parse_int(quantity) or MIN_BET_NUMBERS,
@@ -183,7 +188,7 @@ def _generate_bets(
         strict_values, default_quantity=quantity, default_amount=amount
     )
     filters = criteria.filters()
-    draws = all_draw_numbers()
+    draws = all_draw_numbers() if exclude_previous and quantity == 6 else []
     existing_draws = {tuple(d) for d in draws}
     created: list[GeneratedBet] = []
     created_numbers: list[list[int]] = []
@@ -193,18 +198,32 @@ def _generate_bets(
     max_attempts = amount * 2000
     deadline = time.monotonic() + GENERATION_TIME_BUDGET_SECONDS
     while len(created) < amount and attempts < max_attempts:
-        # Conferido a cada 256 tentativas: o relógio não pode custar mais que
-        # o próprio sorteio.
-        if attempts % 256 == 0 and time.monotonic() > deadline:
+        candidates: list[list[int]] = []
+        target = 8 if prioritize_coverage and created_numbers else 1
+        while len(candidates) < target and attempts < max_attempts:
+            if attempts % 256 == 0 and time.monotonic() > deadline:
+                break
+            attempts += 1
+            nums = _secure_random_candidate(quantity)
+            if quantity == 6 and tuple(nums) in existing_draws:
+                continue
+            if not _passes_generation_filters(nums, filters):
+                continue
+            if not _passes_diversity_control(nums, created_numbers):
+                continue
+            candidates.append(nums)
+        if not candidates:
             break
-        attempts += 1
-        nums = _secure_random_candidate(quantity)
-        if quantity == 6 and tuple(nums) in existing_draws:
-            continue
-        if not _passes_generation_filters(nums, filters):
-            continue
-        if not _passes_diversity_control(nums, created_numbers):
-            continue
+        # Penaliza subconjuntos de quatro dezenas já cobertos. É uma heurística
+        # limitada a oito candidatas, não uma otimização global exata.
+        nums = min(
+            candidates,
+            key=lambda candidate: sum(
+                math.comb(len(set(candidate) & set(previous)), 4)
+                for previous in created_numbers
+                if len(set(candidate) & set(previous)) >= 4
+            ),
+        )
         score = _diversity_score(nums, created_numbers)
         bet = GeneratedBet(
             quantity=quantity,
