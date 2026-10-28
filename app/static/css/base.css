@@ -364,6 +364,11 @@ main:focus {
   margin: 4px;
 }
 
+.ball.winning {
+  background: #a34600;
+  outline: 2px solid #743000;
+}
+
 .ball.warn {
   background: var(--ball-warn-bg);
 }

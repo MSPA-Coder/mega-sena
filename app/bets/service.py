@@ -17,7 +17,7 @@ from ..core.numbers import (
 )
 from ..draws.statistics import all_draw_numbers
 from ..extensions import db
-from ..models import GeneratedBet
+from ..models import Draw, GeneratedBet
 from .contracts import ConfirmationResult
 from .criteria import (
     MAX_BET_NUMBERS,
@@ -70,7 +70,7 @@ def _secure_random_candidate(quantity: int) -> list[int]:
     return sorted(_RNG.sample(range(1, 61), quantity))
 
 
-def _batch_fingerprint(quantity: int, numbers_csv: Iterable[str]) -> str:
+def _batch_fingerprint(quantity: int, numbers_csv: Iterable[str], contest: int | None = None) -> str:
     """Deriva a identidade estável da confirmação já normalizada.
 
     O schema legado não possui uma coluna de token de idempotência. A própria
@@ -79,7 +79,7 @@ def _batch_fingerprint(quantity: int, numbers_csv: Iterable[str]) -> str:
     retry que atravesse outro worker do Gunicorn. Uma chave explícita pode ser
     acrescentada apenas com um contrato persistido próprio, se houver consumidor.
     """
-    payload = "\x1f".join([str(quantity), "", *sorted(set(numbers_csv))])
+    payload = "\x1f".join([str(quantity), str(contest), *sorted(set(numbers_csv))])
     return sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -94,7 +94,7 @@ def _lock_batch_fingerprint(fingerprint: str) -> None:
         )
 
 
-def _find_existing_batch(quantity: int, numbers_csv: list[str]) -> int | None:
+def _find_existing_batch(quantity: int, numbers_csv: list[str], contest: int | None = None) -> int | None:
     """Encontra exatamente o lote confirmado, sem materializar o histórico."""
     if not numbers_csv or not hasattr(db.session, "query"):
         return None
@@ -104,6 +104,7 @@ def _find_existing_batch(quantity: int, numbers_csv: list[str]) -> int | None:
         .filter(
             GeneratedBet.generation_id.isnot(None),
             GeneratedBet.quantity == quantity,
+            GeneratedBet.contest == contest,
             GeneratedBet.numbers_csv.in_(numbers_csv),
         )
         .group_by(GeneratedBet.generation_id)
@@ -131,9 +132,10 @@ def stage_bet_batch(bets: list[GeneratedBet]) -> ConfirmationResult:
         return ConfirmationResult(0, None)
     quantity = bets[0].quantity
     numbers_csv = [bet.numbers_csv for bet in bets]
-    fingerprint = _batch_fingerprint(quantity, numbers_csv)
+    contest = bets[0].contest
+    fingerprint = _batch_fingerprint(quantity, numbers_csv, contest)
     _lock_batch_fingerprint(fingerprint)
-    existing_generation_id = _find_existing_batch(quantity, numbers_csv)
+    existing_generation_id = _find_existing_batch(quantity, numbers_csv, contest)
     if existing_generation_id is not None:
         return ConfirmationResult(len(bets), existing_generation_id, replayed=True)
     generation_id = int(
@@ -302,17 +304,22 @@ def list_recent_generations_with_bets(limit: int = 12) -> list[dict]:
         .subquery()
     )
     bets = (
-        GeneratedBet.query.join(ranked, GeneratedBet.id == ranked.c.id)
+        db.session.query(GeneratedBet, Draw).join(ranked, GeneratedBet.id == ranked.c.id)
+        .outerjoin(Draw, Draw.contest == GeneratedBet.contest)
         .filter(ranked.c.position <= MAX_RECENT_BETS_PER_GENERATION)
         .order_by(GeneratedBet.generation_id, GeneratedBet.id)
         .all()
     )
     bets_by_generation: dict[int, list[GeneratedBet]] = {}
-    for bet in bets:
+    for bet, draw in bets:
+        hits = set(bet.numbers) & set(draw.numbers) if draw else set()
+        bet.winning_numbers = hits if len(hits) >= 4 else set()
+        bet.hit_count = len(hits) if draw else None
         bets_by_generation.setdefault(bet.generation_id, []).append(bet)
 
     for generation in generations:
         generation["bets"] = bets_by_generation.get(generation["generation_id"], [])
+        generation["contest"] = generation["bets"][0].contest if generation["bets"] else None
         generation["bets_truncated"] = generation["bet_count"] > MAX_RECENT_BETS_PER_GENERATION
     return generations
 

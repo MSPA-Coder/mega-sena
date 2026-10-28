@@ -67,6 +67,7 @@ def test_fechamento_de_dez_dezenas_grava_as_210_apostas(app_com_banco, logado):
         "/bets",
         data={
             "action": "save_closure",
+            "contest": "9999",
             "closure_numbers": "01 05 10 15 20 25 30 35 40 45",
             "csrf_token": token,
         },

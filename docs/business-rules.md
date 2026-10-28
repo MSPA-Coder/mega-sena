@@ -110,7 +110,12 @@ de criar outro. Ao gravar:
 
 - dezenas são normalizadas;
 - duplicatas do mesmo envio são removidas;
-- as apostas recebem um identificador comum de geração;
+- as apostas recebem um identificador comum de geração e o concurso informado;
+- o concurso sugerido é o maior concurso importado mais um, e pode ser alterado;
+- ao importar resultados, apostas do mesmo concurso são conferidas; quadra,
+  quina e sena geram aviso e as dezenas acertadas ficam destacadas no histórico.
+  A conferência acompanha correções em reimportações. As apostas que existiam
+  antes desta mudança foram associadas ao concurso 3076;
 - até 20 lotes recentes ficam disponíveis para consulta; a tela carrega no
   máximo as primeiras 200 apostas de cada lote para manter a resposta limitada.
   O lote completo continua persistido e o fechamento completo continua sendo

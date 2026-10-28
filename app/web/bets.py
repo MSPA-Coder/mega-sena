@@ -6,6 +6,7 @@ import math
 
 from flask import flash, make_response, redirect, render_template, request, url_for
 from flask_login import current_user
+from sqlalchemy import func
 from werkzeug.datastructures import MultiDict
 
 from ..audit.contracts import AuditContext
@@ -37,6 +38,8 @@ from ..core.formatting import format_int, format_percent
 from ..core.numbers import MAX_INT32
 from ..core.regional import adaptar_numero
 from ..draws.service import count_draws
+from ..extensions import db
+from ..models import Draw
 from ..settings.service import get_generation_defaults
 from . import bp
 from .helpers import audit_request_context, is_htmx_request, optional_int, plural
@@ -329,17 +332,22 @@ def bet_generation():
             save_quantity = optional_int(request.form.get("quantity")) or quantity
             audit = AuditContext(current_user.id, audit_request_context(source=action))
             try:
+                contest = optional_int(request.form.get("contest"))
+                if contest is None or not 1 <= contest <= MAX_INT32:
+                    raise RuntimeError("Informe um número de concurso válido.")
                 if action == "save_closure":
                     save_quantity = MIN_BET_NUMBERS
                     result = confirm_closure_bets(
                         _parse_number_list(closure_numbers),
                         audit=audit,
+                        contest=contest,
                     )
                 else:
                     result = confirm_generated_bets(
                         quantity=save_quantity,
                         bets=request.form.getlist("bet"),
                         audit=audit,
+                        contest=contest,
                     )
             except RuntimeError as exc:
                 record_event(
@@ -450,6 +458,7 @@ def bet_generation():
     )
     context = {
         "bets": bets,
+        "suggested_contest": (db.session.query(func.max(Draw.contest)).scalar() or 0) + 1,
         "closure_total_formatted": format_int(closure_total),
         "closure_preview_truncated": closure_preview_truncated,
         "recent_generations": recent_generations,
