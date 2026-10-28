@@ -125,7 +125,8 @@ de criar outro. Ao gravar:
 - as apostas recebem um identificador comum de geração e o concurso informado;
 - o concurso sugerido é o maior concurso importado mais um, e pode ser alterado;
 - ao importar resultados, apostas do mesmo concurso são conferidas; quadra,
-  quina e sena geram aviso e as dezenas acertadas ficam destacadas no histórico.
+  quina e sena geram aviso. No histórico, toda dezena acertada fica destacada,
+  mesmo sem prêmio, e a quantidade de acertos aparece junto à aposta.
   A conferência acompanha correções em reimportações. As apostas que existiam
   antes desta mudança foram associadas ao concurso 3076;
 - até 20 lotes recentes ficam disponíveis para consulta; a tela carrega no

@@ -332,7 +332,7 @@ def list_recent_generations_with_bets(limit: int = 12) -> list[dict]:
     bets_by_generation: dict[int, list[GeneratedBet]] = {}
     for bet, draw in bets:
         hits = set(bet.numbers) & set(draw.numbers) if draw else set()
-        bet.winning_numbers = hits if len(hits) >= 4 else set()
+        bet.winning_numbers = hits
         bet.hit_count = len(hits) if draw else None
         bets_by_generation.setdefault(bet.generation_id, []).append(bet)
 

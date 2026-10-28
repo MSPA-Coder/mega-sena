@@ -78,3 +78,21 @@ test('fechamento/previsão, critérios inválidos e percentual regional BR/EUA',
     assert.deepEqual(await state(page), before);
   });
 });
+
+test('resultado importado destaca acertos mesmo sem prêmio', async () => {
+  await withPage('br', async page => {
+    await page.goto(base + '/bets');
+    const csrf = await page.locator('#generation-form [name=csrf_token]').inputValue();
+    const response = await page.request.post(base + '/bets', {form: {
+      csrf_token: csrf, action: 'save', quantity: '6', amount: '1',
+      contest: '1', bet: '1,3,5,20,30,40',
+    }});
+    assert.equal(response.status(), 200);
+    await page.goto(base + '/bets');
+    const generation = page.locator('.generation-group').filter({hasText: 'Concurso 1'}).first();
+    await generation.getByRole('button', {name: 'Ver'}).click();
+    await generation.getByText('3 acertos', {exact: true}).waitFor();
+    const balls = generation.locator('.bet-line .ball.winning');
+    assert.deepEqual(await balls.allTextContents(), ['01', '03', '05']);
+  });
+});
