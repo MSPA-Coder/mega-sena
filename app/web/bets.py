@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import math
+from uuid import uuid4
 
 from flask import flash, make_response, redirect, render_template, request, url_for
 from flask_login import current_user
+from sqlalchemy import func
 from werkzeug.datastructures import MultiDict
 
 from ..audit.contracts import AuditContext
@@ -16,6 +18,7 @@ from ..bets.combinatorics import (
     calculate_individual_filter_targets,
     count_distinct_internal_combinations,
     count_draws_matching_filters,
+    count_prize_coverage,
 )
 from ..bets.commands import confirm_closure_bets, confirm_generated_bets, delete_saved_bet
 from ..bets.criteria import (
@@ -37,6 +40,8 @@ from ..core.formatting import format_int, format_percent
 from ..core.numbers import MAX_INT32
 from ..core.regional import adaptar_numero
 from ..draws.service import count_draws
+from ..extensions import db
+from ..models import Draw
 from ..settings.service import get_generation_defaults
 from . import bp
 from .helpers import audit_request_context, is_htmx_request, optional_int, plural
@@ -291,6 +296,9 @@ def bet_generation():
     feedback_error = False
     htmx_request = is_htmx_request()
     closure_numbers = request.args.get("closure_numbers", "")
+    options = request.form if request.method == "POST" else request.args
+    exclude_previous = options.get("exclude_previous", "1") != "0"
+    prioritize_coverage = options.get("prioritize_coverage", "0") == "1"
     selected_quantity, selected_filters, selected_amount, state_error = _state_or_defaults(
         request.args
     )
@@ -329,17 +337,27 @@ def bet_generation():
             save_quantity = optional_int(request.form.get("quantity")) or quantity
             audit = AuditContext(current_user.id, audit_request_context(source=action))
             try:
+                token = request.form.get("confirmation_token", "")
+                if not token:
+                    raise RuntimeError("Confirmação sem identificador. Gere uma nova prévia.")
+                contest = optional_int(request.form.get("contest"))
+                if contest is None or not 1 <= contest <= MAX_INT32:
+                    raise RuntimeError("Informe um número de concurso válido.")
                 if action == "save_closure":
                     save_quantity = MIN_BET_NUMBERS
                     result = confirm_closure_bets(
                         _parse_number_list(closure_numbers),
                         audit=audit,
+                        contest=contest,
+                        token=token,
                     )
                 else:
                     result = confirm_generated_bets(
                         quantity=save_quantity,
                         bets=request.form.getlist("bet"),
                         audit=audit,
+                        contest=contest,
+                        token=token,
                     )
             except RuntimeError as exc:
                 record_event(
@@ -362,6 +380,8 @@ def bet_generation():
                     url_for(
                         "web.bet_generation",
                         **_generation_params(quantity, selected_filters, selected_amount),
+                        exclude_previous=int(exclude_previous),
+                        prioritize_coverage=int(prioritize_coverage),
                     )
                 )
             saved, generation_id = result.saved_count, result.generation_id
@@ -384,6 +404,8 @@ def bet_generation():
                         selected_filters,
                         selected_amount,
                     ),
+                    exclude_previous=int(exclude_previous),
+                    prioritize_coverage=int(prioritize_coverage),
                 )
             )
 
@@ -409,6 +431,8 @@ def bet_generation():
                     quantity=quantity,
                     amount=amount,
                     filters=generation_filters,
+                    exclude_previous=exclude_previous,
+                    prioritize_coverage=prioritize_coverage,
                 )
                 generated = len(bets)
                 if generated < amount:
@@ -448,8 +472,25 @@ def bet_generation():
         bets if bets else None,
         exact_combination_count=(math.comb(closure_base_count, 6) if closure_mode else None),
     )
+    prize_coverage = (
+        count_prize_coverage(bet.numbers for bet in bets)
+        if bets and not closure_preview_truncated else None
+    )
+    prize_coverage_display = (
+        [
+            {
+                "label": label,
+                "count": format_int(prize_coverage[hits]),
+                "percent": format_percent(prize_coverage[hits] / TOTAL_DRAW_COMBINATIONS * 100),
+            }
+            for hits, label in ((4, "Quadra ou mais"), (5, "Quina ou mais"), (6, "Sena"))
+        ]
+        if prize_coverage is not None else None
+    )
     context = {
         "bets": bets,
+        "confirmation_token": str(uuid4()),
+        "suggested_contest": (db.session.query(func.max(Draw.contest)).scalar() or 0) + 1,
         "closure_total_formatted": format_int(closure_total),
         "closure_preview_truncated": closure_preview_truncated,
         "recent_generations": recent_generations,
@@ -461,11 +502,16 @@ def bet_generation():
         "closure_mode": closure_mode,
         "closure_base_count": closure_base_count,
         "coverage_metrics": coverage_metrics,
+        "prize_coverage": prize_coverage_display,
+        "exclude_previous": exclude_previous,
+        "prioritize_coverage": prioritize_coverage,
         "closure_numbers": closure_numbers,
         "generation_limits": GENERATION_LIMITS,
-        "generation_params": _generation_params(
-            selected_quantity, selected_filters, selected_amount
-        ),
+        "generation_params": {
+            **_generation_params(selected_quantity, selected_filters, selected_amount),
+            "exclude_previous": int(exclude_previous),
+            "prioritize_coverage": int(prioritize_coverage),
+        },
         "feedback": feedback,
         "feedback_error": feedback_error,
     }

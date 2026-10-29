@@ -51,6 +51,12 @@ class _TransactionalSession:
     def flush(self):
         return None
 
+    def query(self, _model):
+        return self
+
+    def filter(self, *_conditions):
+        return []
+
     def add(self, draw):
         if draw.__class__.__name__ == "_FakeDraw":
             self.rows[draw.contest] = draw

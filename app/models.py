@@ -114,6 +114,7 @@ class GeneratedBet(db.Model):
         CheckConstraint(
             "score >= 0 AND score <= 1", name="ck_generated_bets_score_range"
         ),
+        CheckConstraint("contest IS NULL OR contest > 0", name="ck_generated_bets_contest_positive"),
         CheckConstraint(
             "generation_id IS NULL OR generation_id > 0",
             name="ck_generated_bets_generation_id_positive",
@@ -122,6 +123,7 @@ class GeneratedBet(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     generation_id = db.Column(db.Integer, nullable=True, index=True)
+    contest = db.Column(db.Integer, nullable=True, index=True)
     numbers_csv = db.Column(db.String(200), nullable=False)
     quantity = db.Column(db.Integer, nullable=False, default=6)
     score = db.Column(db.Float, nullable=False, default=0)
@@ -130,6 +132,17 @@ class GeneratedBet(db.Model):
     @property
     def numbers(self) -> list[int]:
         return [int(x) for x in self.numbers_csv.split(",") if x]
+
+
+class BetConfirmation(db.Model):
+    """Identidade durável de um envio, independente das apostas atuais."""
+
+    __tablename__ = "bet_confirmations"
+    token = db.Column(db.String(36), primary_key=True)
+    actor_id = db.Column(db.Integer, nullable=True)
+    fingerprint = db.Column(db.String(64), nullable=False)
+    generation_id = db.Column(db.Integer, nullable=False)
+    saved_count = db.Column(db.Integer, nullable=False)
 
 
 class Config(db.Model):

@@ -55,8 +55,13 @@ concurso.
   faixa.
 - Para apostas com mais de seis dezenas, todas as combinações internas de seis
   dezenas precisam satisfazer os critérios escolhidos.
-- Uma combinação de seis dezenas idêntica a um concurso importado é descartada.
+- Na geração aleatória de seis dezenas, a pessoa escolhe se combinações
+  idênticas a concursos importados são descartadas. A exclusão vem ativada por
+  padrão; um resultado anterior pode voltar a ocorrer.
 - O gerador evita apostas excessivamente parecidas dentro do mesmo lote.
+- Opcionalmente, prioriza cobertura: compara até oito candidatas válidas por
+  aposta e favorece a que menos repete grupos de quatro dezenas do lote. É uma
+  heurística, sem garantia de cobertura ótima. Essas opções não alteram o fechamento.
 
 Filtros restritivos podem impedir que a quantidade solicitada seja alcançada.
 Nesse caso, o sistema entrega as apostas encontradas e informa a redução, em vez
@@ -101,16 +106,31 @@ limite superior para não tornar a interface custosa. A probabilidade exata usa
 sempre `C(60, 6)` como denominador. Filtros não tornam os resultados mantidos
 mais prováveis em um sorteio futuro.
 
+Para apostas concretas, a tela também conta os resultados distintos que dariam
+ao menos quadra, quina ou sena em alguma aposta do lote. As faixas são
+acumuladas, não somáveis. Até 250.000 resultados individuais são enumerados;
+acima desse custo, ou se o fechamento exibido for apenas uma prévia parcial,
+a contagem fica indisponível. A probabilidade é a contagem dividida por
+`C(60, 6)` e pressupõe sorteios uniformes.
+
 ## Apostas gravadas
 
 As apostas geradas só são persistidas depois da confirmação do usuário. A
-confirmação é idempotente: repetir o mesmo envio normalizado, por retry do
-navegador ou por concorrência entre workers, devolve o lote já gravado em vez
-de criar outro. Ao gravar:
+confirmação usa um identificador próprio: repetir o mesmo envio por retry do
+navegador ou por concorrência entre workers devolve o resultado já gravado.
+Uma nova prévia representa nova intenção, mesmo com as mesmas dezenas e o mesmo
+concurso. Reutilizar o identificador com conteúdo ou usuário diferente é recusado.
+Ao gravar:
 
 - dezenas são normalizadas;
 - duplicatas do mesmo envio são removidas;
-- as apostas recebem um identificador comum de geração;
+- as apostas recebem um identificador comum de geração e o concurso informado;
+- o concurso sugerido é o maior concurso importado mais um, e pode ser alterado;
+- ao importar resultados, apostas do mesmo concurso são conferidas; quadra,
+  quina e sena geram aviso. No histórico, toda dezena acertada fica destacada,
+  mesmo sem prêmio, e a quantidade de acertos aparece junto à aposta.
+  A conferência acompanha correções em reimportações. As apostas que existiam
+  antes desta mudança foram associadas ao concurso 3076;
 - até 20 lotes recentes ficam disponíveis para consulta; a tela carrega no
   máximo as primeiras 200 apostas de cada lote para manter a resposta limitada.
   O lote completo continua persistido e o fechamento completo continua sendo

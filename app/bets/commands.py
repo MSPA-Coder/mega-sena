@@ -1,6 +1,7 @@
 """Comandos: aposta, lock e evento de sucesso pertencem ao mesmo commit."""
 
 from collections.abc import Iterable
+from uuid import UUID, uuid4
 
 from ..audit.contracts import AuditContext
 from ..audit.service import add_success
@@ -10,9 +11,16 @@ from .contracts import ConfirmationResult, DeletedBet
 from .service import prepare_closure_bets, prepare_generated_bets, stage_bet_batch, stage_delete_bet
 
 
-def _confirm(prepared: list[GeneratedBet], audit: AuditContext) -> ConfirmationResult:
+def _confirm(prepared: list[GeneratedBet], audit: AuditContext, contest: int | None = None,
+             token: str | None = None) -> ConfirmationResult:
     try:
-        result = stage_bet_batch(prepared)
+        try:
+            token = str(UUID(token)) if token else str(uuid4())
+        except (ValueError, TypeError, AttributeError) as exc:
+            raise RuntimeError("Identificador de confirmação inválido.") from exc
+        for bet in prepared:
+            bet.contest = contest
+        result = stage_bet_batch(prepared, token, audit.actor_id)
         # Replay recupera o lote; não anuncia uma segunda criação na auditoria.
         if result.saved_count and not result.replayed:
             add_success(
@@ -30,13 +38,15 @@ def _confirm(prepared: list[GeneratedBet], audit: AuditContext) -> ConfirmationR
 
 
 def confirm_generated_bets(
-    quantity: int, bets: Iterable[str], *, audit: AuditContext
+    quantity: int, bets: Iterable[str], *, audit: AuditContext, contest: int | None = None,
+    token: str | None = None,
 ) -> ConfirmationResult:
-    return _confirm(prepare_generated_bets(quantity, bets), audit)
+    return _confirm(prepare_generated_bets(quantity, bets), audit, contest, token)
 
 
-def confirm_closure_bets(numbers: Iterable[int], *, audit: AuditContext) -> ConfirmationResult:
-    return _confirm(prepare_closure_bets(numbers), audit)
+def confirm_closure_bets(numbers: Iterable[int], *, audit: AuditContext, contest: int | None = None,
+                         token: str | None = None) -> ConfirmationResult:
+    return _confirm(prepare_closure_bets(numbers), audit, contest, token)
 
 
 def delete_saved_bet(bet_id: int, *, audit: AuditContext) -> DeletedBet:

@@ -10,6 +10,8 @@
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <label>Dezenas por aposta<input id="generation-quantity" type="number" inputmode="numeric" name="quantity" min="{{ generation_limits['quantity'][0] }}" max="{{ generation_limits['quantity'][1] }}" value="{{ selected_quantity }}"></label>
   <label>Quantas apostas deseja gerar?<input id="generation-amount" type="number" inputmode="numeric" name="amount" min="{{ generation_limits['amount'][0] }}" max="{{ generation_limits['amount'][1] }}" value="{{ selected_amount }}"></label>
+  <label>Excluir combinações de 6 dezenas já sorteadas?<select name="exclude_previous"><option value="1"{{ ' selected' if exclude_previous }}>Sim</option><option value="0"{{ ' selected' if not exclude_previous }}>Não</option></select></label>
+  <label>Priorizar cobertura do lote?<select name="prioritize_coverage"><option value="0"{{ ' selected' if not prioritize_coverage }}>Não</option><option value="1"{{ ' selected' if prioritize_coverage }}>Sim</option></select></label>
   {{ filtros.render_filter_fields(selected_filters, generation_limits) }}
   <label>Dezenas do fechamento<input id="closure-numbers" type="text" name="closure_numbers" placeholder="Ex: 01 02 03 04 05 06 07 08 09 10" value="{{ closure_numbers }}"></label>
   <div class="target-row-separator" aria-hidden="true"></div>
@@ -28,6 +30,7 @@
   </div>
   <p id="filter-target-status" class="form-note" aria-live="polite"></p>
   <p class="muted form-help">As apostas são geradas com gerador aleatório seguro do Python e validadas contra os filtros informados. Os filtros não aumentam a probabilidade matemática do sorteio; eles apenas controlam o perfil das apostas.</p>
+  <p class="muted form-help">Priorizar cobertura compara até oito candidatas por aposta e busca reduzir a repetição de grupos de quatro dezenas. É uma aproximação, não garante a melhor combinação de apostas. Os dois controles não se aplicam ao fechamento.</p>
 </form>
 
 {% include "bets/_preview.html" %}

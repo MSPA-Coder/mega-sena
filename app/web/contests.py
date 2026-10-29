@@ -84,11 +84,17 @@ def _import_result_feedback(result: dict[str, int], *, source: str) -> object:
     imported = result["imported"]
     updated = result["updated"]
     ignored = result["ignored"]
+    prize_message = (
+        f" {result['winning_bets']} "
+        f"{plural(result['winning_bets'], 'aposta premiada encontrada', 'apostas premiadas encontradas')}. "
+        "Confira as últimas apostas geradas."
+        if result.get("winning_bets") else ""
+    )
     return _import_feedback(
         f"Importação {source} concluída: "
         f"{imported} {plural(imported, 'novo', 'novos')}, "
         f"{updated} {plural(updated, 'atualizado', 'atualizados')}, "
-        f"{ignored} {plural(ignored, 'ignorado', 'ignorados')}.",
+        f"{ignored} {plural(ignored, 'ignorado', 'ignorados')}." + prize_message,
         severidade="success",
     )
 
