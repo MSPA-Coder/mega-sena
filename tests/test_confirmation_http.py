@@ -1,6 +1,7 @@
 """Exercita sessão e CSRF reais, com falha apenas na fronteira do driver."""
 
 import re
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import event
@@ -49,10 +50,12 @@ def test_failed_audit_on_authenticated_confirmation_does_not_save_bet(app_com_ba
                 "/bets",
                 data={
                     "action": "save",
+                    "contest": "9999",
                     "quantity": "6",
                     "amount": "1",
                     "bet": "37,41,43,47,53,59",
                     "csrf_token": token,
+                    "confirmation_token": str(uuid4()),
                 },
             )
     finally:

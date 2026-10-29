@@ -11,6 +11,13 @@ interações HTMX, SQLAlchemy/Alembic e PostgreSQL. O ambiente oficial de execu�
 e validação é Docker Compose; não é necessário instalar Python ou PostgreSQL no
 host.
 
+## Ambiente oficial
+
+| Atividade | Ambiente |
+| --- | --- |
+| Aplicação, PostgreSQL, migrações, lint e testes | Docker Compose |
+| Runtime auxiliar local | `.venv` Python 3.15, sincronizada com `uv sync --locked`; não use para qualidade |
+
 ## Execução local
 
 ```powershell

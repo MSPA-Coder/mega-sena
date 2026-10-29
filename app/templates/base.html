@@ -3,13 +3,19 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}Mega Sena AI{% endblock %}</title>
+  {#- `page_name` é o nome da página: vira o <title> ("Concursos · Mega Sena AI") e o <h1>
+    (invisível) que dá ao leitor de tela o ponto de partida. -#}
+  {#- Declarado dentro de `if false` de propósito: o bloco existe para `self.page_name()`,
+      mas não deve ser desenhado neste ponto. -#}
+  {% if false %}{% block page_name %}{% endblock %}{% endif %}
+  <title>{% block title %}{% if self.page_name()|trim %}{{ self.page_name()|trim }} · {% endif %}Mega Sena AI{% endblock %}</title>
   <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}?v={{ asset_version }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ asset_version }}">
   <link rel="stylesheet" href="{{ url_for('sharedauth_ui.static', filename='sharedauth-ui.css') }}">
   {% block head %}{% endblock %}
 </head>
 <body class="{% block body_class %}{% endblock %}">
+<a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
 {% block header %}
 <header class="topbar">
   <div class="brand">
@@ -62,7 +68,8 @@
 <script src="{{ url_for('static', filename='base.js') }}?v={{ asset_version }}" defer></script>
 <script src="{{ url_for('static', filename='regional.js') }}?v={{ asset_version }}" defer></script>
 <script src="{{ url_for('sharedauth_ui.static', filename='sharedauth-ui.js') }}" defer></script>
-<main class="container">
+<main id="conteudo" class="container" tabindex="-1">
+  {% if self.page_name()|trim %}<h1 class="sr-only">{{ self.page_name()|trim }}</h1>{% endif %}
   {% set avisos = flashed_avisos() %}
   {% if avisos %}
   {#- Resultado de uma submissão sem HTMX (POST + redirect) vira toast igual

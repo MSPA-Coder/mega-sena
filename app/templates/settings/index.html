@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% block page_name %}Configurações{% endblock %}
 {% block content %}
 <section class="card settings-section">
     <div class="panel-header">
@@ -12,13 +13,13 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label>Números por aposta<input type="number" name="bet_quantity" min="{{ generation_limits['quantity'][0] }}" max="{{ generation_limits['quantity'][1] }}" value="{{ config_values.bet_quantity }}"></label>
         <label>Quantas apostas deseja gerar<input type="number" name="generation_amount" min="{{ generation_limits['amount'][0] }}" max="{{ generation_limits['amount'][1] }}" value="{{ config_values.generation_amount }}"></label>
-        <label>Maior sequência consecutiva permitida<input type="number" name="consecutive_count" min="0" max="6" placeholder="Opcional" value="{{ config_values.consecutive_count }}"></label>
-        <label>Mínimo de números pares<input type="number" name="even_min" min="0" max="6" placeholder="Opcional" value="{{ config_values.even_min }}"></label>
-        <label>Máximo de números pares<input type="number" name="even_max" min="0" max="6" placeholder="Opcional" value="{{ config_values.even_max }}"></label>
-        <label>Soma inicial<input type="number" name="sum_min" min="0" max="345" placeholder="Opcional" value="{{ config_values.sum_min }}"></label>
-        <label>Soma final<input type="number" name="sum_max" min="0" max="345" placeholder="Opcional" value="{{ config_values.sum_max }}"></label>
-        <label>Mínimo de faixas ocupadas<input type="number" name="range_min_occupied" min="1" max="6" placeholder="Opcional" value="{{ config_values.range_min_occupied }}"></label>
-        <label>Máximo de dezenas por faixa<input type="number" name="range_max_per_band" min="1" max="6" placeholder="Opcional" value="{{ config_values.range_max_per_band }}"></label>
+        <label>Maior sequência consecutiva permitida<input type="number" name="consecutive_count" min="{{ generation_limits['consecutive_count'][0] }}" max="{{ generation_limits['consecutive_count'][1] }}" placeholder="Opcional" value="{{ config_values.consecutive_count }}"></label>
+        <label>Mínimo de números pares<input type="number" name="even_min" min="{{ generation_limits['even_min'][0] }}" max="{{ generation_limits['even_min'][1] }}" placeholder="Opcional" value="{{ config_values.even_min }}"></label>
+        <label>Máximo de números pares<input type="number" name="even_max" min="{{ generation_limits['even_max'][0] }}" max="{{ generation_limits['even_max'][1] }}" placeholder="Opcional" value="{{ config_values.even_max }}"></label>
+        <label>Soma inicial<input type="number" name="sum_min" min="{{ generation_limits['sum_min'][0] }}" max="{{ generation_limits['sum_min'][1] }}" placeholder="Opcional" value="{{ config_values.sum_min }}"></label>
+        <label>Soma final<input type="number" name="sum_max" min="{{ generation_limits['sum_max'][0] }}" max="{{ generation_limits['sum_max'][1] }}" placeholder="Opcional" value="{{ config_values.sum_max }}"></label>
+        <label>Mínimo de faixas ocupadas<input type="number" name="range_min_occupied" min="{{ generation_limits['range_min_occupied'][0] }}" max="{{ generation_limits['range_min_occupied'][1] }}" placeholder="Opcional" value="{{ config_values.range_min_occupied }}"></label>
+        <label>Máximo de dezenas por faixa<input type="number" name="range_max_per_band" min="{{ generation_limits['range_max_per_band'][0] }}" max="{{ generation_limits['range_max_per_band'][1] }}" placeholder="Opcional" value="{{ config_values.range_max_per_band }}"></label>
         <label class="settings-source-url">Link da planilha de resultados<input type="url" name="results_source_url" maxlength="200" value="{{ config_values.results_source_url }}" required></label>
         <div class="form-actions">
             <button type="submit">Salvar configurações</button>

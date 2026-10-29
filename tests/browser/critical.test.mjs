@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
 import {test} from 'node:test';
 import {chromium} from 'playwright';
 
@@ -28,9 +29,12 @@ test('gerar não grava; confirmar e repetir preservam lote e auditoria', async (
     await page.goto(base + '/bets');
     const before = await state(page);
     await page.locator('#generation-amount').fill('2');
+    await page.locator('[name=exclude_previous]').selectOption('0');
+    await page.locator('[name=prioritize_coverage]').selectOption('1');
     await page.locator('#generate-bets').click();
     await page.locator('#generation-result [name=bet]').first().waitFor({state: 'attached'});
     assert.equal(await page.locator('#generation-result [name=bet]').count(), 2);
+    assert.match(await page.locator('#generation-result').innerText(), /Quadra ou mais:.*resultados/);
     assert.deepEqual(await state(page), before);
     const confirmation = await page.locator('#generation-result form').evaluate(form => [...new FormData(form)]);
     await page.getByRole('button', {name: 'Gravar no banco', exact: true}).click();
@@ -73,5 +77,23 @@ test('fechamento/previsão, critérios inválidos e percentual regional BR/EUA',
     assert.equal(await page.locator('#filter-even-max').inputValue(), '1');
     await page.waitForFunction(() => /mínimo|Mínimo|inválid|maior/.test(document.querySelector('#generation-result').innerText));
     assert.deepEqual(await state(page), before);
+  });
+});
+
+test('resultado importado destaca acertos mesmo sem prêmio', async () => {
+  await withPage('br', async page => {
+    await page.goto(base + '/bets');
+    const csrf = await page.locator('#generation-form [name=csrf_token]').inputValue();
+    const response = await page.request.post(base + '/bets', {form: {
+      csrf_token: csrf, action: 'save', quantity: '6', amount: '1',
+      contest: '1', bet: '1,3,5,20,30,40', confirmation_token: randomUUID(),
+    }});
+    assert.equal(response.status(), 200);
+    await page.goto(base + '/bets');
+    const generation = page.locator('.generation-group').filter({hasText: 'Concurso 1'}).first();
+    await generation.getByRole('button', {name: 'Ver'}).click();
+    await generation.getByText('3 acertos', {exact: true}).waitFor();
+    const balls = generation.locator('.bet-line .ball.winning');
+    assert.deepEqual(await balls.allTextContents(), ['01', '03', '05']);
   });
 });

@@ -1,7 +1,7 @@
 .generator-form {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px 14px;
-  padding: 16px calc(18px + var(--form-scrollbar-space)) 16px 18px;
+  padding: 16px 18px;
 }
 
 .generator-form input,

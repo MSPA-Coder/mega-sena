@@ -14,6 +14,7 @@ class ContestSearchResult:
     winners_only: bool
     consecutive_count: int | None
     even_count: int | None
+    contest: int | None
     active_filters: tuple[str, ...]
     summary: str
 
@@ -28,11 +29,15 @@ def search_contests(
     winners_only: bool,
     consecutive_count: int | None,
     even_count: int | None,
+    contest: int | None = None,
 ) -> ContestSearchResult:
     """Consulta concursos e devolve os metadados necessarios para a pagina."""
     page = max(1, page)
     query = Draw.query
     active_filters: list[str] = []
+    if contest is not None:
+        query = query.filter(Draw.contest == contest)
+        active_filters.append(f"concurso = {contest}")
     if winners_only:
         query = query.filter(Draw.winners_6 > 0)
     if consecutive_count is not None:
@@ -68,6 +73,7 @@ def search_contests(
         winners_only=winners_only,
         consecutive_count=consecutive_count,
         even_count=even_count,
+        contest=contest,
         active_filters=tuple(active_filters),
         summary=summary,
     )

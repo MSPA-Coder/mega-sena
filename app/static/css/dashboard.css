@@ -52,6 +52,9 @@
 
 .dashboard-card-row .dashboard-chart-panel {
   grid-column: 1 / -1;
+  /* `.panel` é content-box: `width: 100%` + o padding de 22px passava da
+     coluna e dava rolagem horizontal no celular. */
+  box-sizing: border-box;
   width: 100%;
 }
 
@@ -229,7 +232,8 @@
 
 .history-filter-link {
   color: var(--primary);
-  text-decoration: none;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
 }
 
 .history-filter-link:hover,

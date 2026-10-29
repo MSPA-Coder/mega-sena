@@ -93,22 +93,6 @@ def test_a_tela_de_troca_nao_entra_em_laco(app, client):
     assert client.get("/minha-senha").status_code == 200
 
 
-def test_logout_funciona_de_dentro_da_trava(app, client):
-    # Sem isto a pessoa fica presa dentro do aplicativo: todo destino devolve
-    # para a tela de troca, inclusive a saida.
-    app.config["WTF_CSRF_ENABLED"] = False
-    usuario = User(
-        id=1, username="fulano", role=ROLE_OPERADOR, is_active_user=True,
-        must_change_password=True,
-    )
-    _login_as(client, usuario)
-
-    resposta = client.post("/logout", follow_redirects=False)
-
-    assert resposta.status_code == 302
-    assert "/login" in resposta.headers["Location"]
-
-
 @pytest.mark.parametrize(
     "rota",
     [

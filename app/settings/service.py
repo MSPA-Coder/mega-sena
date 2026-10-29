@@ -22,8 +22,18 @@ DEFAULT_CONFIG = {
 }
 
 
-def _normalize_config_values(values: dict[str, object]) -> dict[str, str]:
-    criteria = GenerationCriteria.from_mapping(
+def _normalize_config_values(
+    values: dict[str, object], *, strict: bool = False
+) -> dict[str, str]:
+    """Normaliza os padrões de geração.
+
+    `strict=True` vale para o que a pessoa digita em Configurações: valor fora
+    dos limites ou contraditório é recusado com mensagem, não corrigido em
+    silêncio. A leitura (`strict=False`) continua tolerante para não quebrar a
+    tela por causa de um valor gravado por uma versão anterior.
+    """
+    factory = GenerationCriteria.from_mapping_strict if strict else GenerationCriteria.from_mapping
+    criteria = factory(
         {
             "quantity": values.get("bet_quantity", DEFAULT_CONFIG["bet_quantity"]),
             "amount": values.get("generation_amount", DEFAULT_CONFIG["generation_amount"]),
@@ -61,7 +71,7 @@ def get_config_values() -> dict[str, str]:
 
 
 def update_config_values(values: dict[str, object], *, commit: bool = True) -> dict[str, str]:
-    normalized = _normalize_config_values(values)
+    normalized = _normalize_config_values(values, strict=True)
     try:
         # `Config` começa vazio em uma instalação nova. Lockar apenas as linhas
         # existentes não impediria dois primeiros salvamentos de disputarem o

@@ -18,6 +18,7 @@ from ..accounts.service import (
 )
 from ..audit.contracts import AuditContext
 from ..audit.service import record_event
+from ..core.numbers import MAX_INT32
 from ..extensions import db
 from ..models import User
 from . import bp
@@ -92,7 +93,7 @@ def create_user():
     return _users_feedback(f"Usuário '{username.strip()}' criado.", severidade="success")
 
 
-@bp.post("/usuarios/<int:user_id>/senha")
+@bp.post(f"/usuarios/<int(max={MAX_INT32}):user_id>/senha")
 @admin_required
 def reset_user_password(user_id: int):
     """Redefine a senha de outra conta e mostra a senha temporária gerada.
@@ -141,7 +142,7 @@ def reset_user_password(user_id: int):
     )
 
 
-@bp.post("/usuarios/<int:user_id>/ativo")
+@bp.post(f"/usuarios/<int(max={MAX_INT32}):user_id>/ativo")
 @admin_required
 def toggle_user_active(user_id: int):
     usuario = _get_user_or_404(user_id)
@@ -169,7 +170,7 @@ def toggle_user_active(user_id: int):
     return _users_feedback(f"Usuário '{usuario.username}' {estado}.", severidade="success")
 
 
-@bp.post("/usuarios/<int:user_id>/papel")
+@bp.post(f"/usuarios/<int(max={MAX_INT32}):user_id>/papel")
 @admin_required
 def change_user_role(user_id: int):
     usuario = _get_user_or_404(user_id)

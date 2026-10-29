@@ -20,6 +20,8 @@ from ..core.regional import normalize_regional_format
 from ..extensions import db
 from ..models import ROLE_ADMIN, ROLE_OPERADOR, USER_ROLES, User
 
+MAX_USERNAME_LENGTH = 80  # coluna `users.username` é VARCHAR(80)
+
 
 class UserManagementError(ValueError):
     """Falha de política ao alterar uma conta."""
@@ -50,6 +52,7 @@ def create_user(
     username = username.strip()
     if not username:
         raise ValueError("O nome de usuário não pode ser vazio.")
+    _validate_username_length(username)
     _validate_password(password)
     _validate_role(role)
     existente = db.session.scalar(db.select(User).where(User.username == username))
@@ -90,6 +93,7 @@ def provision_cli_user(
     username = username.strip()
     if not username:
         raise UserManagementError("O nome de usuário não pode ser vazio.")
+    _validate_username_length(username)
     _validate_password(password)
     existente = db.session.scalar(db.select(User).where(User.username == username))
     if existente is not None:
@@ -210,6 +214,13 @@ def set_role(user: User, role: str, *, actor: User, commit: bool = True) -> None
     user.role = role
     if commit:
         db.session.commit()
+
+
+def _validate_username_length(username: str) -> None:
+    if len(username) > MAX_USERNAME_LENGTH:
+        raise UserManagementError(
+            f"O nome de usuário pode ter no máximo {MAX_USERNAME_LENGTH} caracteres."
+        )
 
 
 def _validate_role(role: str) -> None:

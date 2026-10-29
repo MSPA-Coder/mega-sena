@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 import math
 import secrets
+import threading
+import time
 from collections.abc import Iterable
 from hashlib import sha256
 from itertools import combinations, islice
@@ -15,7 +17,7 @@ from ..core.numbers import (
 )
 from ..draws.statistics import all_draw_numbers
 from ..extensions import db
-from ..models import GeneratedBet
+from ..models import BetConfirmation, Draw, GeneratedBet
 from .contracts import ConfirmationResult
 from .criteria import (
     MAX_BET_NUMBERS,
@@ -29,6 +31,14 @@ MAX_RECENT_GENERATIONS = 20
 MAX_RECENT_BETS_PER_GENERATION = 200
 _RNG = secrets.SystemRandom()
 _GENERATION_ID_SEQUENCE = "generated_bets_generation_id_seq"
+# A geração é CPU pura e segura o worker inteiro: filtros severos com apostas de
+# 20 dezenas custam vários segundos, e três pedidos simultâneos passavam do
+# timeout de 60 s do gunicorn. O orçamento de tempo limita cada pedido e as
+# vagas limitam quantos rodam ao mesmo tempo em cada processo, deixando threads
+# livres para o resto do sistema.
+GENERATION_TIME_BUDGET_SECONDS = 3.0
+MAX_CONCURRENT_GENERATIONS = 2
+_GENERATION_SLOTS = threading.BoundedSemaphore(MAX_CONCURRENT_GENERATIONS)
 
 
 def _passes_generation_filters(numbers: list[int], filters: dict | None) -> bool:
@@ -60,16 +70,13 @@ def _secure_random_candidate(quantity: int) -> list[int]:
     return sorted(_RNG.sample(range(1, 61), quantity))
 
 
-def _batch_fingerprint(quantity: int, numbers_csv: Iterable[str]) -> str:
+def _batch_fingerprint(quantity: int, numbers_csv: Iterable[str], contest: int | None = None) -> str:
     """Deriva a identidade estável da confirmação já normalizada.
 
-    O schema legado não possui uma coluna de token de idempotência. A própria
-    confirmação normalizada é, portanto, a identidade do lote: repetir o POST
-    da mesma confirmação devolve o lote já persistido, inclusive depois de um
-    retry que atravesse outro worker do Gunicorn. Uma chave explícita pode ser
-    acrescentada apenas com um contrato persistido próprio, se houver consumidor.
+    A identidade do envio é um token independente. Este resumo detecta uso do
+    mesmo token com conteúdo diferente, inclusive entre workers.
     """
-    payload = "\x1f".join([str(quantity), "", *sorted(set(numbers_csv))])
+    payload = "\x1f".join([str(quantity), str(contest), *sorted(set(numbers_csv))])
     return sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -84,54 +91,28 @@ def _lock_batch_fingerprint(fingerprint: str) -> None:
         )
 
 
-def _find_existing_batch(quantity: int, numbers_csv: list[str]) -> int | None:
-    """Encontra exatamente o lote confirmado, sem materializar o histórico."""
-    if not numbers_csv or not hasattr(db.session, "query"):
-        return None
-    expected_count = len(numbers_csv)
-    candidates = (
-        db.session.query(GeneratedBet.generation_id)
-        .filter(
-            GeneratedBet.generation_id.isnot(None),
-            GeneratedBet.quantity == quantity,
-            GeneratedBet.numbers_csv.in_(numbers_csv),
-        )
-        .group_by(GeneratedBet.generation_id)
-        .having(func.count(GeneratedBet.id) == expected_count)
-        .having(func.count(func.distinct(GeneratedBet.numbers_csv)) == expected_count)
-        .all()
-    )
-    for (generation_id,) in candidates:
-        total = (
-            db.session.query(func.count(GeneratedBet.id))
-            .filter(
-                GeneratedBet.generation_id == generation_id,
-                GeneratedBet.quantity == quantity,
-            )
-            .scalar()
-        )
-        if total == expected_count:
-            return int(generation_id)
-    return None
-
-
-def stage_bet_batch(bets: list[GeneratedBet]) -> ConfirmationResult:
+def stage_bet_batch(bets: list[GeneratedBet], token: str, actor_id: int | None) -> ConfirmationResult:
     """Prepara a escrita com o lock aberto; só o comando confirma a transação."""
     if not bets:
         return ConfirmationResult(0, None)
     quantity = bets[0].quantity
     numbers_csv = [bet.numbers_csv for bet in bets]
-    fingerprint = _batch_fingerprint(quantity, numbers_csv)
-    _lock_batch_fingerprint(fingerprint)
-    existing_generation_id = _find_existing_batch(quantity, numbers_csv)
-    if existing_generation_id is not None:
-        return ConfirmationResult(len(bets), existing_generation_id, replayed=True)
+    contest = bets[0].contest
+    fingerprint = _batch_fingerprint(quantity, numbers_csv, contest)
+    _lock_batch_fingerprint(token)
+    existing = db.session.get(BetConfirmation, token)
+    if existing is not None:
+        if existing.fingerprint != fingerprint or existing.actor_id != actor_id:
+            raise RuntimeError("Esta confirmação já foi usada para outra solicitação.")
+        return ConfirmationResult(existing.saved_count, existing.generation_id, replayed=True)
     generation_id = int(
         db.session.execute(text(f"SELECT nextval('{_GENERATION_ID_SEQUENCE}')")).scalar_one()
     )
     for bet in bets:
         bet.generation_id = generation_id
     db.session.add_all(bets)
+    db.session.add(BetConfirmation(token=token, actor_id=actor_id, fingerprint=fingerprint,
+                                   generation_id=generation_id, saved_count=len(bets)))
     return ConfirmationResult(len(bets), generation_id)
 
 
@@ -139,12 +120,32 @@ def generate_bets(
     quantity: int,
     amount: int,
     filters: dict | None = None,
+    *,
+    exclude_previous: bool = True,
+    prioritize_coverage: bool = False,
 ) -> list[GeneratedBet]:
     """Gera candidatas em memória; gravar é uma decisão posterior do usuário.
 
     Nada aqui persiste: as apostas só chegam ao banco pelos comandos de
     confirmação, depois da revisão na tela.
     """
+    if not _GENERATION_SLOTS.acquire(blocking=False):
+        raise RuntimeError(
+            "Há outras gerações em andamento. Aguarde alguns segundos e tente de novo."
+        )
+    try:
+        return _generate_bets(quantity, amount, filters, exclude_previous, prioritize_coverage)
+    finally:
+        _GENERATION_SLOTS.release()
+
+
+def _generate_bets(
+    quantity: int,
+    amount: int,
+    filters: dict | None,
+    exclude_previous: bool,
+    prioritize_coverage: bool,
+) -> list[GeneratedBet]:
     quantity = clamp_int(
         parse_int(quantity) or MIN_BET_NUMBERS,
         MIN_BET_NUMBERS,
@@ -156,7 +157,7 @@ def generate_bets(
         strict_values, default_quantity=quantity, default_amount=amount
     )
     filters = criteria.filters()
-    draws = all_draw_numbers()
+    draws = all_draw_numbers() if exclude_previous and quantity == 6 else []
     existing_draws = {tuple(d) for d in draws}
     created: list[GeneratedBet] = []
     created_numbers: list[list[int]] = []
@@ -164,15 +165,34 @@ def generate_bets(
     # Limite razoável: evita loop infinito com filtros muito restritivos.
     # 2000 tentativas por aposta é suficiente para qualquer configuração prática.
     max_attempts = amount * 2000
+    deadline = time.monotonic() + GENERATION_TIME_BUDGET_SECONDS
     while len(created) < amount and attempts < max_attempts:
-        attempts += 1
-        nums = _secure_random_candidate(quantity)
-        if quantity == 6 and tuple(nums) in existing_draws:
-            continue
-        if not _passes_generation_filters(nums, filters):
-            continue
-        if not _passes_diversity_control(nums, created_numbers):
-            continue
+        candidates: list[list[int]] = []
+        target = 8 if prioritize_coverage and created_numbers else 1
+        while len(candidates) < target and attempts < max_attempts:
+            if attempts % 256 == 0 and time.monotonic() > deadline:
+                break
+            attempts += 1
+            nums = _secure_random_candidate(quantity)
+            if quantity == 6 and tuple(nums) in existing_draws:
+                continue
+            if not _passes_generation_filters(nums, filters):
+                continue
+            if not _passes_diversity_control(nums, created_numbers):
+                continue
+            candidates.append(nums)
+        if not candidates:
+            break
+        # Penaliza subconjuntos de quatro dezenas já cobertos. É uma heurística
+        # limitada a oito candidatas, não uma otimização global exata.
+        nums = min(
+            candidates,
+            key=lambda candidate: sum(
+                math.comb(len(set(candidate) & set(previous)), 4)
+                for previous in created_numbers
+                if len(set(candidate) & set(previous)) >= 4
+            ),
+        )
         score = _diversity_score(nums, created_numbers)
         bet = GeneratedBet(
             quantity=quantity,
@@ -272,17 +292,22 @@ def list_recent_generations_with_bets(limit: int = 12) -> list[dict]:
         .subquery()
     )
     bets = (
-        GeneratedBet.query.join(ranked, GeneratedBet.id == ranked.c.id)
+        db.session.query(GeneratedBet, Draw).join(ranked, GeneratedBet.id == ranked.c.id)
+        .outerjoin(Draw, Draw.contest == GeneratedBet.contest)
         .filter(ranked.c.position <= MAX_RECENT_BETS_PER_GENERATION)
         .order_by(GeneratedBet.generation_id, GeneratedBet.id)
         .all()
     )
     bets_by_generation: dict[int, list[GeneratedBet]] = {}
-    for bet in bets:
+    for bet, draw in bets:
+        hits = set(bet.numbers) & set(draw.numbers) if draw else set()
+        bet.winning_numbers = hits
+        bet.hit_count = len(hits) if draw else None
         bets_by_generation.setdefault(bet.generation_id, []).append(bet)
 
     for generation in generations:
         generation["bets"] = bets_by_generation.get(generation["generation_id"], [])
+        generation["contest"] = generation["bets"][0].contest if generation["bets"] else None
         generation["bets_truncated"] = generation["bet_count"] > MAX_RECENT_BETS_PER_GENERATION
     return generations
 
