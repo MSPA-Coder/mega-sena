@@ -116,9 +116,11 @@ a contagem fica indisponível. A probabilidade é a contagem dividida por
 ## Apostas gravadas
 
 As apostas geradas só são persistidas depois da confirmação do usuário. A
-confirmação é idempotente: repetir o mesmo envio normalizado, por retry do
-navegador ou por concorrência entre workers, devolve o lote já gravado em vez
-de criar outro. Ao gravar:
+confirmação usa um identificador próprio: repetir o mesmo envio por retry do
+navegador ou por concorrência entre workers devolve o resultado já gravado.
+Uma nova prévia representa nova intenção, mesmo com as mesmas dezenas e o mesmo
+concurso. Reutilizar o identificador com conteúdo ou usuário diferente é recusado.
+Ao gravar:
 
 - dezenas são normalizadas;
 - duplicatas do mesmo envio são removidas;

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
 import {test} from 'node:test';
 import {chromium} from 'playwright';
 
@@ -85,7 +86,7 @@ test('resultado importado destaca acertos mesmo sem prêmio', async () => {
     const csrf = await page.locator('#generation-form [name=csrf_token]').inputValue();
     const response = await page.request.post(base + '/bets', {form: {
       csrf_token: csrf, action: 'save', quantity: '6', amount: '1',
-      contest: '1', bet: '1,3,5,20,30,40',
+      contest: '1', bet: '1,3,5,20,30,40', confirmation_token: randomUUID(),
     }});
     assert.equal(response.status(), 200);
     await page.goto(base + '/bets');

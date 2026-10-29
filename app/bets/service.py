@@ -17,7 +17,7 @@ from ..core.numbers import (
 )
 from ..draws.statistics import all_draw_numbers
 from ..extensions import db
-from ..models import Draw, GeneratedBet
+from ..models import BetConfirmation, Draw, GeneratedBet
 from .contracts import ConfirmationResult
 from .criteria import (
     MAX_BET_NUMBERS,
@@ -73,11 +73,8 @@ def _secure_random_candidate(quantity: int) -> list[int]:
 def _batch_fingerprint(quantity: int, numbers_csv: Iterable[str], contest: int | None = None) -> str:
     """Deriva a identidade estável da confirmação já normalizada.
 
-    O schema legado não possui uma coluna de token de idempotência. A própria
-    confirmação normalizada é, portanto, a identidade do lote: repetir o POST
-    da mesma confirmação devolve o lote já persistido, inclusive depois de um
-    retry que atravesse outro worker do Gunicorn. Uma chave explícita pode ser
-    acrescentada apenas com um contrato persistido próprio, se houver consumidor.
+    A identidade do envio é um token independente. Este resumo detecta uso do
+    mesmo token com conteúdo diferente, inclusive entre workers.
     """
     payload = "\x1f".join([str(quantity), str(contest), *sorted(set(numbers_csv))])
     return sha256(payload.encode("utf-8")).hexdigest()
@@ -94,39 +91,7 @@ def _lock_batch_fingerprint(fingerprint: str) -> None:
         )
 
 
-def _find_existing_batch(quantity: int, numbers_csv: list[str], contest: int | None = None) -> int | None:
-    """Encontra exatamente o lote confirmado, sem materializar o histórico."""
-    if not numbers_csv or not hasattr(db.session, "query"):
-        return None
-    expected_count = len(numbers_csv)
-    candidates = (
-        db.session.query(GeneratedBet.generation_id)
-        .filter(
-            GeneratedBet.generation_id.isnot(None),
-            GeneratedBet.quantity == quantity,
-            GeneratedBet.contest == contest,
-            GeneratedBet.numbers_csv.in_(numbers_csv),
-        )
-        .group_by(GeneratedBet.generation_id)
-        .having(func.count(GeneratedBet.id) == expected_count)
-        .having(func.count(func.distinct(GeneratedBet.numbers_csv)) == expected_count)
-        .all()
-    )
-    for (generation_id,) in candidates:
-        total = (
-            db.session.query(func.count(GeneratedBet.id))
-            .filter(
-                GeneratedBet.generation_id == generation_id,
-                GeneratedBet.quantity == quantity,
-            )
-            .scalar()
-        )
-        if total == expected_count:
-            return int(generation_id)
-    return None
-
-
-def stage_bet_batch(bets: list[GeneratedBet]) -> ConfirmationResult:
+def stage_bet_batch(bets: list[GeneratedBet], token: str, actor_id: int | None) -> ConfirmationResult:
     """Prepara a escrita com o lock aberto; só o comando confirma a transação."""
     if not bets:
         return ConfirmationResult(0, None)
@@ -134,16 +99,20 @@ def stage_bet_batch(bets: list[GeneratedBet]) -> ConfirmationResult:
     numbers_csv = [bet.numbers_csv for bet in bets]
     contest = bets[0].contest
     fingerprint = _batch_fingerprint(quantity, numbers_csv, contest)
-    _lock_batch_fingerprint(fingerprint)
-    existing_generation_id = _find_existing_batch(quantity, numbers_csv, contest)
-    if existing_generation_id is not None:
-        return ConfirmationResult(len(bets), existing_generation_id, replayed=True)
+    _lock_batch_fingerprint(token)
+    existing = db.session.get(BetConfirmation, token)
+    if existing is not None:
+        if existing.fingerprint != fingerprint or existing.actor_id != actor_id:
+            raise RuntimeError("Esta confirmação já foi usada para outra solicitação.")
+        return ConfirmationResult(existing.saved_count, existing.generation_id, replayed=True)
     generation_id = int(
         db.session.execute(text(f"SELECT nextval('{_GENERATION_ID_SEQUENCE}')")).scalar_one()
     )
     for bet in bets:
         bet.generation_id = generation_id
     db.session.add_all(bets)
+    db.session.add(BetConfirmation(token=token, actor_id=actor_id, fingerprint=fingerprint,
+                                   generation_id=generation_id, saved_count=len(bets)))
     return ConfirmationResult(len(bets), generation_id)
 
 

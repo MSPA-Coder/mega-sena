@@ -2,6 +2,7 @@
 
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import event, text
@@ -120,12 +121,14 @@ def test_concurrent_confirmation_preserves_batch_and_event_identity(database, sa
     application, admin, _ = database
     actor_id = admin.id
     barrier = Barrier(4)
+    token = str(uuid4())
 
     def confirm(index):
         with application.app_context():
             numbers = "1,2,3,4,5,6" if same else f"{index + 1},41,43,47,53,59"
             barrier.wait(timeout=10)
-            return bets.confirm_generated_bets(6, [numbers], audit=AuditContext(actor_id))
+            return bets.confirm_generated_bets(6, [numbers], audit=AuditContext(actor_id),
+                                               token=token if same else str(uuid4()))
 
     with ThreadPoolExecutor(max_workers=4) as executor:
         results = list(executor.map(confirm, range(4)))
@@ -139,12 +142,24 @@ def test_concurrent_confirmation_preserves_batch_and_event_identity(database, sa
 
 def test_closure_replay_returns_original_batch_without_second_creation(database):
     _, admin, _ = database
-    first = bets.confirm_closure_bets(range(1, 8), audit=AuditContext(admin.id))
-    replay = bets.confirm_closure_bets(reversed(range(1, 8)), audit=AuditContext(admin.id))
+    token = str(uuid4())
+    first = bets.confirm_closure_bets(range(1, 8), audit=AuditContext(admin.id), token=token)
+    replay = bets.confirm_closure_bets(reversed(range(1, 8)), audit=AuditContext(admin.id), token=token)
     assert first.saved_count == replay.saved_count == 7
     assert first.generation_id == replay.generation_id
     assert not first.replayed and replay.replayed
     assert AuditEvent.query.filter_by(action="bets.save", success=True).count() == 1
+
+
+def test_distinct_intentions_allow_identical_bets_and_reject_token_reuse(database):
+    _, admin, _ = database
+    token = str(uuid4())
+    audit = AuditContext(admin.id)
+    first = bets.confirm_generated_bets(6, [BET], audit=audit, contest=10, token=token)
+    second = bets.confirm_generated_bets(6, [BET], audit=audit, contest=10, token=str(uuid4()))
+    assert first.generation_id != second.generation_id
+    with pytest.raises(RuntimeError, match="outra solicitação"):
+        bets.confirm_generated_bets(6, [BET], audit=audit, contest=11, token=token)
 
 
 def test_last_admin_policy_remains_enforced_in_command(database):
@@ -153,3 +168,31 @@ def test_last_admin_policy_remains_enforced_in_command(database):
         accounts.set_role(admin, "operador", actor=admin, audit=AuditContext(admin.id))
     assert db.session.get(User, admin.id).role == "admin"
     assert AuditEvent.query.count() == 0
+
+
+def test_dois_administradores_nao_removem_ambos_os_papeis_em_concorrencia(database):
+    application, admin, _ = database
+    outro = User(username="outro_admin", role="admin", is_active_user=True)
+    outro.set_password(PASSWORD)
+    db.session.add(outro)
+    db.session.commit()
+    ids = (admin.id, outro.id)
+    barrier = Barrier(2)
+
+    def remover_papel(actor_id, target_id):
+        with application.app_context():
+            actor, target = db.session.get(User, actor_id), db.session.get(User, target_id)
+            barrier.wait(timeout=10)
+            try:
+                accounts.set_role(target, "operador", actor=actor, audit=AuditContext(actor_id))
+                return "alterado"
+            except ValueError:
+                return "recusado"
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [executor.submit(remover_papel, ids[0], ids[1]),
+                   executor.submit(remover_papel, ids[1], ids[0])]
+        assert sorted(f.result(timeout=15) for f in futures) == ["alterado", "recusado"]
+    db.session.expire_all()
+    assert User.query.filter_by(role="admin", is_active_user=True).count() == 1
+    assert AuditEvent.query.filter_by(action="users.set_role", success=True).count() == 1

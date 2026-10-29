@@ -1,4 +1,6 @@
+from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO
+from threading import Barrier
 
 import pytest
 from openpyxl import Workbook
@@ -31,7 +33,6 @@ def test_import_checks_matching_contest_and_reimport_updates_result(app_com_banc
         first = confirm_generated_bets(6, ["1,2,3,4,5,20"], audit=audit, contest=87654)
         other = confirm_generated_bets(6, ["1,2,3,4,5,20"], audit=audit, contest=87655)
         assert first.generation_id != other.generation_id
-        assert confirm_generated_bets(6, ["1,2,3,4,5,20"], audit=audit, contest=87654).replayed
         try:
             result = import_results_from_xlsx(spreadsheet([1, 2, 3, 4, 5, 6]))
             assert result["winning_bets"] == 1
@@ -47,6 +48,27 @@ def test_import_checks_matching_contest_and_reimport_updates_result(app_com_banc
             GeneratedBet.query.filter(GeneratedBet.generation_id.in_([first.generation_id, other.generation_id])).delete(synchronize_session=False)
             Draw.query.filter_by(contest=87654).delete()
             AuditEvent.query.filter(AuditEvent.entity_id.in_([str(first.generation_id), str(other.generation_id)]), AuditEvent.action == "bets.save").delete(synchronize_session=False)
+            db.session.commit()
+
+
+def test_reimportacoes_concorrentes_do_mesmo_concurso_nao_duplicam(app_com_banco):
+    barrier = Barrier(2)
+
+    def importar():
+        with app_com_banco.app_context():
+            barrier.wait(timeout=10)
+            return import_results_from_xlsx(spreadsheet([1, 2, 3, 4, 5, 6]))
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            resultados = list(pool.map(lambda _: importar(), range(2)))
+        assert sum(r["imported"] for r in resultados) == 1
+        assert sum(r["ignored"] for r in resultados) == 1
+        with app_com_banco.app_context():
+            assert Draw.query.filter_by(contest=87654).count() == 1
+    finally:
+        with app_com_banco.app_context():
+            Draw.query.filter_by(contest=87654).delete()
             db.session.commit()
 
 

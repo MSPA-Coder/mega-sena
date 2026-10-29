@@ -134,6 +134,17 @@ class GeneratedBet(db.Model):
         return [int(x) for x in self.numbers_csv.split(",") if x]
 
 
+class BetConfirmation(db.Model):
+    """Identidade durável de um envio, independente das apostas atuais."""
+
+    __tablename__ = "bet_confirmations"
+    token = db.Column(db.String(36), primary_key=True)
+    actor_id = db.Column(db.Integer, nullable=True)
+    fingerprint = db.Column(db.String(64), nullable=False)
+    generation_id = db.Column(db.Integer, nullable=False)
+    saved_count = db.Column(db.Integer, nullable=False)
+
+
 class Config(db.Model):
     __tablename__ = "config"
 

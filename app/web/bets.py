@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from uuid import uuid4
 
 from flask import flash, make_response, redirect, render_template, request, url_for
 from flask_login import current_user
@@ -336,6 +337,9 @@ def bet_generation():
             save_quantity = optional_int(request.form.get("quantity")) or quantity
             audit = AuditContext(current_user.id, audit_request_context(source=action))
             try:
+                token = request.form.get("confirmation_token", "")
+                if not token:
+                    raise RuntimeError("Confirmação sem identificador. Gere uma nova prévia.")
                 contest = optional_int(request.form.get("contest"))
                 if contest is None or not 1 <= contest <= MAX_INT32:
                     raise RuntimeError("Informe um número de concurso válido.")
@@ -345,6 +349,7 @@ def bet_generation():
                         _parse_number_list(closure_numbers),
                         audit=audit,
                         contest=contest,
+                        token=token,
                     )
                 else:
                     result = confirm_generated_bets(
@@ -352,6 +357,7 @@ def bet_generation():
                         bets=request.form.getlist("bet"),
                         audit=audit,
                         contest=contest,
+                        token=token,
                     )
             except RuntimeError as exc:
                 record_event(
@@ -483,6 +489,7 @@ def bet_generation():
     )
     context = {
         "bets": bets,
+        "confirmation_token": str(uuid4()),
         "suggested_contest": (db.session.query(func.max(Draw.contest)).scalar() or 0) + 1,
         "closure_total_formatted": format_int(closure_total),
         "closure_preview_truncated": closure_preview_truncated,

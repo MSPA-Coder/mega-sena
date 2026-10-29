@@ -19,6 +19,7 @@
           hx-disabled-elt="find button[type='submit']" hx-indicator="#save-indicator"
           hx-confirm="Gravar estas apostas no banco?">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="{{ 'save_closure' if closure_mode else 'save' }}"><input type="hidden" name="quantity" value="{{ bets[0].quantity }}">
+      <input type="hidden" name="confirmation_token" value="{{ confirmation_token }}">
       <input type="hidden" name="exclude_previous" value="{{ 1 if exclude_previous else 0 }}"><input type="hidden" name="prioritize_coverage" value="{{ 1 if prioritize_coverage else 0 }}">
       {#- Fechamento grava só as dezenas-base: o servidor recalcula as combinações. Quantidade de apostas e filtros não existem nesse modo e, enviados, seriam recusados (C(n,6) passa de 100). -#}
       {% if closure_mode %}<input type="hidden" name="closure_numbers" value="{{ closure_numbers }}">{% else %}<input type="hidden" name="amount" value="{{ selected_amount }}">{% for key, value in selected_filters.items() %}{% if value is not none %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endif %}{% endfor %}{% endif %}
