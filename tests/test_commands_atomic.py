@@ -1,7 +1,7 @@
 """PostgreSQL real: falha do driver de auditoria não deixa sucesso parcial."""
 
-from concurrent.futures import ThreadPoolExecutor
-from threading import Barrier
+from concurrent.futures import ThreadPoolExecutor, wait
+from threading import Barrier, Event
 from uuid import uuid4
 
 import pytest
@@ -10,8 +10,9 @@ from sqlalchemy import event, text
 from app.accounts import commands as accounts
 from app.audit.contracts import AuditContext
 from app.bets import commands as bets
+from app.bets.service import prepare_generated_bets, stage_bet_batch
 from app.extensions import db
-from app.models import AuditEvent, Config, GeneratedBet, User
+from app.models import AuditEvent, BetConfirmation, Config, GeneratedBet, User
 from app.settings import commands as settings
 
 pytestmark = pytest.mark.banco
@@ -196,3 +197,43 @@ def test_dois_administradores_nao_removem_ambos_os_papeis_em_concorrencia(databa
     db.session.expire_all()
     assert User.query.filter_by(role="admin", is_active_user=True).count() == 1
     assert AuditEvent.query.filter_by(action="users.set_role", success=True).count() == 1
+
+
+def test_segunda_confirmacao_com_o_mesmo_token_espera_a_primeira_terminar(database):
+    """A trava do token faz a segunda confirmação esperar e devolver o replay.
+
+    Sem ela, a segunda grava e confirma antes e a primeira falha ao confirmar (chave primária repetida).
+    O teste de disputa por quatro threads só percebe isso quando roda sozinho; este é determinístico.
+    """
+    application, admin, _ = database
+    token = str(uuid4())
+    preparada, liberar = Event(), Event()
+
+    def primeira():
+        with application.app_context():
+            apostas = prepare_generated_bets(6, [BET])
+            for aposta in apostas:
+                aposta.contest = 10
+            stage_bet_batch(apostas, token, admin.id)
+            preparada.set()
+            assert liberar.wait(timeout=10)
+            db.session.commit()
+
+    def segunda():
+        with application.app_context():
+            return bets.confirm_generated_bets(
+                6, [BET], audit=AuditContext(admin.id), contest=10, token=token
+            )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        a = executor.submit(primeira)
+        assert preparada.wait(timeout=10)
+        b = executor.submit(segunda)
+        # Com a trava a segunda continua bloqueada até aqui; sem ela já terminou.
+        wait([b], timeout=1.5)
+        liberar.set()
+        a.result(timeout=10)
+        resultado = b.result(timeout=10)
+    assert resultado.replayed
+    assert BetConfirmation.query.filter_by(token=token).count() == 1
+    assert GeneratedBet.query.filter_by(generation_id=resultado.generation_id).count() == 1
