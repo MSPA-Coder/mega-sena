@@ -1,4 +1,8 @@
-.button {
+/* `button` sem classe é a ação principal da tela (verde). `:where` zera a
+   especificidade: `.secondary`, `.danger` e os botões do cabeçalho e do
+   componente de confirmação continuam vencendo. */
+.button,
+:where(button:not(.nav-toggle, .theme-toggle, .logout-button)) {
   border: 1px solid var(--button-border);
   background: var(--button-bg);
   color: var(--button-text);
@@ -35,6 +39,23 @@ button:focus-visible,
 .button:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
+}
+
+button:disabled,
+.button.disabled {
+  cursor: not-allowed;
+  opacity: .55;
+  box-shadow: none;
+  transform: none;
+}
+
+/* Botões dentro de listas e tabelas ficam compactos. */
+.inline-form button,
+.bet-line button,
+.generation-line button,
+.page-jump button {
+  padding: 8px 12px;
+  font-size: 13px;
 }
 
 .button.secondary,
@@ -362,10 +383,7 @@ tbody tr:hover {
 .contests-panel {
   display: flex;
   flex-direction: column;
-  max-height: calc(100vh - var(--sticky-header-reserve));
-  max-height: calc(100dvh - var(--sticky-header-reserve));
   padding: 0;
-  overflow: hidden;
 }
 
 .contests-header {
@@ -420,6 +438,35 @@ tbody tr:hover {
   font-weight: 700;
 }
 
+.contests-filter input[type="number"] {
+  width: 112px;
+}
+
+.contests-filter select {
+  padding: 8px 10px;
+}
+
+.contests-filter .contests-filter-check {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.page-jump {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 0 8px;
+}
+
+.page-jump input {
+  width: 76px;
+  padding: 6px 8px;
+}
+
+.contests-scroll td:nth-child(3) {
+  white-space: nowrap;
+}
+
 .contests-filter-inline {
   max-height: none;
   overflow: visible;
@@ -432,18 +479,13 @@ tbody tr:hover {
   font-weight: 600;
 }
 
+/* Só rolagem horizontal, para tabelas mais largas que a tela. A rolagem
+   vertical é a da página: painel com rolagem própria prende o gesto do dedo. */
 .contests-scroll {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
-  padding-right: var(--form-scrollbar-space);
-  scrollbar-gutter: stable;
+  overflow-x: auto;
 }
 
 .contests-scroll thead th {
-  position: sticky;
-  top: 0;
-  z-index: 2;
   background: var(--surface-subtle);
 }
 

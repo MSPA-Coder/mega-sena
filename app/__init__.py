@@ -270,7 +270,7 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
             return None
         if usuario is None or not usuario.is_active_user:
             return None
-        atual = marca_de_sessao(usuario.password_hash, chave_secreta=app.secret_key)
+        atual = marca_de_sessao(usuario.session_material, chave_secreta=app.secret_key)
         return usuario if marcas_conferem(marca, atual) else None
 
     from .web import bp

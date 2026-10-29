@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 import unicodedata
 from collections.abc import Iterable
 from datetime import UTC, date, datetime
@@ -15,7 +16,7 @@ from sqlalchemy import text
 from ..audit.service import record_event
 from ..core.numbers import MAX_INT32, MAX_INT64, draw_parameters, parse_int
 from ..extensions import db
-from ..models import Draw, ImportBatch, ImportQuarantine
+from ..models import Draw, GeneratedBet, ImportBatch, ImportQuarantine
 from .downloading import normalize_results_source_url
 
 _log = logging.getLogger(__name__)
@@ -97,6 +98,11 @@ def _money_to_cents(value: object) -> int:
             )
             if not text or len(text) > 64:
                 raise ValueError("valor monetário inválido")
+            if re.fullmatch(r"\d+[.,]\d{3}", text):
+                # `1.234` é mil duzentos e trinta e quatro ou um vírgula
+                # duzentos e trinta e quatro? Não há como saber, e um dos dois
+                # estaria 1000 vezes errado: recusa em vez de adivinhar.
+                raise ValueError("valor monetário ambíguo")
             if "," in text and "." in text:
                 text = (
                     text.replace(".", "").replace(",", ".")
@@ -263,7 +269,19 @@ def import_results_from_xlsx(
             db.session.add(batch)
             db.session.flush()
 
+        seen_contests: set[int] = set()
+        existing_draws: dict[int, Draw] = {}
+
         def finish(result: dict[str, int], quarantined: int = 0) -> dict[str, int]:
+            if seen_contests:
+                db.session.flush()
+                winning = sum(
+                    1 for bet in db.session.query(GeneratedBet)
+                    .filter(GeneratedBet.contest.in_(seen_contests))
+                    if len(set(bet.numbers) & set(existing_draws[bet.contest].numbers)) >= 4
+                )
+                if winning:
+                    result["winning_bets"] = winning
             if batch is not None:
                 batch.imported_count = result["imported"]
                 batch.updated_count = result["updated"]
@@ -342,7 +360,6 @@ def import_results_from_xlsx(
 
         _acquire_import_lock()
         existing_draws = _locked_existing_draws()
-        seen_contests: set[int] = set()
         imported = updated = ignored = quarantined = 0
         previous_contest: int | None = None
         previous_date: date | None = None

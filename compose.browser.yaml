@@ -26,7 +26,7 @@ services:
       target: runtime
       secrets: [local_ca]
     entrypoint: []
-    command: [gunicorn, --bind, "0.0.0.0:5100", --workers, "1", --threads, "4", "browser_server:application"]
+    command: [gunicorn, --bind, "0.0.0.0:5100", --workers, "1", --threads, "4", --no-control-socket, "browser_server:application"]
     volumes:
       - ./tests/browser_server.py:/app/browser_server.py:ro
     environment:

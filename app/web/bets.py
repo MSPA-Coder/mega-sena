@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import math
+from uuid import uuid4
 
 from flask import flash, make_response, redirect, render_template, request, url_for
 from flask_login import current_user
+from sqlalchemy import func
 from werkzeug.datastructures import MultiDict
 
 from ..audit.contracts import AuditContext
@@ -16,6 +18,7 @@ from ..bets.combinatorics import (
     calculate_individual_filter_targets,
     count_distinct_internal_combinations,
     count_draws_matching_filters,
+    count_prize_coverage,
 )
 from ..bets.commands import confirm_closure_bets, confirm_generated_bets, delete_saved_bet
 from ..bets.criteria import (
@@ -34,8 +37,11 @@ from ..bets.service import (
     list_recent_generations_with_bets,
 )
 from ..core.formatting import format_int, format_percent
+from ..core.numbers import MAX_INT32
 from ..core.regional import adaptar_numero
 from ..draws.service import count_draws
+from ..extensions import db
+from ..models import Draw
 from ..settings.service import get_generation_defaults
 from . import bp
 from .helpers import audit_request_context, is_htmx_request, optional_int, plural
@@ -162,6 +168,21 @@ def _read_generation_state(
     return params.quantity, selected_filters, params.amount
 
 
+def _state_or_defaults(
+    values: MultiDict,
+) -> tuple[int, dict[str, int | None], int, str | None]:
+    """Lê o estado da tela a partir da URL sem corrigi-lo em silêncio.
+
+    Valor fora dos limites ou contraditório volta aos padrões salvos e a
+    mensagem acompanha o resultado, para a pessoa saber que a URL foi recusada.
+    """
+    closure_requested = bool(values.get("closure_numbers", "").strip())
+    try:
+        return (*_read_generation_state(values, strict=not closure_requested), None)
+    except InvalidGenerationCriteriaError as exc:
+        return (*_read_generation_state(MultiDict()), str(exc))
+
+
 def _active_filters(selected_filters: dict[str, int | None]) -> dict[str, int]:
     return {key: value for key, value in selected_filters.items() if value is not None}
 
@@ -192,7 +213,12 @@ def _draw_filter_preview_payload(
 def _preview_context(values: MultiDict) -> dict:
     """Build the read-only preview shown beside the generation form."""
     closure_numbers = values.get("closure_numbers", "")
-    quantity, selected_filters, selected_amount = _read_generation_state(values)
+    try:
+        quantity, selected_filters, selected_amount = _read_generation_state(
+            values, strict=not closure_numbers.strip()
+        )
+    except InvalidGenerationCriteriaError as exc:
+        return {"validation_error": str(exc)}
     (
         quantity,
         selected_filters,
@@ -220,7 +246,7 @@ def _preview_context(values: MultiDict) -> dict:
 @bp.route("/rationale")
 def rationale():
     closure_numbers = request.args.get("closure_numbers", "")
-    quantity, selected_filters, selected_amount = _read_generation_state(request.args)
+    quantity, selected_filters, selected_amount, state_error = _state_or_defaults(request.args)
     return_quantity = quantity
     return_amount = selected_amount
     quantity, selected_filters, selected_amount, closure_mode, closure_base_count = (
@@ -250,6 +276,7 @@ def rationale():
         closure_base_count=closure_base_count,
         selected_quantity=quantity,
         return_params=return_params,
+        state_error=state_error,
     )
 
 
@@ -266,15 +293,29 @@ def bet_generation():
     closure_total = 0
     closure_preview_truncated = False
     feedback: str | None = None
+    feedback_error = False
     htmx_request = is_htmx_request()
     closure_numbers = request.args.get("closure_numbers", "")
-    selected_quantity, selected_filters, selected_amount = _read_generation_state(request.args)
+    options = request.form if request.method == "POST" else request.args
+    exclude_previous = options.get("exclude_previous", "1") != "0"
+    prioritize_coverage = options.get("prioritize_coverage", "0") == "1"
+    selected_quantity, selected_filters, selected_amount, state_error = _state_or_defaults(
+        request.args
+    )
+    if state_error:
+        feedback, feedback_error = state_error, True
     recent_generations = list_recent_generations_with_bets()
     if request.method == "POST":
         action = request.form.get("action", "generate")
+        # Fechamento ignora quantidade de apostas e filtros (o servidor recalcula
+        # tudo a partir das dezenas-base): o formulário de gravação os envia só
+        # por herança da tela e não pode ser recusado por causa deles.
+        closure_requested = action in {"closure", "save_closure"} or bool(
+            request.form.get("closure_numbers", "").strip()
+        )
         try:
             quantity, selected_filters, selected_amount = _read_generation_state(
-                request.form, strict=True
+                request.form, strict=not closure_requested
             )
         except InvalidGenerationCriteriaError as exc:
             return (
@@ -282,6 +323,7 @@ def bet_generation():
                     "bets/_generation_result.html",
                     bets=[],
                     feedback=str(exc),
+                    feedback_error=True,
                     avisos=[{"mensagem": str(exc), "severidade": "error"}],
                 ),
                 400,
@@ -295,17 +337,27 @@ def bet_generation():
             save_quantity = optional_int(request.form.get("quantity")) or quantity
             audit = AuditContext(current_user.id, audit_request_context(source=action))
             try:
+                token = request.form.get("confirmation_token", "")
+                if not token:
+                    raise RuntimeError("Confirmação sem identificador. Gere uma nova prévia.")
+                contest = optional_int(request.form.get("contest"))
+                if contest is None or not 1 <= contest <= MAX_INT32:
+                    raise RuntimeError("Informe um número de concurso válido.")
                 if action == "save_closure":
                     save_quantity = MIN_BET_NUMBERS
                     result = confirm_closure_bets(
                         _parse_number_list(closure_numbers),
                         audit=audit,
+                        contest=contest,
+                        token=token,
                     )
                 else:
                     result = confirm_generated_bets(
                         quantity=save_quantity,
                         bets=request.form.getlist("bet"),
                         audit=audit,
+                        contest=contest,
+                        token=token,
                     )
             except RuntimeError as exc:
                 record_event(
@@ -320,6 +372,7 @@ def bet_generation():
                         "bets/_generation_result.html",
                         bets=[],
                         feedback=str(exc),
+                        feedback_error=True,
                         avisos=[{"mensagem": str(exc), "severidade": "error"}],
                     )
                 flash(str(exc), "error")
@@ -327,6 +380,8 @@ def bet_generation():
                     url_for(
                         "web.bet_generation",
                         **_generation_params(quantity, selected_filters, selected_amount),
+                        exclude_previous=int(exclude_previous),
+                        prioritize_coverage=int(prioritize_coverage),
                     )
                 )
             saved, generation_id = result.saved_count, result.generation_id
@@ -349,6 +404,8 @@ def bet_generation():
                         selected_filters,
                         selected_amount,
                     ),
+                    exclude_previous=int(exclude_previous),
+                    prioritize_coverage=int(prioritize_coverage),
                 )
             )
 
@@ -374,6 +431,8 @@ def bet_generation():
                     quantity=quantity,
                     amount=amount,
                     filters=generation_filters,
+                    exclude_previous=exclude_previous,
+                    prioritize_coverage=prioritize_coverage,
                 )
                 generated = len(bets)
                 if generated < amount:
@@ -384,11 +443,12 @@ def bet_generation():
                     )
                 else:
                     feedback = (
-                        f"{generated} {plural(generated, 'aposta gerada', 'apostas geradas')}. "
+                        f"{generated} {plural(generated, 'aposta gerada', 'apostas geradas')} "
+                        f"de {quantity} dezenas. "
                         "Revise e escolha se deseja gravar no banco de dados."
                     )
         except RuntimeError as exc:
-            feedback = str(exc)
+            feedback, feedback_error = str(exc), True
 
     filter_preview = _draw_filter_preview_payload(selected_filters)
     (
@@ -412,8 +472,25 @@ def bet_generation():
         bets if bets else None,
         exact_combination_count=(math.comb(closure_base_count, 6) if closure_mode else None),
     )
+    prize_coverage = (
+        count_prize_coverage(bet.numbers for bet in bets)
+        if bets and not closure_preview_truncated else None
+    )
+    prize_coverage_display = (
+        [
+            {
+                "label": label,
+                "count": format_int(prize_coverage[hits]),
+                "percent": format_percent(prize_coverage[hits] / TOTAL_DRAW_COMBINATIONS * 100),
+            }
+            for hits, label in ((4, "Quadra ou mais"), (5, "Quina ou mais"), (6, "Sena"))
+        ]
+        if prize_coverage is not None else None
+    )
     context = {
         "bets": bets,
+        "confirmation_token": str(uuid4()),
+        "suggested_contest": (db.session.query(func.max(Draw.contest)).scalar() or 0) + 1,
         "closure_total_formatted": format_int(closure_total),
         "closure_preview_truncated": closure_preview_truncated,
         "recent_generations": recent_generations,
@@ -425,12 +502,18 @@ def bet_generation():
         "closure_mode": closure_mode,
         "closure_base_count": closure_base_count,
         "coverage_metrics": coverage_metrics,
+        "prize_coverage": prize_coverage_display,
+        "exclude_previous": exclude_previous,
+        "prioritize_coverage": prioritize_coverage,
         "closure_numbers": closure_numbers,
         "generation_limits": GENERATION_LIMITS,
-        "generation_params": _generation_params(
-            selected_quantity, selected_filters, selected_amount
-        ),
+        "generation_params": {
+            **_generation_params(selected_quantity, selected_filters, selected_amount),
+            "exclude_previous": int(exclude_previous),
+            "prioritize_coverage": int(prioritize_coverage),
+        },
         "feedback": feedback,
+        "feedback_error": feedback_error,
     }
     if htmx_request:
         # Sem `flash()` aqui de propósito: o `feedback` de gerar/fechamento já
@@ -446,7 +529,7 @@ def bet_generation():
     )
 
 
-@bp.post("/bets/saved/<int:bet_id>/delete")
+@bp.post(f"/bets/saved/<int(max={MAX_INT32}):bet_id>/delete")
 def delete_bet(bet_id: int):
     try:
         delete_saved_bet(bet_id, audit=AuditContext(current_user.id, audit_request_context()))
@@ -481,6 +564,7 @@ def filter_targets_fragment():
             "bets/_filter_targets.html",
             target_percentage=target_percentage,
             targets=targets,
+            generation_limits=GENERATION_LIMITS,
         )
     )
     response.headers["HX-Trigger-After-Settle"] = "bets-preview"

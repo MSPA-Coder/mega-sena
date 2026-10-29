@@ -51,6 +51,12 @@ class _TransactionalSession:
     def flush(self):
         return None
 
+    def query(self, _model):
+        return self
+
+    def filter(self, *_conditions):
+        return []
+
     def add(self, draw):
         if draw.__class__.__name__ == "_FakeDraw":
             self.rows[draw.contest] = draw
@@ -239,3 +245,24 @@ def test_import_rejects_official_provenance_with_non_official_url(fake_store):
                 "source_url": "https://example.com/resultados.xlsx",
             },
         )
+
+
+@pytest.mark.parametrize(
+    ("texto", "centavos"),
+    [
+        ("R$ 1.234,56", 123456),
+        ("1,234.56", 123456),
+        ("1234,5", 123450),
+        ("12.5", 1250),
+        ("", 0),
+    ],
+)
+def test_valor_monetario_inequivoco_e_convertido(texto, centavos):
+    assert importing._money_to_cents(texto) == centavos
+
+
+@pytest.mark.parametrize("texto", ["1.234", "1,234", "12.345", "R$ 1.234"])
+def test_valor_monetario_ambiguo_e_recusado_em_vez_de_adivinhado(texto):
+    # `1.234` pode ser R$ 1.234,00 ou R$ 1,23: um dos dois erraria por 1000x.
+    with pytest.raises(ValueError):
+        importing._money_to_cents(texto)

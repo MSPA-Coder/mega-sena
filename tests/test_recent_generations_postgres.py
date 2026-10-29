@@ -21,7 +21,8 @@ from app.bets.service import (
     MAX_RECENT_BETS_PER_GENERATION,
     list_recent_generations_with_bets,
 )
-from app.models import GeneratedBet
+from app.core.numbers import draw_parameters
+from app.models import Draw, GeneratedBet
 
 pytestmark = pytest.mark.banco
 
@@ -85,4 +86,26 @@ def test_historico_usa_duas_consultas_qualquer_que_seja_o_numero_de_lotes(sessao
 
     assert len(geracoes) == 8
     assert len(consultas) == 2
+
+
+def test_historico_marca_todos_os_acertos_e_distingue_resultado_ausente(sessao):
+    sorteadas = [6, 30, 32, 38, 49, 57]
+    sessao.add(Draw(contest=87654, **{f"n{i}": n for i, n in enumerate(sorteadas, 1)},
+                    **draw_parameters(sorteadas)))
+    for indice, numeros in enumerate(("7,29,38,40,42,58", "17,21,32,36,41,49",
+                                      "1,2,3,4,5,7")):
+        sessao.add(GeneratedBet(generation_id=920_000 + indice, contest=87654,
+                               quantity=6, numbers_csv=numeros, score=0))
+    sessao.add(GeneratedBet(generation_id=920_003, contest=87655, quantity=6,
+                           numbers_csv="1,2,3,4,5,7", score=0))
+    sessao.flush()
+
+    geracoes = {g["generation_id"]: g for g in list_recent_generations_with_bets()}
+    for indice, acertos in enumerate(({38}, {32, 49}, set())):
+        aposta = geracoes[920_000 + indice]["bets"][0]
+        assert aposta.winning_numbers == acertos
+        assert aposta.hit_count == len(acertos)
+    pendente = geracoes[920_003]["bets"][0]
+    assert pendente.hit_count is None
+    assert pendente.winning_numbers == set()
 

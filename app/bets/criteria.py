@@ -25,7 +25,7 @@ MAX_BET_NUMBERS = 20
 GENERATION_LIMITS = {
     "quantity": (MIN_BET_NUMBERS, MAX_BET_NUMBERS),
     "amount": (1, 100),
-    "consecutive_count": (0, 6),
+    "consecutive_count": (1, 6),
     "even_min": (0, 6),
     "even_max": (0, 6),
     "sum_min": (0, 345),
@@ -121,10 +121,6 @@ class GenerationCriteria:
         ):
             raise InvalidGenerationCriteriaError(
                 "A soma inicial não pode ser maior que a soma final."
-            )
-        if filters["consecutive_count"] == 0:
-            raise InvalidGenerationCriteriaError(
-                "A maior sequência consecutiva permitida precisa ser pelo menos 1."
             )
         return cls(quantity=quantity, amount=amount, **filters)
 

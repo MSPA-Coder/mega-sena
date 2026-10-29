@@ -7,8 +7,6 @@
   --font-body: Inter, "Segoe UI", system-ui, Arial, sans-serif;
   --font-mono: "JetBrains Mono", Consolas, Monaco, monospace;
   font-family: var(--font-body);
-  --sticky-header-reserve: 118px;
-  --form-scrollbar-space: 14px;
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 18px;

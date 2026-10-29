@@ -44,7 +44,9 @@
   .dashboard-stacked-cards,
   .history-cards,
   .cards {
-    grid-template-columns: 1fr;
+    /* `minmax(0, 1fr)`: com `1fr` puro a trilha não encolhe abaixo do
+       conteúdo (o gráfico de somas) e a página ganha rolagem horizontal. */
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .dashboard-stacked-cards {

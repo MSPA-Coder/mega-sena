@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% block page_name %}Racional das apostas{% endblock %}
 {% block content %}
 {% macro render_rationale_step(step) %}
   <div class="rationale-step">
@@ -9,6 +10,7 @@
   </div>
 {% endmacro %}
 <section class="panel rationale-explanation">
+  {% if state_error %}<div class="flash flash-error" role="alert">{{ state_error }} Foram usados os padrões salvos em Configurações.</div>{% endif %}
   <div class="panel-header">
     <h2>Racional da aposta e dos filtros</h2>
     <a class="button secondary" href="{{ url_for('web.bet_generation', **return_params) }}">Voltar</a>

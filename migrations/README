@@ -3,8 +3,8 @@
 Alembic é a única fonte de evolução do schema. A cadeia atual começa em
 `20260803_baseline`, segue por `20260814_0002_users` e
 `20260824_0003_user_roles`, `20260830_0004_change_password` e
-`20260901_0005_audit_events`, `20260919_0006_import_provenance` e
-`20261009_0007_regional_format`; um banco novo precisa receber a cadeia
+`20260901_0005_audit_events`, `20260919_0006_import_provenance`,
+`20261009_0007_regional_format` e `20261021_0008_session_epoch`; um banco novo precisa receber a cadeia
 completa até a revisão mais recente.
 
 No Compose, `docker-entrypoint.sh` executa o upgrade antes de iniciar a
@@ -14,8 +14,9 @@ aplicação. Para aplicá-lo explicitamente em uma pilha já iniciada:
 docker compose --env-file .env.docker -f compose.yaml exec app flask --app run.py db upgrade
 ```
 
-Antes de alterar schema ou dados, gere e confira o backup pelo projeto irmão
-BackupRestore, conforme [`docs/deployment-vps.md`](../docs/deployment-vps.md).
+Antes de alterar schema ou dados em produção, confira no projeto irmão
+BackupRestore que há um dump recente do VPS, conforme
+[`docs/deployment-vps.md`](../docs/deployment-vps.md).
 Toda mudança de schema deve criar uma nova revision. Não reescreva revisions já
 aplicáveis e não use `stamp` ou `db.create_all()` como bootstrap.
 

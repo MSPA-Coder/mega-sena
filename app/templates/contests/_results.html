@@ -4,13 +4,28 @@
       <div class="contests-title-line">
         <h2>Concursos</h2>
         <span class="contests-title-summary {{ 'active-filter' if winners_only else 'muted' }}">{{ contests_summary }}</span>
-        <form method="get" action="{{ url_for('web.contests') }}" class="contests-filter contests-filter-inline"
-              hx-get="{{ url_for('web.contests') }}" hx-trigger="change from:input" hx-target="#contests-results" hx-swap="outerHTML" hx-replace-url="true">
-          {% if consecutive_count is not none %}<input type="hidden" name="consecutive_count" value="{{ consecutive_count }}">{% endif %}
-          {% if even_count is not none %}<input type="hidden" name="even_count" value="{{ even_count }}">{% endif %}
-          <label><input type="checkbox" name="winners_only" value="1" {% if winners_only %}checked{% endif %}> Mega Sena</label>
-        </form>
       </div>
+      <form method="get" action="{{ url_for('web.contests') }}" class="contests-filter"
+            hx-get="{{ url_for('web.contests') }}" hx-trigger="change, input changed delay:500ms from:#contest-search"
+            hx-target="#contests-results" hx-swap="outerHTML" hx-replace-url="true">
+        <label>Concurso<input id="contest-search" type="number" inputmode="numeric" name="contest" min="1" placeholder="Número" value="{{ contest if contest is not none else '' }}"></label>
+        <label>Pares
+          <select name="even_count">
+            <option value="">Todos</option>
+            {% for n in range(0, 7) %}<option value="{{ n }}"{% if even_count == n %} selected{% endif %}>{{ n }}</option>{% endfor %}
+          </select>
+        </label>
+        <label>Maior sequência
+          <select name="consecutive_count">
+            <option value="">Todas</option>
+            {% for n in [0, 2, 3, 4, 5, 6] %}<option value="{{ n }}"{% if consecutive_count == n %} selected{% endif %}>{{ 'nenhuma' if n == 0 else n }}</option>{% endfor %}
+          </select>
+        </label>
+        <label class="contests-filter-check"><input type="checkbox" name="winners_only" value="1" {% if winners_only %}checked{% endif %}> Com acertador da Mega Sena</label>
+        {% if contest is not none or even_count is not none or consecutive_count is not none or winners_only %}
+        <a class="button secondary" href="{{ url_for('web.contests') }}" hx-get="{{ url_for('web.contests') }}" hx-target="#contests-results" hx-swap="outerHTML" hx-push-url="true">Limpar</a>
+        {% endif %}
+      </form>
       {% if active_filters %}<p class="active-filter">Filtro ativo: {{ active_filters|join(' e ') }}{% if winners_only %} e Mega Sena{% endif %}.</p>{% endif %}
     </div>
     {% if pagination.pages > 1 %}
@@ -30,10 +45,18 @@
           {% set next_url = url_for('web.contests', page=pagination.next_num, **pagination_args) %}
           <a class="button secondary" href="{{ next_url }}" hx-get="{{ next_url }}" hx-target="#contests-results" hx-swap="outerHTML" hx-push-url="true">Próxima</a>
         {% else %}<span class="button secondary disabled">Próxima</span>{% endif %}
+        <form method="get" action="{{ url_for('web.contests') }}" class="page-jump"
+              hx-get="{{ url_for('web.contests') }}" hx-target="#contests-results" hx-swap="outerHTML" hx-push-url="true">
+          {% for key, value in pagination_args.items() %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
+          <label class="sr-only" for="page-jump-input">Ir para a página</label>
+          <input id="page-jump-input" type="number" inputmode="numeric" name="page" min="1" max="{{ pagination.pages }}" value="{{ pagination.page }}">
+          <button type="submit" class="secondary">Ir</button>
+        </form>
       </nav>
     {% endif %}
   </div>
   <div class="contests-scroll"><table>
+    <caption class="sr-only">Concursos importados, do mais recente ao mais antigo</caption>
     <thead><tr><th>Concurso</th><th>Data</th><th>Números</th><th>Seq.</th><th>Pares</th><th>Prêmio</th><th>Acumulado</th><th>Prêmio Quina</th><th>Prêmio Quadra</th></tr></thead>
     <tbody>
       {% from "components/balls.html" import render_balls %}

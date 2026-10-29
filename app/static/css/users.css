@@ -57,3 +57,71 @@
   font-size: 0.85rem;
   color: var(--text-muted);
 }
+
+/* Celular: a tabela de seis colunas vira uma lista de cartões, um por usuário,
+   com o rótulo da coluna (`data-label`) à esquerda de cada valor. */
+@media (max-width: 850px) {
+  .users-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .users-table,
+  .users-table tbody,
+  .users-table tr,
+  .users-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .users-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+
+  .users-table tr {
+    box-sizing: border-box;
+    margin-bottom: 14px;
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+  }
+
+  .users-table td {
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: 8.5rem minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .users-table td:last-child {
+    border-bottom: 0;
+  }
+
+  .users-table td[data-label]::before {
+    content: attr(data-label);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-muted);
+  }
+
+  .users-table td.empty-state {
+    display: block;
+  }
+
+  .users-table .inline-form {
+    flex-wrap: wrap;
+  }
+
+  .inline-form input,
+  .inline-form select {
+    min-width: 0;
+    max-width: 100%;
+  }
+}

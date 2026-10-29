@@ -18,3 +18,10 @@ logs
 .codex
 .agents
 .claude
+
+# Resíduos de validação, inclusive bytecode em subdiretórios.
+**/__pycache__
+.mypy_cache
+.coverage
+.coverage.*
+CodexTemp

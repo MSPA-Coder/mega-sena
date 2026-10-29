@@ -1,5 +1,5 @@
-{% macro render_balls(numbers, classes='ball') -%}
+{% macro render_balls(numbers, classes='ball', winning_numbers=()) -%}
   {%- for number in numbers -%}
-    <span class="{{ classes }}">{{ '%02d'|format(number) }}</span>
+    <span class="{{ classes }}{{ ' winning' if number in winning_numbers else '' }}">{{ '%02d'|format(number) }}</span>
   {%- endfor -%}
 {%- endmacro %}

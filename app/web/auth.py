@@ -74,6 +74,15 @@ def login() -> ResponseReturnValue:
 @bp.post("/logout")
 @login_required
 def logout() -> ResponseReturnValue:
+    # O cookie é assinado e sem estado: só apagá-lo no navegador deixaria uma
+    # cópia dele valendo. Subir a época invalida toda sessão emitida antes --
+    # inclusive a de outros aparelhos, que precisam entrar de novo.
+    db.session.execute(
+        db.update(User)
+        .where(User.id == current_user.id)
+        .values(session_epoch=User.session_epoch + 1)
+    )
+    db.session.commit()
     logout_user()
     flash("Sessão encerrada.", "success")
     return redirect(url_for("web.login"))
