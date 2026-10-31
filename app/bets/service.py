@@ -6,6 +6,7 @@ import secrets
 import threading
 import time
 from collections.abc import Iterable
+from dataclasses import dataclass
 from hashlib import sha256
 from itertools import combinations, islice
 
@@ -28,6 +29,7 @@ from .criteria import (
 _log = logging.getLogger(__name__)
 MAX_SAVED_BETS = math.comb(MAX_BET_NUMBERS, MIN_BET_NUMBERS)
 MAX_RECENT_GENERATIONS = 20
+GENERATIONS_PER_PAGE = 10
 MAX_RECENT_BETS_PER_GENERATION = 200
 _RNG = secrets.SystemRandom()
 _GENERATION_ID_SEQUENCE = "generated_bets_generation_id_seq"
@@ -247,19 +249,20 @@ def generate_closure_bets(
     ]
 
 
-def list_recent_generations(limit: int = 12) -> list[dict]:
-    limit = clamp_int(parse_int(limit) or 12, 1, MAX_RECENT_GENERATIONS)
+def _generation_summaries(*, limit: int, offset: int = 0, contest: int | None = None) -> list[dict]:
+    query = db.session.query(
+        GeneratedBet.generation_id,
+        func.count(GeneratedBet.id),
+        func.min(GeneratedBet.quantity),
+        func.max(GeneratedBet.created_at),
+    ).filter(GeneratedBet.generation_id.isnot(None))
+    if contest is not None:
+        query = query.filter(GeneratedBet.contest == contest)
     rows = (
-        db.session.query(
-            GeneratedBet.generation_id,
-            func.count(GeneratedBet.id),
-            func.min(GeneratedBet.quantity),
-            func.max(GeneratedBet.created_at),
-        )
-        .filter(GeneratedBet.generation_id.isnot(None))
-        .group_by(GeneratedBet.generation_id)
+        query.group_by(GeneratedBet.generation_id)
         .order_by(func.max(GeneratedBet.created_at).desc(), GeneratedBet.generation_id.desc())
         .limit(limit)
+        .offset(offset)
         .all()
     )
     return [
@@ -273,8 +276,59 @@ def list_recent_generations(limit: int = 12) -> list[dict]:
     ]
 
 
+def list_recent_generations(limit: int = 12) -> list[dict]:
+    limit = clamp_int(parse_int(limit) or 12, 1, MAX_RECENT_GENERATIONS)
+    return _generation_summaries(limit=limit)
+
+
 def list_recent_generations_with_bets(limit: int = 12) -> list[dict]:
-    generations = list_recent_generations(limit=limit)
+    return _attach_bets(list_recent_generations(limit=limit))
+
+
+@dataclass(frozen=True, slots=True)
+class GenerationPage:
+    """Uma página do histórico de gerações gravadas, com as apostas conferidas."""
+
+    items: list[dict]
+    page: int
+    pages: int
+    total: int
+
+    @property
+    def has_prev(self) -> bool:
+        return self.page > 1
+
+    @property
+    def has_next(self) -> bool:
+        return self.page < self.pages
+
+
+def paginate_generations(
+    *, page: int = 1, per_page: int = GENERATIONS_PER_PAGE, contest: int | None = None
+) -> GenerationPage:
+    """Histórico de gerações gravadas, da mais recente para a mais antiga.
+
+    Diferente de `list_recent_generations_with_bets`, não corta o histórico em
+    `MAX_RECENT_GENERATIONS`: a tela Minhas apostas é onde se confere o que foi
+    jogado, e as gerações antigas precisam continuar alcançáveis. Uma página
+    fora do intervalo vira a última, para que excluir a única aposta da última
+    página não deixe a pessoa diante de uma lista vazia.
+    """
+    count_query = db.session.query(func.count(func.distinct(GeneratedBet.generation_id))).filter(
+        GeneratedBet.generation_id.isnot(None)
+    )
+    if contest is not None:
+        count_query = count_query.filter(GeneratedBet.contest == contest)
+    total = count_query.scalar() or 0
+    pages = max(1, math.ceil(total / per_page))
+    page = min(max(1, page), pages)
+    generations = _generation_summaries(
+        limit=per_page, offset=(page - 1) * per_page, contest=contest
+    )
+    return GenerationPage(_attach_bets(generations), page, pages, total)
+
+
+def _attach_bets(generations: list[dict]) -> list[dict]:
     generation_ids = [generation["generation_id"] for generation in generations]
     if not generation_ids:
         return generations

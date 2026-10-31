@@ -109,6 +109,7 @@ td,
 
 .nav-toggle:focus-visible,
 .theme-toggle:focus-visible,
+.nav-group-toggle:focus-visible,
 .topbar a:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px rgba(255, 255, 255, .26);
@@ -171,6 +172,93 @@ td,
   opacity: 1;
   background: var(--topbar-active-bg);
   box-shadow: inset 0 0 0 1px var(--topbar-active-border), 0 0 12px rgba(212, 160, 23, .25);
+}
+
+/* Grupo do menu: o botão se parece com os links da barra e abre um painel com
+   os subitens. O painel começa fechado; `base.js` alterna `.open`. */
+.nav-group {
+  position: relative;
+  margin-left: 8px;
+}
+
+.nav-group-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-inverted);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: normal;
+  opacity: .82;
+  cursor: pointer;
+  box-shadow: none;
+  transition: opacity .2s ease, background .2s ease, box-shadow .2s ease, transform .15s ease;
+}
+
+.nav-group-toggle:hover,
+.nav-group.open > .nav-group-toggle {
+  opacity: 1;
+  background: rgba(255, 255, 255, .10);
+  box-shadow: none;
+  transform: translateY(-1px);
+}
+
+.nav-group.active > .nav-group-toggle {
+  opacity: 1;
+  background: var(--topbar-active-bg);
+  box-shadow: inset 0 0 0 1px var(--topbar-active-border), 0 0 12px rgba(212, 160, 23, .25);
+}
+
+.nav-caret::before {
+  content: "";
+  display: block;
+  width: 6px;
+  height: 6px;
+  border: solid currentColor;
+  border-width: 0 2px 2px 0;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform .15s ease;
+}
+
+.nav-group.open > .nav-group-toggle .nav-caret::before {
+  transform: translateY(1px) rotate(225deg);
+}
+
+.nav-submenu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  z-index: 60;
+  min-width: 210px;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid rgba(255, 255, 255, .16);
+  border-radius: var(--radius-md);
+  background: var(--topbar-menu-bg);
+  box-shadow: 0 12px 28px rgba(2, 10, 6, .35);
+}
+
+.nav-group[data-align="end"] > .nav-submenu {
+  left: auto;
+  right: 0;
+}
+
+.nav-group.open > .nav-submenu,
+.topbar:not(.nav-ready) .nav-group:hover > .nav-submenu,
+.topbar:not(.nav-ready) .nav-group:focus-within > .nav-submenu {
+  display: flex;
+}
+
+.nav-submenu a {
+  margin: 0;
+  white-space: nowrap;
 }
 
 .theme-toggle {

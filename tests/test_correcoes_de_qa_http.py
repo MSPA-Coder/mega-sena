@@ -95,7 +95,9 @@ def test_exclusao_de_aposta_salva_declara_confirmacao_no_botao(app_com_banco, lo
             )
         )
         db.session.commit()
-    pagina = logado.get("/bets").get_data(as_text=True)
+    # O botão Excluir mora em Minhas apostas; a geração recém-gravada é a mais
+    # recente, então está na primeira página.
+    pagina = logado.get("/bets/minhas").get_data(as_text=True)
     assert 'data-sa-confirmar="Excluir esta aposta salva?"' in pagina
 
 
@@ -201,10 +203,12 @@ def test_concursos_aceitam_busca_por_numero_e_filtros_de_pares_e_sequencia(logad
     ("rota", "titulo"),
     [
         ("/dashboard", "Dashboard"),
-        ("/contests", "Concursos"),
+        ("/contests", "Resultados"),
+        ("/contests/importar", "Importar resultados"),
         ("/settings", "Configurações"),
         ("/usuarios", "Usuários"),
         ("/bets", "Gerar apostas"),
+        ("/bets/minhas", "Minhas apostas"),
     ],
 )
 def test_cada_pagina_tem_titulo_proprio_e_h1(logado, rota, titulo):

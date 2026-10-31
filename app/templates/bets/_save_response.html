@@ -1,3 +1,2 @@
-<section id="generation-result" class="panel" aria-live="polite"><p class="muted">A geração foi salva. Ela aparece na lista de últimas apostas.</p></section>
+<section id="generation-result" class="panel" aria-live="polite"><p class="muted">A geração foi salva. Confira-a em <a href="{{ url_for('web.my_bets') }}">Minhas apostas</a>.</p></section>
 <div hidden data-sa-avisos='{{ avisos | tojson }}'></div>
-{% set oob = true %}{% include "bets/_recent_generations.html" %}

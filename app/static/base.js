@@ -52,3 +52,50 @@ htmx.config.includeIndicatorStyles = false;
       if (event.matches) setOpen(false);
     });
   }());
+  (function () {
+    "use strict";
+    // Grupos do menu (Apostas, Concursos, Conta e administração): o botão abre
+    // e fecha o painel de subitens; só um fica aberto por vez.
+    var groups = Array.prototype.slice.call(document.querySelectorAll("[data-nav-group]"));
+    if (!groups.length) return;
+
+    function toggleOf(group) {
+      return group.querySelector(".nav-group-toggle");
+    }
+
+    function setOpen(group, open) {
+      group.classList.toggle("open", open);
+      toggleOf(group).setAttribute("aria-expanded", open ? "true" : "false");
+    }
+
+    function closeAll(except) {
+      groups.forEach(function (group) {
+        if (group !== except) setOpen(group, false);
+      });
+    }
+
+    groups.forEach(function (group) {
+      toggleOf(group).addEventListener("click", function () {
+        var open = !group.classList.contains("open");
+        closeAll(group);
+        setOpen(group, open);
+      });
+    });
+
+    document.addEventListener("click", function (event) {
+      if (!event.target.closest("[data-nav-group]")) closeAll(null);
+    });
+
+    // O foco que sai do menu (Tab para o conteúdo) fecha o painel.
+    document.addEventListener("focusin", function (event) {
+      if (!event.target.closest("[data-nav-group]")) closeAll(null);
+    });
+
+    document.addEventListener("keydown", function (event) {
+      if (event.key !== "Escape") return;
+      var aberto = groups.filter(function (group) { return group.classList.contains("open"); })[0];
+      if (!aberto) return;
+      closeAll(null);
+      toggleOf(aberto).focus();
+    });
+  }());

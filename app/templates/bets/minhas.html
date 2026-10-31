@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block page_name %}Minhas apostas{% endblock %}
+{% block content %}
+<section class="panel contests-panel">
+  <div class="contests-header">
+    <div class="contests-heading">
+      <div class="contests-title-line">
+        <h2>Apostas gravadas</h2>
+        <span class="contests-title-summary {{ 'active-filter' if contest is not none else 'muted' }}">{{ generations.total }} {{ 'geração' if generations.total == 1 else 'gerações' }}{% if contest is not none %} do concurso {{ contest }}{% endif %}.</span>
+      </div>
+      <form method="get" action="{{ url_for('web.my_bets') }}" class="contests-filter">
+        <label>Concurso<input id="bets-contest" type="number" inputmode="numeric" name="contest" min="1" placeholder="Número" value="{{ contest if contest is not none else '' }}"></label>
+        <button type="submit" class="secondary">Filtrar</button>
+        {% if contest is not none %}<a class="button secondary" href="{{ url_for('web.my_bets') }}">Limpar</a>{% endif %}
+      </form>
+    </div>
+    {% if generations.pages > 1 %}
+      <nav class="pagination pagination-compact" aria-label="Paginação das apostas">
+        {% if generations.has_prev %}<a class="button secondary" href="{{ url_for('web.my_bets', page=generations.page - 1, contest=contest) }}">Anterior</a>{% else %}<span class="button secondary disabled">Anterior</span>{% endif %}
+        <span>Página {{ generations.page }}/{{ generations.pages }}</span>
+        {% if generations.has_next %}<a class="button secondary" href="{{ url_for('web.my_bets', page=generations.page + 1, contest=contest) }}">Próxima</a>{% else %}<span class="button secondary disabled">Próxima</span>{% endif %}
+        <form method="get" action="{{ url_for('web.my_bets') }}" class="page-jump">
+          {% if contest is not none %}<input type="hidden" name="contest" value="{{ contest }}">{% endif %}
+          <label class="sr-only" for="bets-page-jump">Ir para a página</label>
+          <input id="bets-page-jump" type="number" inputmode="numeric" name="page" min="1" max="{{ generations.pages }}" value="{{ generations.page }}">
+          <button type="submit" class="secondary">Ir</button>
+        </form>
+      </nav>
+    {% endif %}
+  </div>
+  <p class="muted form-help">Cada geração mostra as apostas conferidas com o resultado do concurso, quando ele já foi importado. A tela carrega até as primeiras 200 apostas de cada geração.</p>
+</section>
+
+{% include "bets/_saved_generations.html" %}
+{% endblock %}
+
+{% block scripts %}<script src="{{ url_for('static', filename='bets.js') }}?v={{ asset_version }}" defer></script>{% endblock %}

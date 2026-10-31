@@ -131,18 +131,37 @@ Ao gravar:
   mesmo sem prêmio, e a quantidade de acertos aparece junto à aposta.
   A conferência acompanha correções em reimportações. As apostas que existiam
   antes desta mudança foram associadas ao concurso 3076;
-- até 20 lotes recentes ficam disponíveis para consulta; a tela carrega no
-  máximo as primeiras 200 apostas de cada lote para manter a resposta limitada.
-  O lote completo continua persistido e o fechamento completo continua sendo
-  recalculado no servidor.
+- o histórico fica em **Minhas apostas** (`/bets/minhas`), da geração mais
+  recente para a mais antiga, dez gerações por página, com filtro por número do
+  concurso e salto para uma página. Uma página fora do intervalo mostra a
+  última. A tela carrega no máximo as primeiras 200 apostas de cada lote para
+  manter a resposta limitada. O lote completo continua persistido e o
+  fechamento completo continua sendo recalculado no servidor. Excluir uma
+  aposta volta à mesma página e ao mesmo filtro;
 
 Um lote pode conter no máximo `C(20, 6) = 38.760` apostas, correspondente ao
 maior fechamento aceito pela interface. Gravar um fechamento envia somente as
 dezenas-base: quantidade de dezenas, de apostas e filtros da tela não participam.
 
-A lista de concursos pode ser filtrada por número do concurso, quantidade de
-pares, maior sequência consecutiva e presença de acertador da Mega Sena, e tem
-salto direto para uma página.
+A lista de concursos (**Concursos › Resultados**, `/contests`) pode ser
+filtrada por número do concurso, quantidade de pares, maior sequência
+consecutiva e presença de acertador da Mega Sena, e tem salto direto para uma
+página. Ela só consulta: a importação de planilha e de link fica em
+**Concursos › Importar resultados** (`/contests/importar`), aberta a qualquer
+usuário autenticado.
+
+## Menu
+
+A barra do topo tem o Dashboard e três grupos, que abrem por clique:
+
+- **Apostas:** Gerar apostas e Minhas apostas;
+- **Concursos:** Resultados e Importar resultados;
+- **Conta e administração:** Configurações, Preferências, Usuários e Minha
+  senha. O grupo é de todos os usuários; Configurações e Usuários só aparecem
+  para administradores (e a rota recusa os demais com 403).
+
+O grupo e o item acendem conforme a tela aberta. O Racional abre a partir de
+Gerar apostas e mantém esse item aceso. Os grupos não têm tela própria.
 
 Na importação, valor monetário de texto com um único separador e exatamente três
 dígitos depois (`1.234`, `1,234`) é recusado como ambíguo — pode ser mil

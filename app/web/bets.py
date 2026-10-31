@@ -34,7 +34,7 @@ from ..bets.service import (
     count_closure_bets,
     generate_bets,
     generate_closure_bets,
-    list_recent_generations_with_bets,
+    paginate_generations,
 )
 from ..core.formatting import format_int, format_percent
 from ..core.numbers import MAX_INT32
@@ -304,7 +304,6 @@ def bet_generation():
     )
     if state_error:
         feedback, feedback_error = state_error, True
-    recent_generations = list_recent_generations_with_bets()
     if request.method == "POST":
         action = request.form.get("action", "generate")
         # Fechamento ignora quantidade de apostas e filtros (o servidor recalcula
@@ -393,7 +392,6 @@ def bet_generation():
                 return render_template(
                     "bets/_save_response.html",
                     avisos=[{"mensagem": feedback, "severidade": "success"}],
-                    recent_generations=list_recent_generations_with_bets(),
                 )
             flash(feedback, "success")
             return redirect(
@@ -493,7 +491,6 @@ def bet_generation():
         "suggested_contest": (db.session.query(func.max(Draw.contest)).scalar() or 0) + 1,
         "closure_total_formatted": format_int(closure_total),
         "closure_preview_truncated": closure_preview_truncated,
-        "recent_generations": recent_generations,
         "filter_preview": filter_preview,
         "combination_report": combination_report,
         "selected_filters": selected_filters,
@@ -529,6 +526,18 @@ def bet_generation():
     )
 
 
+@bp.get("/bets/minhas")
+def my_bets():
+    """Histórico e conferência das apostas gravadas, paginado e filtrável por concurso."""
+    page = max(1, request.args.get("page", 1, type=int) or 1)
+    contest = optional_int(request.args.get("contest"))
+    return render_template(
+        "bets/minhas.html",
+        generations=paginate_generations(page=page, contest=contest),
+        contest=contest,
+    )
+
+
 @bp.post(f"/bets/saved/<int(max={MAX_INT32}):bet_id>/delete")
 def delete_bet(bet_id: int):
     try:
@@ -545,7 +554,15 @@ def delete_bet(bet_id: int):
         flash(str(exc), "error")
     else:
         flash("Aposta salva excluída.", "success")
-    return redirect(url_for("web.bet_generation"))
+    # Volta para o mesmo ponto da lista (página e filtro), sem confiar em URL
+    # vinda do formulário: só números entram, e o servidor monta o destino.
+    return redirect(
+        url_for(
+            "web.my_bets",
+            page=optional_int(request.form.get("page")),
+            contest=optional_int(request.form.get("contest")),
+        )
+    )
 
 
 @bp.get("/bets/preview")

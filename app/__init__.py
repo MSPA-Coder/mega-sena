@@ -424,7 +424,7 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
             response.vary.add("HX-Request")
             return response
         flash("O arquivo enviado ultrapassa o limite de 10 MB.", "error")
-        return redirect(url_for("web.contests")), 413
+        return redirect(url_for("web.import_page")), 413
 
     from . import models  # noqa: F401  (garante que os modelos sejam registrados)
     from .cli import register_commands

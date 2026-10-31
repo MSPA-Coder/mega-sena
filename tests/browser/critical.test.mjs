@@ -48,8 +48,8 @@ test('gerar não grava; confirmar e repetir preservam lote e auditoria', async (
       data: new URLSearchParams(confirmation).toString()});
     assert.equal(replay.status(), 200);
     assert.deepEqual(await state(page), saved);
-    await page.reload();
-    assert.equal(await page.locator('#recent-generations .generation-group').count(), 1);
+    await page.goto(base + '/bets/minhas');
+    assert.equal(await page.locator('#saved-generations .generation-group').count(), 1);
   });
 });
 test('fechamento/previsão, critérios inválidos e percentual regional BR/EUA', async () => {
@@ -89,7 +89,7 @@ test('resultado importado destaca acertos mesmo sem prêmio', async () => {
       contest: '1', bet: '1,3,5,20,30,40', confirmation_token: randomUUID(),
     }});
     assert.equal(response.status(), 200);
-    await page.goto(base + '/bets');
+    await page.goto(base + '/bets/minhas?contest=1');
     const generation = page.locator('.generation-group').filter({hasText: 'Concurso 1'}).first();
     await generation.getByRole('button', {name: 'Ver'}).click();
     await generation.getByText('3 acertos', {exact: true}).waitFor();

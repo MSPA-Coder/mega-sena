@@ -1,4 +1,4 @@
-"""Rotas de consulta e importação de concursos."""
+"""Rotas de consulta (Resultados) e importação de concursos."""
 
 from __future__ import annotations
 
@@ -74,10 +74,9 @@ def _import_feedback(message: str, *, severidade: str = "error"):
         return render_template(
             "contests/_import_response.html",
             avisos=[{"mensagem": message, "severidade": severidade}],
-            **_contests_context(),
         )
     flash(message, severidade)
-    return redirect(url_for("web.contests"))
+    return redirect(url_for("web.import_page"))
 
 
 def _import_result_feedback(result: dict[str, int], *, source: str) -> object:
@@ -87,7 +86,7 @@ def _import_result_feedback(result: dict[str, int], *, source: str) -> object:
     prize_message = (
         f" {result['winning_bets']} "
         f"{plural(result['winning_bets'], 'aposta premiada encontrada', 'apostas premiadas encontradas')}. "
-        "Confira as últimas apostas geradas."
+        "Confira em Minhas apostas."
         if result.get("winning_bets") else ""
     )
     return _import_feedback(
@@ -97,6 +96,11 @@ def _import_result_feedback(result: dict[str, int], *, source: str) -> object:
         f"{ignored} {plural(ignored, 'ignorado', 'ignorados')}." + prize_message,
         severidade="success",
     )
+
+
+@bp.get("/contests/importar")
+def import_page():
+    return render_template("contests/importar.html")
 
 
 @bp.post("/contests/import")

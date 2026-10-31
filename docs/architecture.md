@@ -54,6 +54,15 @@ o que HTML e HTMX não resolvem: alternância de tema, menu, confirmação de a�
 destrutiva e os campos que ficam somente-leitura no modo fechamento. Ele não
 renderiza dado nenhum.
 
+O menu do topo (`app/templates/base.html`) decide o item aceso pelo `endpoint`
+da requisição, não pelo prefixo da URL: `/contests` é prefixo de
+`/contests/importar`, e um prefixo acenderia os dois. Os grupos (Apostas,
+Concursos, Conta e administração) são botões que abrem um painel de links; o
+`base.js` alterna a classe `open`, fecha com clique fora, `Esc` ou foco que sai,
+e mantém um painel aberto por vez. Sem JavaScript, o painel abre por hover e
+foco. Rota nova de tela entra na lista de endpoints do seu grupo em `base.html`,
+senão o item não acende.
+
 ## Inicialização e configuração
 
 `app.create_app()` é a factory da aplicação. Ela:

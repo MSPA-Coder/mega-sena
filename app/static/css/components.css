@@ -2,7 +2,7 @@
    especificidade: `.secondary`, `.danger` e os botões do cabeçalho e do
    componente de confirmação continuam vencendo. */
 .button,
-:where(button:not(.nav-toggle, .theme-toggle, .logout-button)) {
+:where(button:not(.nav-toggle, .theme-toggle, .logout-button, .nav-group-toggle)) {
   border: 1px solid var(--button-border);
   background: var(--button-bg);
   color: var(--button-text);

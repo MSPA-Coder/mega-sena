@@ -27,6 +27,7 @@
   --topbar-bg: linear-gradient(135deg, #06442a 0%, #0a5e3c 50%, #06442a 100%);
   --topbar-active-bg: rgba(255, 255, 255, .16);
   --topbar-active-border: rgba(255, 255, 255, .28);
+  --topbar-menu-bg: #07402a;
   --primary: #0c6e49;
   --primary-strong: #084a32;
   --accent-gold: #d4a017;
@@ -72,6 +73,7 @@
   --topbar-bg: linear-gradient(135deg, #031a10 0%, #06442a 50%, #031a10 100%);
   --topbar-active-bg: rgba(255, 255, 255, .12);
   --topbar-active-border: rgba(255, 255, 255, .22);
+  --topbar-menu-bg: #052a1b;
   --primary: #28a06a;
   --primary-strong: #1f7e54;
   --accent-gold: #e0a93b;

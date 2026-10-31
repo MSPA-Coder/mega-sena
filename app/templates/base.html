@@ -31,22 +31,50 @@
     <span class="nav-toggle-line" aria-hidden="true"></span>
   </button>
   <nav id="primary-nav" aria-label="Navegação principal">
-    <a class="{{ 'active' if request.endpoint == 'web.dashboard' else '' }}" href="{{ url_for('web.dashboard') }}">Dashboard</a>
-    <a class="{{ 'active' if request.endpoint in ['web.bet_generation', 'web.rationale'] else '' }}" href="{{ url_for('web.bet_generation') }}">Gerar apostas</a>
-    <a class="{{ 'active' if request.endpoint == 'web.contests' or request.endpoint == 'web.import_upload' else '' }}" href="{{ url_for('web.contests') }}">Concursos</a>
-    {# Configurações e Usuários exigem `admin` na rota (ver
-       `web/authorization.py`). Esconder aqui é apresentação: o controle
-       está no decorator, e um operador que digite /settings recebe 403
-       mesmo sem ver este item. #}
-    {% if current_user.is_authenticated and current_user.is_admin %}
-    <a class="{{ 'active' if request.endpoint in ['web.settings_page', 'web.save_settings', 'web.reset_database'] else '' }}" href="{{ url_for('web.settings_page') }}">Configurações</a>
-    <a class="{{ 'active' if request.endpoint in ['web.users_page', 'web.create_user', 'web.reset_user_password', 'web.toggle_user_active', 'web.change_user_role'] else '' }}" href="{{ url_for('web.users_page') }}">Usuários</a>
-    {% endif %}
+    {#- Um grupo acende quando qualquer tela dele está aberta; o endpoint decide,
+        não o prefixo da URL (`/contests` é prefixo de `/contests/importar`).
+        O submenu abre por clique (ver `base.js`); sem JavaScript, abre por
+        hover e foco. -#}
+    {% set ep = request.endpoint %}
+    {% set eh_admin = current_user.is_authenticated and current_user.is_admin %}
+    {% set eps_apostas = ['web.bet_generation', 'web.rationale'] %}
+    {% set eps_importar = ['web.import_page', 'web.import_upload', 'web.import_from_link'] %}
+    {% set eps_admin = ['web.settings_page', 'web.save_settings', 'web.reset_database', 'web.users_page', 'web.create_user', 'web.reset_user_password', 'web.toggle_user_active', 'web.change_user_role'] %}
+    {% set eps_conta = ['web.preferences', 'web.change_password'] %}
+    <a class="{{ 'active' if ep == 'web.dashboard' else '' }}" href="{{ url_for('web.dashboard') }}"{% if ep == 'web.dashboard' %} aria-current="page"{% endif %}>Dashboard</a>
+    <div class="nav-group{{ ' active' if ep in eps_apostas or ep == 'web.my_bets' else '' }}" data-nav-group>
+      <button type="button" class="nav-group-toggle" aria-expanded="false" aria-controls="nav-sub-apostas">Apostas<span class="nav-caret" aria-hidden="true"></span></button>
+      <div class="nav-submenu" id="nav-sub-apostas">
+        <a class="{{ 'active' if ep in eps_apostas else '' }}" href="{{ url_for('web.bet_generation') }}"{% if ep in eps_apostas %} aria-current="page"{% endif %}>Gerar apostas</a>
+        <a class="{{ 'active' if ep == 'web.my_bets' else '' }}" href="{{ url_for('web.my_bets') }}"{% if ep == 'web.my_bets' %} aria-current="page"{% endif %}>Minhas apostas</a>
+      </div>
+    </div>
+    <div class="nav-group{{ ' active' if ep == 'web.contests' or ep in eps_importar else '' }}" data-nav-group>
+      <button type="button" class="nav-group-toggle" aria-expanded="false" aria-controls="nav-sub-concursos">Concursos<span class="nav-caret" aria-hidden="true"></span></button>
+      <div class="nav-submenu" id="nav-sub-concursos">
+        <a class="{{ 'active' if ep == 'web.contests' else '' }}" href="{{ url_for('web.contests') }}"{% if ep == 'web.contests' %} aria-current="page"{% endif %}>Resultados</a>
+        <a class="{{ 'active' if ep in eps_importar else '' }}" href="{{ url_for('web.import_page') }}"{% if ep in eps_importar %} aria-current="page"{% endif %}>Importar resultados</a>
+      </div>
+    </div>
     {% if current_user.is_authenticated %}
-    {# Trocar a propria senha nao exige papel nenhum: e a conta de quem esta
-       logado, ao contrario de "Usuarios", que administra contas alheias. #}
-    <a class="{{ 'active' if request.endpoint == 'web.preferences' else '' }}" href="{{ url_for('web.preferences') }}">Preferências</a>
-    <a class="{{ 'active' if request.endpoint == 'web.change_password' else '' }}" href="{{ url_for('web.change_password') }}">Minha senha</a>
+    {# O grupo é de todos: Preferências e Minha senha são da conta de quem está
+       logado. Configurações e Usuários exigem `admin` na rota (ver
+       `web/authorization.py`); esconder aqui é apresentação, o controle está
+       no decorator, e um operador que digite /settings recebe 403 mesmo sem
+       ver o item. #}
+    <div class="nav-group{{ ' active' if ep in eps_admin or ep in eps_conta else '' }}" data-nav-group data-align="end">
+      <button type="button" class="nav-group-toggle" aria-expanded="false" aria-controls="nav-sub-conta">Conta e administração<span class="nav-caret" aria-hidden="true"></span></button>
+      <div class="nav-submenu" id="nav-sub-conta">
+        {% if eh_admin %}
+        <a class="{{ 'active' if ep in ['web.settings_page', 'web.save_settings', 'web.reset_database'] else '' }}" href="{{ url_for('web.settings_page') }}"{% if ep in ['web.settings_page', 'web.save_settings', 'web.reset_database'] %} aria-current="page"{% endif %}>Configurações</a>
+        {% endif %}
+        <a class="{{ 'active' if ep == 'web.preferences' else '' }}" href="{{ url_for('web.preferences') }}"{% if ep == 'web.preferences' %} aria-current="page"{% endif %}>Preferências</a>
+        {% if eh_admin %}
+        <a class="{{ 'active' if ep in ['web.users_page', 'web.create_user', 'web.reset_user_password', 'web.toggle_user_active', 'web.change_user_role'] else '' }}" href="{{ url_for('web.users_page') }}"{% if ep in ['web.users_page', 'web.create_user', 'web.reset_user_password', 'web.toggle_user_active', 'web.change_user_role'] %} aria-current="page"{% endif %}>Usuários</a>
+        {% endif %}
+        <a class="{{ 'active' if ep == 'web.change_password' else '' }}" href="{{ url_for('web.change_password') }}"{% if ep == 'web.change_password' %} aria-current="page"{% endif %}>Minha senha</a>
+      </div>
+    </div>
     <form method="post" action="{{ url_for('web.logout') }}" class="logout-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit" class="logout-button">Sair</button>
