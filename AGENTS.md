@@ -97,7 +97,8 @@ versione a pasta e trate `-Force` como rotação coordenada.
 O Compose publica serviços apenas em loopback. Exposição externa requer HTTPS,
 `FORCE_HTTPS`, revisão de hosts confiáveis, segredo estável e estratégia de
 proxy. A imagem `runtime` usa gunicorn e usuário não-root. O modo padrão
-reconstrói sem cache a partir das tags base móveis em cada subida; inclua
+reconstrói com cache e com as imagens-base já baixadas, como o deploy; bases
+novas só entram quando pedidas (ver `docs/development.md`). Inclua
 `compose.dev.yaml` explicitamente para montar código durante desenvolvimento.
 
 ## Operação, riscos e validação
@@ -111,8 +112,9 @@ docker compose --env-file .env.docker -f compose.yaml --profile quality run --bu
 ```
 
 `--build` mantém a validação explícita e reproduzível: o serviço `quality` não
-monta o código do host, e Compose reconstrói sem cache com as tags base atuais
-antes de executar os testes.
+monta o código do host, e Compose reconstrói a imagem com o código atual, com
+cache, antes de executar os testes. Só o `postgres-teste` monta sem cache: é
+isso que o recria vazio a cada execução (ver o comentário no `compose.yaml`).
 
 O `.venv` do projeto é runtime-only, criado com `uv sync --locked --python
 3.15`. Lint, testes, banco e auditoria rodam nos serviços Compose. `sharedauth`

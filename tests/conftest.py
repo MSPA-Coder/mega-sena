@@ -83,6 +83,23 @@ def client(app):
     return app.test_client()
 
 
+@pytest.fixture(autouse=True)
+def _carregador_de_usuario_restaurado(monkeypatch):
+    """Devolve o `user_loader` original ao fim de cada teste.
+
+    Varios testes logam sem banco trocando `login_manager._user_callback` por
+    um que devolve um usuario fixo, por atribuicao direta. O `login_manager` e
+    global do modulo: sem restaurar, o teste seguinte herda esse carregador. A
+    ordem da suite escondia o vazamento, porque o proximo `create_app()`
+    registra o carregador de novo; numa ordem diferente, um teste com banco
+    aceitou uma copia de cookie ja revogada e gravou auditoria com um usuario
+    que nao existe (visto ao distribuir a suite pelo xdist em 31/10/2026).
+    """
+    from app.extensions import login_manager
+
+    monkeypatch.setattr(login_manager, "_user_callback", login_manager._user_callback)
+
+
 # ---------------------------------------------------------------------------
 # Camada com banco (`@pytest.mark.banco`)
 # ---------------------------------------------------------------------------

@@ -64,9 +64,9 @@ script pode migrá-los para arquivos; use `-RemoveLegacyValues` somente depois
 de validar a subida. `-Force` troca os segredos e exige tratar a senha do banco
 e a invalidação das sessões existentes.
 
-Sem `compose.dev.yaml`, o serviço não monta o código do host e reconstrói sem
-cache a partir das tags base móveis em cada subida. A CI verifica o build e os
-testes antes de integrar atualizações de dependências. O serviço `migrate`
+Sem `compose.dev.yaml`, o serviço não monta o código do host e reconstrói com
+cache, a partir das imagens-base já baixadas (ver "Imagens-base" abaixo). O
+serviço `migrate`
 executa `flask --app run.py db upgrade`, com o papel administrativo, antes do
 Gunicorn do `app`; `create_app()` apenas monta a
 aplicação e não consulta o banco, cria tabelas ou dados iniciais.
@@ -81,9 +81,25 @@ docker compose --env-file .env.docker -f compose.yaml --profile quality run --bu
 
 **`--build` não é opcional.** O serviço `quality` não monta o código do
 host: o que ele executa é o que foi copiado para a imagem. `docker compose
-run` reconstrói sem cache a partir das tags base atuais antes de executar os
-testes. A CI semanal repete build, testes e auditorias para conferir as
-atualizações automáticas do sistema e das dependências.
+run --build` reconstrói a partir do código atual, com cache. Só o
+`postgres-teste` monta sem cache, e é isso que o recria vazio a cada execução,
+para `app_com_banco` aplicar a cadeia Alembic a um banco vazio.
+
+### Imagens-base
+
+Nem o `quality` nem o deploy buscam imagens-base novas por conta própria: o
+Compose não declara `pull`, e as camadas do `apt-get upgrade` ficam em cache
+até alguém pedir bases novas. É a mesma regra do servidor, onde um deploy comum
+monta sem `--pull` e só `deploy.sh megasena --refresh` busca bases novas. Para
+testar bases novas na máquina antes do `--refresh`:
+
+```powershell
+docker compose --env-file .env.docker -f compose.yaml --profile quality build --pull --no-cache quality
+docker compose --env-file .env.docker -f compose.yaml --profile quality run --build --rm quality
+```
+
+A CI semanal faz o mesmo build sem cache e com `--pull`, só como aviso, para
+conferir as atualizações do sistema e das dependências.
 
 A suíte protege os contratos HTTP e de segurança — autenticação por padrão,
 CSRF, cabeçalhos, proxy, health check, download e limite de login —, a

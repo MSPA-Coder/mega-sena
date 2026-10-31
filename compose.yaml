@@ -11,8 +11,8 @@ x-logging: &default-logging
 # dados são aplicados por docker-entrypoint.sh como etapa controlada, antes
 # do processo do servidor iniciar — nunca dentro de `create_app()`.
 #
-# Uso padrão: `docker compose -f compose.yaml up` reconstrói sem cache a partir
-# das tags base móveis, sem bind mount de código. Edição ao vivo exige incluir
+# Uso padrão: `docker compose -f compose.yaml up --build` reconstrói com cache,
+# sem bind mount de código. Edição ao vivo exige incluir
 # explicitamente `-f compose.dev.yaml`.
 
 services:
@@ -23,8 +23,6 @@ services:
     build:
       context: .
       dockerfile: docker/sandbox-postgres/Dockerfile
-      pull: true
-      no_cache: true
     pull_policy: build
     user: postgres
     read_only: true
@@ -66,8 +64,6 @@ services:
     build:
       context: .
       dockerfile: docker/sandbox-postgres/Dockerfile
-      pull: true
-      no_cache: true
     pull_policy: build
     user: postgres
     read_only: true
@@ -108,8 +104,6 @@ services:
     pull_policy: build
     build:
       context: .
-      pull: true
-      no_cache: true
       target: runtime
       secrets:
         - local_ca
@@ -154,8 +148,6 @@ services:
     pull_policy: build
     build:
       context: .
-      pull: true
-      no_cache: true
       target: runtime
       secrets:
         - local_ca
@@ -229,12 +221,17 @@ services:
   # `mode` na sintaxe longa são ignorados fora do Swarm. Com 0600 de outro dono,
   # este contêiner morre no arranque e o `quality` só reporta "dependency failed
   # to start". No Docker Desktop do Windows não aparece: lá tudo chega 0777.
+  #
+  # `no_cache` é o que recria este contêiner a cada `quality`: a imagem nasce
+  # com outro ID, e o Compose troca o contêiner que estava de pé. Sem isso ele
+  # sobrevive entre execuções e `app_com_banco` deixa de aplicar a cadeia
+  # Alembic a um banco vazio. Só este serviço o mantém; os demais montam com
+  # cache, como o deploy.
   postgres-teste:
     image: mspa-postgres:17-alpine
     build:
       context: .
       dockerfile: docker/sandbox-postgres/Dockerfile
-      pull: true
       no_cache: true
     pull_policy: build
     profiles: ["quality"]
@@ -273,7 +270,6 @@ services:
   quality:
     build:
       context: .
-      pull: true
       target: quality
       secrets:
         - local_ca

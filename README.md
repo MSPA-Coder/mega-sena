@@ -80,8 +80,8 @@ acesso.
 
 Para desenvolvimento com o código montado no contêiner, acrescente
 `-f compose.dev.yaml` ao comando de subida. O Compose padrão reconstrói a
-imagem de runtime sem cache, a partir das tags base móveis, e não monta o
-código do host.
+imagem de runtime com cache, a partir das imagens-base já baixadas, e não
+monta o código do host.
 
 ## Validação
 
@@ -90,8 +90,8 @@ docker compose --env-file .env.docker -f compose.yaml --profile quality run --bu
 ```
 
 `--build` mantém a validação explícita e reproduzível: o serviço `quality` não
-monta o código do host; Compose reconstrói sem cache com as tags base atuais
-antes dos testes.
+monta o código do host; Compose reconstrói a imagem com o código atual, com
+cache, antes dos testes.
 
 Esse estágio executa Ruff e pytest. Mudanças relevantes também exigem percorrer
 manualmente o fluxo afetado; alterações persistentes exigem backup e validação
