@@ -20,8 +20,9 @@ VPS documentado. Frequências, filtros e relatórios descrevem somente os
 concursos carregados: não são previsão nem aumentam a probabilidade de uma
 combinação.
 
-Antes de mudar comportamento, consulte nesta ordem o código, as migrações e os
-testes afetados, e depois os documentos vivos:
+Antes de mudar comportamento, consulte o código, as migrações e os testes
+afetados. Os documentos abaixo cobrem um assunto cada; leia o do assunto
+afetado, não todos:
 
 - `README.md`: finalidade, início rápido e índice;
 - `docs/business-rules.md`: contrato visível de concursos, apostas e fechamentos;
@@ -239,3 +240,12 @@ Invariantes operacionais dessas verificações:
 3. **O serviço servido declara `image:` com nome fixo no `compose.yaml`.** Sem
    isso o Compose batiza a imagem pelo nome do diretório, que muda conforme
    onde o repositório foi clonado — e a varredura fica sem alvo estável.
+
+## Arquivos sincronizados com o manutencao
+
+`Dockerfile.browser`, `scripts/provision-db-runtime.sh`,
+`docs/security-audit/gerar_relatorio.py`, `docs/TESTES.md` são cópias
+de arquivos canônicos do repositório `manutencao` (ver
+`manutencao/compartilhados/README.md`). Não os edite aqui: mude a canônica e
+rode `python compartilhados/sincronizar.py --aplicar` no `manutencao`, que
+copia para todos os repositórios de uma vez.
