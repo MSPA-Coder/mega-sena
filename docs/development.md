@@ -27,8 +27,8 @@ não recebem essa permissão de troca.
 
 
 O projeto usa Docker para aplicação, PostgreSQL, migrations, lint e testes. No
-host são necessários apenas Docker Desktop, Git e um editor; o venv do laço
-rápido, descrito no `AGENTS.md`, é opcional.
+host são necessários apenas Docker Desktop, Git e um editor; o `.venv` do
+projeto é só de runtime (`uv sync --locked --python 3.15`).
 
 ## Ambiente
 

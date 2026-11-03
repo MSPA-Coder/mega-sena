@@ -1,251 +1,130 @@
-# MegaSena — orientações de trabalho
+# MegaSena — guia de trabalho
 
-> **A frota é este projeto, o ControleBancario e o ControleRendaVariavel.** Os
-> três compartilham o `SharedAuth`, o mesmo formato de Compose e Dockerfile e o
-> mesmo portão `quality`, e servem de referência uns aos outros. Divergir é
-> permitido quando for uma escolha consciente: experimente num deles e, se der
-> certo, leve aos outros.
->
-> **O ConfortoTermico não está na frota** e segue trilha própria desde
-> 07/09/2026: a arquitetura dele é livre, e diferença em relação a ele **não é
-> débito**. O que ele preserva é o contrato operacional — VPS, `deploy.sh`,
-> vigia, autocura, alerta, backup e `SharedAuth`. Ver o ADR 008 daquele
-> repositório.
+<!-- comum: início. Cópia de _manutencao/compartilhados/AGENTS-comum.md; mude lá e rode sincronizar.py --aplicar. -->
+## Regras comuns aos repositórios
 
-## Escopo e fontes de verdade
+**O que espera o "sim" do mantenedor:** commit e push (quando ele pedir),
+deploy, qualquer ação no VPS, e apagar dados, volumes ou backups
+(`docker compose down -v` inclusive). Na dúvida sobre algo irreversível,
+pergunte; no resto, decida e diga o que decidiu.
+
+**Ciclo.** Altere, rode a verificação completa deste repositório (seção
+"Validação"), commite direto no `main` e dê `git push`: sem PR, sem push
+forçado, sem rebase do `main` publicado. A CI roda depois, só como aviso, mas
+vermelho no `main` se investiga. O Dependabot chega por PR, com merge manual. O
+deploy é `~/deploy.sh <app>` no VPS1: monta a imagem a partir do `main`,
+confere `/health` e volta sozinho se falhar. O VPS só espelha o `main`; nada se
+edita lá. Imagem-base nova (correção do Debian ou do Python) só quando ele
+pedir: testa na máquina e depois `~/deploy.sh <app> --refresh`. Ao terminar,
+diga o que rodou, o resultado e o que deixou de validar.
+
+**Dados e segredos.** Mudança destrutiva ou conversão de dados reais começa por
+backup conferido no BackupRestore. Segredos ficam fora do Git (`.secrets/` ou
+configuração do usuário) e não aparecem em código, imagem, log, diff,
+documento nem relatório.
+
+**Dependências.** Alargue o teto e preserve o piso já verificado: elevar o piso
+afirma uma incompatibilidade, e isso exige prova. Vulnerabilidade se corrige
+atualizando; exceção só explícita, com motivo e data. Enquanto o Dependabot não
+aceitar Python 3.15, ele não propõe atualização de `uv` e o grafo do GitHub fica
+parado no lock de 13/10/2026: confira alerta pela versão do `uv.lock`, e
+atualize à mão (`uv lock --upgrade-package <pacote>`) quando o `pip-audit` ou o
+Trivy apontarem.
+
+**Testes.** `docs/TESTES.md` diz o que testar e como. Diante de vermelho,
+decida de quem é o defeito; nunca escreva código para um teste passar. Não
+rode duas verificações do mesmo repositório ao mesmo tempo: a segunda recria o
+banco de teste e derruba a primeira.
+
+**Cópias.** Este bloco, `docs/TESTES.md` e os arquivos listados em
+`_manutencao/compartilhados/sincronizar.py` são cópias: mude a canônica lá e
+rode `python compartilhados/sincronizar.py --aplicar` no `_manutencao`.
+
+**Este arquivo.** Guarde aqui só o que o código não diz: limites, decisões com
+o motivo, armadilhas e comandos. História fica no `git log`; decisão com
+alternativas vira ADR; detalhe de implementação fica no código. Para
+acrescentar uma regra, retire ou funda outra: `sincronizar.py` reprova este
+arquivo acima de 900 palavras fora deste bloco.
+<!-- comum: fim -->
+
+## O sistema
 
 Aplicação Flask para importar resultados da Mega-Sena, consultar estatísticas e
-organizar apostas. O uso é individual pelo mantenedor, em ambiente local e no
-VPS documentado. Frequências, filtros e relatórios descrevem somente os
-concursos carregados: não são previsão nem aumentam a probabilidade de uma
-combinação.
+organizar apostas. Uso individual do mantenedor, local e no VPS
+(`https://megasena-mspa.duckdns.org`, deploy `~/deploy.sh megasena`).
+Frequências e filtros descrevem os concursos carregados: não são previsão, e a
+interface não deve sugerir o contrário.
 
-Antes de mudar comportamento, consulte o código, as migrações e os testes
-afetados. Os documentos abaixo cobrem um assunto cada; leia o do assunto
-afetado, não todos:
+Faz parte da frota com o ControleBancario e o ControleRendaVariavel: mesmo
+SharedAuth, mesmo formato de Compose e de `quality`. Divergir é permitido
+quando for escolha consciente; o que der certo aqui pode ir para os outros.
 
-- `README.md`: finalidade, início rápido e índice;
-- `docs/business-rules.md`: contrato visível de concursos, apostas e fechamentos;
-- `docs/architecture.md`: limites entre interface, serviços e persistência;
-- `docs/development.md`: ciclo de desenvolvimento, schema e validação;
-- `docs/deployment-vps.md`: operação, dados, backup e implantação;
-- `migrations/README`: estado e procedimento das migrações.
+Leia só o documento do assunto da mudança: `docs/business-rules.md`
+(concursos, apostas, fechamentos), `docs/architecture.md` (camadas e
+persistência), `docs/development.md` (ambiente, mypy, navegador),
+`docs/deployment-vps.md` (VPS e dados), `docs/travas.md` (locks e o que os
+cobre) e `docs/adr/` (decisões).
 
-Atualize o documento que representa o contrato alterado na mesma mudança. Não
-registre tentativas ou incidentes resolvidos em documentação operacional; use
-um ADR quando uma decisão arquitetural tiver alternativas, impacto duradouro ou
-plano de migração/rollback.
-
-## Arquitetura e invariantes essenciais
-
-O monólito modular organiza `app/web` (HTTP), `app/bets`, `app/draws`,
-`app/settings` e `app/accounts` (casos de uso) sobre SQLAlchemy/PostgreSQL.
-Regras reutilizáveis ficam fora das rotas e a transação cobre todo o caso de uso
-que grava dados. Não acrescente camadas sem reduzir complexidade concreta.
-
-PostgreSQL é o único backend operacional. `create_app()` não consulta banco,
-não aplica migrações e não cria seed. `flask db upgrade` é etapa controlada:
-no Compose, o serviço `migrate` a executa com o papel administrativo antes do
-`app`, que conecta com o papel restrito `mega_sena_app` (só DML, provisionado
-pelo `db-provision`) e recusa conexão superusuária. Banco novo
-pode permanecer sem linhas de configuração, pois a aplicação lê os padrões até
-a primeira gravação. Mudança persistente exige revisão Alembic nova; não
-reescreva uma revisão já aplicável nem use `stamp` ou `create_all()` como
-bootstrap.
-
-As `CHECK constraints` de `Draw` protegem valores derivados das dezenas. Não
-duplique essa garantia com reparo silencioso em Python. Importações de XLSX são
-atômicas e preservam os limites contra corrupção e consumo excessivo de
-recursos. Apostas somente são gravadas após confirmação; normalização,
-deduplicação, identificação do lote e gravação composta permanecem no servidor.
-
-## Interface, segurança e exposição
-
-O padrão atual é HTML renderizado no servidor e HTMX para atualizações
-incrementais, com `Vary: HX-Request` quando a mesma rota devolve página ou
-fragmento. É uma preferência, porque reduz formatos e consumidores paralelos,
-não uma proibição: uma API JSON ou um fluxo JavaScript novo pode entrar quando
-fizer sentido, preservando autorização e CSRF, com testes proporcionais e com
-os consumidores atualizados na mesma mudança. O cuidado que continua valendo é
-não duplicar no JavaScript uma regra de negócio que já vive no servidor.
-
-Toda rota nasce protegida por sessão, exceto a lista pública explícita em
-`PUBLIC_ENDPOINTS`. Escritas exigem CSRF. Preserve CSP, limites de upload e
-requisição, hosts confiáveis e cookies `HttpOnly`/`SameSite`; `SECRET_KEY` é
-obrigatória e não tem fallback. Sessão, CSRF, limite de tentativas de login,
-controle de acesso, hash de senha, senha temporária e trava de troca
-pendente, destino pós-login seguro e a marca que amarra a sessão à senha em
-vigor, cabeçalhos de segurança e CSP, formatação
-de números em pt-BR e a rota `/health` vêm de
-[SharedAuth](https://github.com/MSPA-Coder/SharedAuth), biblioteca
-compartilhada com os outros apps do mantenedor (ver README.md);
-o padrão é usar a biblioteca. `core/security.py` e `core/formatting.py` são
-adaptadores finos sobre ela; uma variação pode nascer aqui para experimentar e,
-se servir aos outros, sobe para a biblioteca com tag nova. O sistema autentica,
-mas não particiona dados:
-qualquer conta autenticada acessa o acervo comum. A gestão de contas é uma
-exceção administrativa deliberada: `/usuarios` exige `admin`, enquanto novos
-usuários recebem `operador` por padrão; isso não introduz propriedade de dados.
-A decisão de acervo comum, a alternativa recusada e o gatilho para revisá-la
-estão registrados em
-[ADR 0002](docs/adr/0002-acervo-comum-sem-dono.md).
-
-No Compose, a senha PostgreSQL e a chave de sessão são arquivos Docker secrets
-em `.secrets/`, apontados por `DB_PASSWORD_FILE` e `SECRET_KEY_FILE`. O
-provisionamento é `scripts/provision_secrets.ps1`: não imprima os valores, não
-versione a pasta e trate `-Force` como rotação coordenada.
-
-O Compose publica serviços apenas em loopback. Exposição externa requer HTTPS,
-`FORCE_HTTPS`, revisão de hosts confiáveis, segredo estável e estratégia de
-proxy. A imagem `runtime` usa gunicorn e usuário não-root. O modo padrão
-reconstrói com cache e com as imagens-base já baixadas, como o deploy; bases
-novas só entram quando pedidas (ver `docs/development.md`). Inclua
-`compose.dev.yaml` explicitamente para montar código durante desenvolvimento.
-
-## Operação, riscos e validação
-
-Use Docker Compose para validar a imagem e o Linux; não instale dependências do
-projeto no Python global do host. Comandos atuais:
+## Validação
 
 ```powershell
-docker compose --env-file .env.docker -f compose.yaml up --build -d
 docker compose --env-file .env.docker -f compose.yaml --profile quality run --build --rm quality
 ```
 
-`--build` mantém a validação explícita e reproduzível: o serviço `quality` não
-monta o código do host, e Compose reconstrói a imagem com o código atual, com
-cache, antes de executar os testes. Só o `postgres-teste` monta sem cache: é
-isso que o recria vazio a cada execução (ver o comentário no `compose.yaml`).
+Roda Ruff, mypy estrito e pytest contra um `postgres-teste` recriado vazio a
+cada execução, o que também prova a cadeia inteira de migrações. Rode antes de
+todo commit de código. O mypy cobre os arquivos de `tool.mypy.files` no
+`pyproject.toml` e cresce por fronteira, sem ignore em massa.
 
-O `.venv` do projeto é runtime-only, criado com `uv sync --locked --python
-3.15`. Lint, testes, banco e auditoria rodam nos serviços Compose. `sharedauth`
-é instalado do GitHub na tag declarada em `pyproject.toml` e no commit
-registrado em `uv.lock`.
+- Mudança visível: suba a pilha e percorra a tela ou o fluxo alterado.
+- Só documentação: `git diff --check` e
+  `python ../_manutencao/compartilhados/sincronizar.py`.
+- Docker ou dependência: também subir a pilha (`up --build -d`) e conferir
+  `/health`.
+- JS que afeta aposta ou confirmação: o runner de navegador de
+  `compose.browser.yaml` (comandos em `docs/development.md`).
 
-O que merece teste, em que camada e em que forma está em `docs/TESTES.md`,
-comum aos repositórios; leia antes de escrever ou remover um teste. Diante de
-vermelho, decida de quem é o defeito antes de mexer: teste que mede texto
-literal reprova mudança legítima, e nesse caso quem se corrige é a asserção.
-Nunca escreva código para o teste passar.
+## Limites que o código não mostra sozinho
 
-O estágio `quality` executa Ruff e toda a suíte pytest, incluindo os contratos
-de domínio de geração, fechamento e importação. O CI executa o Compose e esse
-estágio em mudanças para `main` e semanalmente, audita as dependências Python
-instaladas com `pip-audit` e a imagem servida com Trivy. O Dependabot cobre
-dependências Python, imagens Docker e GitHub Actions. O CodeQL roda em
-configuração padrão (Python e Actions, semanal) e é status check obrigatório no
-ruleset do `main`, ao lado de `Qualidade`. O mypy estrito no `quality` cobre
-números/critérios, contexto e resultados/comando de confirmação. O escopo
-explícito em `pyproject.toml` cresce por fronteira, sem ignores em massa.
-Isso não dispensa a validação proporcional:
-percorra manualmente o fluxo alterado. Mudanças de
-autenticação, sessão, CSRF ou autorização executam o comando `quality`; mudanças
-de Docker ou dependências também exigem rebuild e subida da pilha. Em qualquer
-mudança de código, rode o `quality` completo na máquina antes do commit: é
-essa verificação que vale, e a CI depois do push é só aviso.
+- A transação cobre o caso de uso inteiro que grava; regra reutilizável fica
+  fora das rotas.
+- `create_app()` não toca no banco. Migração é o serviço `migrate`, com papel
+  administrativo; o `app` conecta como `mega_sena_app` (só DML) e recusa
+  superusuário. Toda mudança persistente ganha revisão Alembic nova; revisão
+  aplicável não se reescreve, e `stamp` ou `create_all()` não servem de
+  bootstrap. Banco novo pode ficar sem linhas de configuração: a aplicação usa
+  os padrões até a primeira gravação, então não crie seed para isso.
+- Toda rota exige sessão, salvo a lista explícita `PUBLIC_ENDPOINTS`; escrita
+  exige CSRF.
+- As `CHECK constraints` de `Draw` garantem os valores derivados das dezenas:
+  não duplique com reparo silencioso em Python.
+- Aposta só é gravada depois da confirmação; normalização, deduplicação e
+  gravação ficam no servidor. A importação de XLSX é atômica e mantém os
+  limites de tamanho.
+- Acervo comum: qualquer conta autenticada vê todos os dados; `/usuarios` exige
+  `admin`. O ADR 0002 diz por quê e quando rever.
+- HTML do servidor com HTMX (`Vary: HX-Request` quando a rota devolve página
+  ou fragmento) é o padrão, não proibição: JSON ou JS novo pode entrar desde
+  que não duplique regra que já vive no servidor.
+- Sessão, CSRF, limite de login, senhas, cabeçalhos e CSP, formatação pt-BR e
+  `/health` vêm do SharedAuth; `app/core/security.py` e
+  `app/core/formatting.py` são adaptadores finos. A biblioteca vem do GitHub,
+  na tag do `pyproject.toml` e no commit do `uv.lock`. Variação nasce aqui e,
+  se servir aos outros, sobe para a biblioteca com tag nova.
 
-Antes de manutenção de dados ou schema em produção, confira no BackupRestore,
-projeto irmão, que há um dump recente do VPS (`python cli.py listar --projeto
-mega_sena_vps`, rodado na pasta dele): quem o produz é o agente do servidor, e
-o catálogo o recebe pela `sincronizar-vps`. Se não houver dump do dia, avise o
-mantenedor antes de seguir. O `backup --projeto mega_sena` cobre apenas o banco
-local de testes e não protege a produção. O BackupRestore centraliza dump,
-catálogo e verificação, e este repositório não tem rotina própria. Mudança de
-schema exige ainda bootstrap em
-PostgreSQL vazio, pela cadeia Alembic, e teste de upgrade/downgrade quando a
-revisão os alterar. `docker compose down` preserva dados; `down -v` remove o
-volume e só cabe com autorização explícita. Preserve alterações locais não
-relacionadas e não imprima segredos.
+## Armadilhas
 
-## Implantação em produção
-
-Depois da verificação completa na máquina, faça commit direto no `main` e
-`git push`, sem PR e sem esperar nada. A regra do `main` continua impedindo
-apagá-lo ou reescrever o histórico: nada de push forçado nem de rebase do
-`main`. A CI do GitHub roda depois de cada push só como aviso e não bloqueia
-nada; se falhar, investigue. O Dependabot continua por PR, com os checks
-obrigatórios; o merge é manual (o workflow de auto-merge foi removido).
-
-O deploy (`~/deploy.sh megasena`) só roda quando o usuário mandar. O servidor
-monta a imagem a partir do código do `main`, sem esperar nem baixar nada da
-CI, confere a saúde e volta sozinho para a versão anterior se falhar.
-`~/deploy.sh --status` compara VPS × GitHub. Nada muda em produção sem o
-usuário mandar. As correções de segurança das imagens-base (Debian/Python)
-entram só quando ele pedir: testa localmente com as bases novas e depois roda
-`~/deploy.sh megasena --refresh`. Ver docs/deployment-vps.md.
-
-O sistema roda em um VPS Oracle atrás de Nginx com TLS, em
-`https://megasena-mspa.duckdns.org`, a partir de `/home/ubuntu/apps/mega-sena`.
-
-O código do servidor é espelho do `main`, em sentido único: desenvolvimento na
-máquina local, commit, push ao GitHub, e só então implantação. **Não edite
-código, não commite e não faça merge no VPS** — `~/deploy.sh megasena` aborta ao
-encontrar árvore suja, e a *deploy key* do servidor é somente leitura, então um
-push de lá falharia de qualquer forma.
-
-`.secrets/` e `.certs/` não são versionados e vivem apenas no servidor; um
-reclone precisa restaurá-los, ou o build falha e o banco fica inacessível. Os
-dados ficam no volume `mega-sena_postgres_data`, fora da pasta do código:
-substituir o diretório do projeto não os afeta. Consulte
-`docs/deployment-vps.md` antes de qualquer operação no VPS.
-
-## Evolução de versões e compatibilidade
-
-**Faixas de dependência: mantenha o piso.** O Dependabot roda com
-`versioning-strategy: increase-if-necessary`, a estratégia aceita para o
-ecossistema `uv`: só eleva o requisito declarado quando isso for indispensável
-à atualização. O piso registra a compatibilidade mínima efetivamente
-verificada, não a versão mais nova disponível: elevá-lo declara uma
-incompatibilidade que ninguém comprovou. A versão instalada é a do `uv.lock`:
-depois de mudar uma faixa, rode `uv lock` e commite o resultado. O Dependabot
-acompanha o lock pelo ecossistema `uv`.
-
-Mantenha dependências em faixas limitadas e atualize-as deliberadamente. Para
-atualização mínima/patch, execute a validação proporcional e registre impacto
-na documentação quando houver. Para mudança de versão menor ou maior, confirme
-compatibilidade com Python, PostgreSQL, Flask e o contrato de implantação;
-reconstrua a imagem do zero e execute `quality`. Quebras de contrato, schema ou
-interfaces exigem decisão explícita, migração/rollback, consumidores atualizados
-e uma nova revisão Alembic quando houver persistência. Compatibilidade só é
-mantida enquanto houver consumidor conhecido.
-
-## Barreiras de segurança no CI
-
-Duas verificações reprovam a CI e respondem perguntas diferentes:
-
-- **`pip-audit`** roda dentro da imagem `quality` e pergunta se alguma
-  dependência Python *instalada* tem CVE conhecido. Auditar o ambiente
-  instalado, e não o arquivo de requisitos, é o que responde sobre o que está
-  rodando em vez do que está escrito.
-- **Trivy** varre a imagem *servida* e cobre o que o `pip-audit` não vê: os
-  pacotes do sistema operacional da imagem base.
-
-Se uma delas reprovar, o conserto é atualizar a dependência ou a base — não
-afrouxar a verificação. Vulnerabilidade sem correção publicada já é filtrada
-(`--ignore-unfixed` no Trivy); no `pip-audit`, a saída é `--ignore-vuln <ID>`
-com um comentário dizendo por quê, para cada exceção ser uma decisão explícita
-e datada em vez de um vermelho permanente que se aprende a ignorar.
-
-Invariantes operacionais dessas verificações:
-
-1. **O Trivy roda como contêiner, não como action de marketplace.** A política
-   destes repositórios é `allowed_actions: selected` com apenas
-   `github_owned_allowed` — action de terceiro é barrada antes de o workflow
-   rodar, e o sintoma é `startup_failure` sem log nenhum. Não troque por uma
-   action "porque é mais limpo".
-2. **A varredura usa `docker save` + `--input`, sem montar
-   `/var/run/docker.sock`.** Montar o socket daria ao scanner controle
-   equivalente a root sobre o host; a leitura da imagem exportada evita essa
-   concessão.
-3. **O serviço servido declara `image:` com nome fixo no `compose.yaml`.** Sem
-   isso o Compose batiza a imagem pelo nome do diretório, que muda conforme
-   onde o repositório foi clonado — e a varredura fica sem alvo estável.
-
-## Arquivos sincronizados com o manutencao
-
-`Dockerfile.browser`, `scripts/provision-db-runtime.sh`,
-`docs/security-audit/gerar_relatorio.py`, `docs/TESTES.md` são cópias
-de arquivos canônicos do repositório `manutencao` (ver
-`manutencao/compartilhados/README.md`). Não os edite aqui: mude a canônica e
-rode `python compartilhados/sincronizar.py --aplicar` no `manutencao`, que
-copia para todos os repositórios de uma vez.
+- O backup que protege produção é o do VPS. Antes de mexer em dados ou schema
+  de produção, `python cli.py listar --projeto mega_sena_vps`, na pasta do
+  BackupRestore, precisa mostrar dump do dia; `backup --projeto mega_sena`
+  copia só o banco local de testes.
+- `.secrets/` (criado por `scripts/provision_secrets.ps1`; `-Force` é rotação
+  coordenada) e `.certs/` vivem só onde rodam: um reclone no VPS
+  (`/home/ubuntu/apps/mega-sena`) precisa restaurá-los, ou o build falha. Os
+  dados ficam no volume `mega-sena_postgres_data`, fora da pasta do código.
+- A CI roda o Trivy como contêiner, com `docker save` e `--input`: action de
+  terceiro é barrada pela política do repositório (`startup_failure` sem log),
+  e montar o socket Docker daria root ao scanner. Por isso o serviço servido
+  mantém `image:` com nome fixo.
+- Vulnerabilidade sem correção publicada: `--ignore-vuln <ID>` no `pip-audit`,
+  com comentário e data. O Trivy já ignora o que não tem correção.
