@@ -144,8 +144,8 @@ reescreva revisions já aplicáveis, não use `db.create_all()` como bootstrap e
 não use `stamp` como substituto de uma migration. Consulte
 [`migrations/README`](../migrations/README) para os comandos e a cadeia atual.
 
-A revisão `20261028_0010_bet_confirmation` guarda a identidade dos envios de
-apostas. Seu downgrade remove esse histórico: uma confirmação antiga reenviada
-depois da remoção deixa de ser reconhecida como repetição. O retorno de código
-ou imagem não deve executar esse downgrade automaticamente; antes de remover a
-tabela é necessário avaliar o impacto e preservar um backup verificável.
+A tabela `bet_confirmations` guarda a identidade dos envios de apostas.
+Removê-la apaga esse histórico: uma confirmação antiga reenviada deixa de ser
+reconhecida como repetição. O retorno de código ou imagem nunca executa
+downgrade; antes de remover a tabela, avalie o impacto e preserve um backup
+verificável.

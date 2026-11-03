@@ -70,26 +70,3 @@ def test_reimportacoes_concorrentes_do_mesmo_concurso_nao_duplicam(app_com_banco
         with app_com_banco.app_context():
             Draw.query.filter_by(contest=87654).delete()
             db.session.commit()
-
-
-def test_migration_associates_existing_bets_and_can_be_reversed(app_com_banco):
-    from flask_migrate import downgrade, upgrade
-    from sqlalchemy import text
-
-    with app_com_banco.app_context():
-        db.session.remove()
-        downgrade(revision="20261021_0008_session_epoch")
-        try:
-            db.session.execute(text(
-                "INSERT INTO generated_bets (generation_id, numbers_csv, quantity, score, created_at) "
-                "VALUES (987654, '1,2,3,4,5,6', 6, 0, now())"
-            ))
-            db.session.commit()
-            upgrade()
-            assert GeneratedBet.query.filter_by(generation_id=987654).one().contest == 3076
-        finally:
-            db.session.rollback()
-            db.session.execute(text("DELETE FROM generated_bets WHERE generation_id = 987654"))
-            db.session.commit()
-            db.session.remove()
-            upgrade()
