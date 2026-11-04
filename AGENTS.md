@@ -50,7 +50,7 @@ arquivo acima de 900 palavras fora deste bloco.
 ## O sistema
 
 Aplicação Flask para importar resultados da Mega-Sena, consultar estatísticas e
-organizar apostas. Usado pelo mantenedor e por mais uma pessoa, local e no VPS
+organizar apostas. Uso individual do mantenedor, local e no VPS
 (`https://megasena-mspa.duckdns.org`, deploy `~/deploy.sh megasena`).
 Frequências e filtros descrevem os concursos carregados: não são previsão, e a
 interface não deve sugerir o contrário.

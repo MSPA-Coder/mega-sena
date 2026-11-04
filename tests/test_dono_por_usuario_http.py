@@ -1,6 +1,6 @@
 """Apostas, padrões de geração e tema de cada conta (ADR 0004), pela porta pública.
 
-Decisão de 04/11/2026: outra pessoa já usa o sistema. Cada conta vê só as
+Decisão de 04/11/2026, para quando houver mais de uma conta. Cada conta vê só as
 próprias apostas, gera com os próprios padrões e leva o próprio tema; o
 endereço da planilha e a reinicialização da base continuam de administrador.
 """

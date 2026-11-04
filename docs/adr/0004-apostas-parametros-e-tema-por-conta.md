@@ -5,8 +5,15 @@ continuam acervo comum.
 
 ## Decisão
 
-Tomada pelo mantenedor em 04/11/2026, quando o gatilho de revisão do ADR 0002
-aconteceu: outra pessoa já usa o sistema com conta própria.
+Tomada pelo mantenedor em 04/11/2026. O uso continua individual: em produção
+só a conta do mantenedor tem atividade. A separação entra antes do gatilho do
+ADR 0002 (a segunda pessoa com conta própria), e não depois, por dois motivos:
+
+- é a visão de produto registrada pelo mantenedor em 24/08/2026 — no MegaSena,
+  apostas, parâmetros e tema pertencem a cada usuário;
+- com uma conta só, ela não muda nada no uso (tudo o que existe fica com essa
+  conta), e a segunda conta, quando vier, já nasce isolada, sem migração de
+  dados nem decisão urgente sobre de quem é cada aposta.
 
 - **Apostas são de cada conta.** `generated_bets.owner_id` (FK para `users`,
   `RESTRICT`) é quem confirmou o lote. Minhas apostas, a conferência com o

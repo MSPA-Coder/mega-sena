@@ -1,8 +1,9 @@
 """Apostas, parâmetros de geração e tema passam a ser de cada usuário.
 
 Decisão do mantenedor em 04/11/2026 (ADR 0004, que substitui em parte o ADR
-0002): outra pessoa já usa o sistema, então cada conta vê só as próprias
-apostas, gera com os próprios parâmetros e leva o próprio tema.
+0002): cada conta vê só as próprias apostas, gera com os próprios parâmetros e
+leva o próprio tema. O uso hoje é individual; a segunda conta, quando vier, já
+nasce isolada.
 
 - `generated_bets.owner_id`: as apostas que já existem vão para a conta `admin`
   de menor id, que em produção é a única com atividade. Com apostas gravadas e
