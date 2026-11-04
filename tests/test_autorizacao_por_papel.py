@@ -20,14 +20,14 @@ from app.web.authorization import PAPEL_ADMIN
 
 #: Endpoints restritos a administradores.
 #:
-#: Configuracoes entrou junto com Usuarios: `reset_database` apaga TODOS os
-#: concursos e apostas, e `save_settings` muda o padrao com que todo mundo gera
-#: aposta. O GET de `/settings` tambem, porque um formulario visivel que recusa
-#: o proprio POST seria uma tela existindo para nao funcionar.
+#: Desde 04/11/2026 (ADR 0004) os padroes de geracao sao de cada conta, entao
+#: `settings_page` e `save_settings` sairam da lista. Ficam o que vale para
+#: todos: `save_system_settings` (endereco da planilha de resultados) e
+#: `reset_database`, que apaga TODOS os concursos e as apostas de todas as
+#: contas.
 ENDPOINTS_DE_ADMIN = frozenset(
     {
-        "web.settings_page",
-        "web.save_settings",
+        "web.save_system_settings",
         "web.reset_database",
         "web.users_page",
         "web.create_user",

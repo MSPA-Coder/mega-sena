@@ -11,8 +11,9 @@ from app.accounts import commands as accounts
 from app.audit.contracts import AuditContext
 from app.bets import commands as bets
 from app.bets.service import prepare_generated_bets, stage_bet_batch
+from app.draws.downloading import DEFAULT_RESULTS_SOURCE_URL
 from app.extensions import db
-from app.models import AuditEvent, BetConfirmation, Config, GeneratedBet, User
+from app.models import AuditEvent, BetConfirmation, Config, GeneratedBet, User, UserConfig
 from app.settings import commands as settings
 
 pytestmark = pytest.mark.banco
@@ -24,18 +25,26 @@ BET = "37,41,43,47,53,59"
 def database(app_com_banco):
     with app_com_banco.app_context():
         db.session.execute(
-            text("TRUNCATE audit_events, generated_bets, config, users RESTART IDENTITY CASCADE")
+            text(
+                "TRUNCATE audit_events, generated_bets, config, user_config, users "
+                "RESTART IDENTITY CASCADE"
+            )
         )
         admin = User(username="atomic_admin", role="admin", is_active_user=True)
         operator = User(username="atomic_operator", role="operador", is_active_user=True)
         admin.set_password(PASSWORD)
         operator.set_password(PASSWORD)
-        db.session.add_all([admin, operator, GeneratedBet(quantity=6, numbers_csv=BET, score=0)])
+        db.session.add_all([admin, operator])
+        db.session.flush()
+        db.session.add(GeneratedBet(owner_id=admin.id, quantity=6, numbers_csv=BET, score=0))
         db.session.commit()
         yield app_com_banco, admin, operator
         db.session.rollback()
         db.session.execute(
-            text("TRUNCATE audit_events, generated_bets, config, users RESTART IDENTITY CASCADE")
+            text(
+                "TRUNCATE audit_events, generated_bets, config, user_config, users "
+                "RESTART IDENTITY CASCADE"
+            )
         )
         db.session.commit()
 
@@ -53,6 +62,10 @@ def _snapshot():
             for u in User.query.order_by(User.id)
         ],
         [(c.key, c.value) for c in Config.query.order_by(Config.key)],
+        [
+            (c.user_id, c.key, c.value)
+            for c in UserConfig.query.order_by(UserConfig.user_id, UserConfig.key)
+        ],
     )
 
 
@@ -68,6 +81,7 @@ def _audit_failure(_connection, _cursor, _statement, _parameters, context, _many
         "confirm",
         "delete",
         "settings",
+        "system_settings",
         "reset",
         "create",
         "provision",
@@ -85,7 +99,12 @@ def test_command_and_success_event_are_one_transaction(database, operation, fail
     operations = {
         "confirm": lambda: bets.confirm_generated_bets(6, ["1,2,3,4,5,6"], audit=audit),
         "delete": lambda: bets.delete_saved_bet(first_bet, audit=audit),
-        "settings": lambda: settings.update_config_values({"generation_amount": "7"}, audit=audit),
+        "settings": lambda: settings.update_generation_values(
+            admin.id, {"generation_amount": "7"}, audit=audit
+        ),
+        "system_settings": lambda: settings.update_results_source_url(
+            f"{DEFAULT_RESULTS_SOURCE_URL}?v=1", audit=audit
+        ),
         "reset": lambda: settings.reset_all_data(audit=audit),
         "create": lambda: accounts.create_user("new_synthetic", PASSWORD, actor=admin, audit=audit),
         "provision": lambda: accounts.provision_cli_user("cli_synthetic", PASSWORD),

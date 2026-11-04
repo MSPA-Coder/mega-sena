@@ -94,9 +94,15 @@ def _lock_batch_fingerprint(fingerprint: str) -> None:
 
 
 def stage_bet_batch(bets: list[GeneratedBet], token: str, actor_id: int | None) -> ConfirmationResult:
-    """Prepara a escrita com o lock aberto; só o comando confirma a transação."""
+    """Prepara a escrita com o lock aberto; só o comando confirma a transação.
+
+    Quem confirma é o dono do lote (ADR 0004): sem conta, não há a quem
+    entregar as apostas, e nada é gravado.
+    """
     if not bets:
         return ConfirmationResult(0, None)
+    if actor_id is None:
+        raise RuntimeError("Entre com a sua conta para gravar apostas.")
     quantity = bets[0].quantity
     numbers_csv = [bet.numbers_csv for bet in bets]
     contest = bets[0].contest
@@ -112,6 +118,7 @@ def stage_bet_batch(bets: list[GeneratedBet], token: str, actor_id: int | None) 
     )
     for bet in bets:
         bet.generation_id = generation_id
+        bet.owner_id = actor_id
     db.session.add_all(bets)
     db.session.add(BetConfirmation(token=token, actor_id=actor_id, fingerprint=fingerprint,
                                    generation_id=generation_id, saved_count=len(bets)))
@@ -249,13 +256,15 @@ def generate_closure_bets(
     ]
 
 
-def _generation_summaries(*, limit: int, offset: int = 0, contest: int | None = None) -> list[dict]:
+def _generation_summaries(
+    *, owner_id: int, limit: int, offset: int = 0, contest: int | None = None
+) -> list[dict]:
     query = db.session.query(
         GeneratedBet.generation_id,
         func.count(GeneratedBet.id),
         func.min(GeneratedBet.quantity),
         func.max(GeneratedBet.created_at),
-    ).filter(GeneratedBet.generation_id.isnot(None))
+    ).filter(GeneratedBet.owner_id == owner_id, GeneratedBet.generation_id.isnot(None))
     if contest is not None:
         query = query.filter(GeneratedBet.contest == contest)
     rows = (
@@ -276,13 +285,14 @@ def _generation_summaries(*, limit: int, offset: int = 0, contest: int | None = 
     ]
 
 
-def list_recent_generations(limit: int = 12) -> list[dict]:
+def list_recent_generations(owner_id: int, limit: int = 12) -> list[dict]:
+    """Gerações gravadas pela conta `owner_id`, da mais recente para a mais antiga."""
     limit = clamp_int(parse_int(limit) or 12, 1, MAX_RECENT_GENERATIONS)
-    return _generation_summaries(limit=limit)
+    return _generation_summaries(owner_id=owner_id, limit=limit)
 
 
-def list_recent_generations_with_bets(limit: int = 12) -> list[dict]:
-    return _attach_bets(list_recent_generations(limit=limit))
+def list_recent_generations_with_bets(owner_id: int, limit: int = 12) -> list[dict]:
+    return _attach_bets(list_recent_generations(owner_id, limit=limit), owner_id)
 
 
 @dataclass(frozen=True, slots=True)
@@ -304,9 +314,13 @@ class GenerationPage:
 
 
 def paginate_generations(
-    *, page: int = 1, per_page: int = GENERATIONS_PER_PAGE, contest: int | None = None
+    *,
+    owner_id: int,
+    page: int = 1,
+    per_page: int = GENERATIONS_PER_PAGE,
+    contest: int | None = None,
 ) -> GenerationPage:
-    """Histórico de gerações gravadas, da mais recente para a mais antiga.
+    """Histórico de gerações gravadas pela conta, da mais recente para a mais antiga.
 
     Diferente de `list_recent_generations_with_bets`, não corta o histórico em
     `MAX_RECENT_GENERATIONS`: a tela Minhas apostas é onde se confere o que foi
@@ -315,7 +329,7 @@ def paginate_generations(
     página não deixe a pessoa diante de uma lista vazia.
     """
     count_query = db.session.query(func.count(func.distinct(GeneratedBet.generation_id))).filter(
-        GeneratedBet.generation_id.isnot(None)
+        GeneratedBet.owner_id == owner_id, GeneratedBet.generation_id.isnot(None)
     )
     if contest is not None:
         count_query = count_query.filter(GeneratedBet.contest == contest)
@@ -323,12 +337,12 @@ def paginate_generations(
     pages = max(1, math.ceil(total / per_page))
     page = min(max(1, page), pages)
     generations = _generation_summaries(
-        limit=per_page, offset=(page - 1) * per_page, contest=contest
+        owner_id=owner_id, limit=per_page, offset=(page - 1) * per_page, contest=contest
     )
-    return GenerationPage(_attach_bets(generations), page, pages, total)
+    return GenerationPage(_attach_bets(generations, owner_id), page, pages, total)
 
 
-def _attach_bets(generations: list[dict]) -> list[dict]:
+def _attach_bets(generations: list[dict], owner_id: int) -> list[dict]:
     generation_ids = [generation["generation_id"] for generation in generations]
     if not generation_ids:
         return generations
@@ -342,7 +356,7 @@ def _attach_bets(generations: list[dict]) -> list[dict]:
             .over(partition_by=GeneratedBet.generation_id, order_by=GeneratedBet.id)
             .label("position"),
         )
-        .filter(GeneratedBet.generation_id.in_(generation_ids))
+        .filter(GeneratedBet.owner_id == owner_id, GeneratedBet.generation_id.in_(generation_ids))
         .subquery()
     )
     bets = (
@@ -366,14 +380,16 @@ def _attach_bets(generations: list[dict]) -> list[dict]:
     return generations
 
 
-def stage_delete_bet(bet_id: int) -> GeneratedBet:
-    """Exclui uma aposta salva, sem tocar nos concursos importados.
+def stage_delete_bet(bet_id: int, owner_id: int) -> GeneratedBet:
+    """Exclui uma aposta salva da própria conta, sem tocar nos concursos importados.
 
     O id é conferido no servidor; assim o botão da interface não é a única
     barreira e uma tentativa de remover algo inexistente recebe erro explícito.
+    A aposta de outra conta recebe o mesmo erro da inexistente: a resposta não
+    pode servir para descobrir quais ids existem nas contas alheias.
     """
     bet = db.session.get(GeneratedBet, bet_id, with_for_update=True)
-    if bet is None:
+    if bet is None or bet.owner_id != owner_id:
         raise RuntimeError("A aposta salva não foi encontrada.")
     db.session.delete(bet)
     return bet

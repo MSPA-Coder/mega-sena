@@ -50,7 +50,8 @@ def logado(app_com_banco):
     yield client
     with app_com_banco.app_context():
         db.session.rollback()
-        GeneratedBet.query.filter_by(generation_id=LOTE_SENTINELA).delete()
+        # Toda aposta é de uma conta (ADR 0004), e a conta não sai com apostas.
+        GeneratedBet.query.filter_by(owner_id=user_id).delete()
         AuditEvent.query.filter_by(actor_user_id=user_id).delete()
         db.session.delete(db.session.get(User, user_id))
         db.session.commit()
@@ -88,6 +89,7 @@ def test_exclusao_de_aposta_salva_declara_confirmacao_no_botao(app_com_banco, lo
     with app_com_banco.app_context():
         db.session.add(
             GeneratedBet(
+                owner_id=User.query.filter_by(username=NOME).one().id,
                 generation_id=LOTE_SENTINELA,
                 quantity=6,
                 numbers_csv="1,2,3,4,5,6",

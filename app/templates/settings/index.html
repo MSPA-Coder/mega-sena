@@ -3,9 +3,9 @@
 {% block content %}
 <section class="card settings-section">
     <div class="panel-header">
-      <h2>Configurações</h2>
+      <h2>Meus padrões de geração</h2>
     </div>
-    <p>Valores padrão usados ao abrir a geração, o racional e a importação de resultados.</p>
+    <p>Valores usados ao abrir a geração e o racional. São da sua conta: cada pessoa tem os próprios.</p>
     <form method="post" action="{{ url_for('web.save_settings') }}" class="form-grid settings-grid"
           hx-post="{{ url_for('web.save_settings') }}" hx-target="#settings-feedback" hx-swap="outerHTML"
           hx-disabled-elt="find button" hx-indicator="#settings-saving"
@@ -20,7 +20,6 @@
         <label>Soma final<input type="number" name="sum_max" min="{{ generation_limits['sum_max'][0] }}" max="{{ generation_limits['sum_max'][1] }}" placeholder="Opcional" value="{{ config_values.sum_max }}"></label>
         <label>Mínimo de faixas ocupadas<input type="number" name="range_min_occupied" min="{{ generation_limits['range_min_occupied'][0] }}" max="{{ generation_limits['range_min_occupied'][1] }}" placeholder="Opcional" value="{{ config_values.range_min_occupied }}"></label>
         <label>Máximo de dezenas por faixa<input type="number" name="range_max_per_band" min="{{ generation_limits['range_max_per_band'][0] }}" max="{{ generation_limits['range_max_per_band'][1] }}" placeholder="Opcional" value="{{ config_values.range_max_per_band }}"></label>
-        <label class="settings-source-url">Link da planilha de resultados<input type="url" name="results_source_url" maxlength="200" value="{{ config_values.results_source_url }}" required></label>
         <div class="form-actions">
             <button type="submit">Salvar configurações</button>
             <span id="settings-saving" class="htmx-indicator" role="status">Salvando…</span>
@@ -28,18 +27,40 @@
     </form>
     <div id="settings-feedback" aria-live="polite"></div>
 </section>
+{#- O que vale para todas as contas é de administrador: as rotas recusam com
+    403 para os demais, e esconder aqui é só apresentação. -#}
+{% if current_user.is_admin %}
+<section class="card settings-section">
+    <div class="panel-header">
+      <h2>Sistema</h2>
+    </div>
+    <p>Vale para todas as contas.</p>
+    <form method="post" action="{{ url_for('web.save_system_settings') }}" class="form-grid settings-grid"
+          hx-post="{{ url_for('web.save_system_settings') }}" hx-target="#system-feedback" hx-swap="outerHTML"
+          hx-disabled-elt="find button" hx-indicator="#system-saving"
+          hx-confirm="Salvar o endereço da planilha para todas as contas?">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label class="settings-source-url">Link da planilha de resultados<input type="url" name="results_source_url" maxlength="200" value="{{ results_source_url }}" required></label>
+        <div class="form-actions">
+            <button type="submit">Salvar endereço</button>
+            <span id="system-saving" class="htmx-indicator" role="status">Salvando…</span>
+        </div>
+    </form>
+    <div id="system-feedback" aria-live="polite"></div>
+</section>
 <section class="card danger-zone">
     <div class="panel-header">
       <h2>Reiniciar base</h2>
     </div>
-    <p class="muted">Apaga todos os concursos e apostas salvos. Use isso apenas para começar do zero.</p>
+    <p class="muted">Apaga todos os concursos e as apostas de todas as contas. Use isso apenas para começar do zero.</p>
     <form method="post" action="{{ url_for('web.reset_database') }}"
-          hx-post="{{ url_for('web.reset_database') }}" hx-target="#settings-feedback" hx-swap="outerHTML"
+          hx-post="{{ url_for('web.reset_database') }}" hx-target="#system-feedback" hx-swap="outerHTML"
           hx-disabled-elt="find button" hx-indicator="#reset-saving"
-          hx-confirm="Apagar TODOS os concursos e apostas cadastrados? Essa ação não pode ser desfeita.">
+          hx-confirm="Apagar TODOS os concursos e as apostas de TODAS as contas? Essa ação não pode ser desfeita.">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="danger">Apagar concursos e apostas</button>
         <span id="reset-saving" class="htmx-indicator" role="status">Reiniciando…</span>
     </form>
 </section>
+{% endif %}
 {% endblock %}

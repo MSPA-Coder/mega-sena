@@ -103,9 +103,10 @@ valores compõe o ambiente do contêiner. `DATABASE_URL` e `SECRET_KEY` diretos
 continuam aceitos somente para execução manual compatível e injeção de teste;
 não são o contrato do Compose.
 
-Não há etapa de seed. A tela de Configurações lê os valores padrão de geração e
-da fonte da planilha em `app/settings/service.py::DEFAULT_CONFIG` quando a linha
-correspondente não existe no banco; a primeira gravação do usuário é que cria as
+Não há etapa de seed. Os padrões de geração de uma conta vêm de `user_config`;
+chave que ela não salvou cai no padrão do sistema (`config`) e, na falta dele,
+em `app/settings/service.py::DEFAULT_GENERATION`. O endereço da planilha vem de
+`config` ou de `DEFAULT_RESULTS_SOURCE_URL`. A primeira gravação é que cria as
 linhas. Um banco recém-migrado é legitimamente vazio e a aplicação funciona assim.
 
 ## Módulos
@@ -223,8 +224,9 @@ O escopo padrão é local:
 
 - autenticação é obrigatória: `requer_login` nega por padrão, com
   `PUBLIC_ENDPOINTS` como lista curta e explícita do que é público (login,
-  health check e estáticos). Não há dono de dado: qualquer usuário autenticado
-  vê e altera o acervo inteiro; apenas a gestão de contas é administrativa;
+  health check e estáticos). Apostas, padrões de geração e tema são de cada
+  conta (`owner_id`, `user_config`, `users.theme`; ADR 0004) e concursos são
+  comuns; gestão de contas, endereço da planilha e `/reset` são de `admin`;
 - hosts aceitos são `localhost`, `127.0.0.1` e `[::1]`;
 - operações de escrita exigem token CSRF;
 - as respostas recebem CSP e outros cabeçalhos defensivos;

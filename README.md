@@ -56,8 +56,8 @@ docker compose --env-file .env.docker -f compose.yaml exec app flask --app run.p
 
 O primeiro usuário recebe o papel de administrador. A tela `/usuarios` é
 restrita a administradores; novos usuários criados por ela são operadores por
-padrão e continuam compartilhando o mesmo acervo de concursos, apostas e
-configurações.
+padrão. Cada conta tem as próprias apostas, padrões de geração e tema; os
+concursos são comuns a todas (ADR 0004).
 
 Quem perde a senha é atendido por um administrador em `/usuarios`: o botão
 **Redefinir** sorteia uma senha temporária, mostrada uma única vez na tela de

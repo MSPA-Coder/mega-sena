@@ -1,3 +1,3 @@
 {#- Resultado da submissão vira toast; nada fica visível neste alvo além do
     ponto de swap do HTMX (ver `data-sa-avisos` em sharedauth-ui.js). -#}
-<div id="settings-feedback" hidden data-sa-avisos='{{ avisos | tojson }}'></div>
+<div id="{{ feedback_id | default('settings-feedback') }}" hidden data-sa-avisos='{{ avisos | tojson }}'></div>

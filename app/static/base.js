@@ -20,6 +20,13 @@ htmx.config.includeIndicatorStyles = false;
       root.dataset.theme = next;
       document.cookie = "theme=" + next + ";path=/;max-age=" + 60 * 60 * 24 * 365 + ";SameSite=Lax";
       describe(next);
+      // Com sessão, grava também na conta, para valer em qualquer aparelho.
+      // Falhar aqui não desfaz a troca: o cookie já garante este navegador.
+      if (btn.dataset.themeUrl) {
+        var body = new URLSearchParams({ theme: next, csrf_token: btn.dataset.csrfToken || "" });
+        fetch(btn.dataset.themeUrl, { method: "POST", body: body, credentials: "same-origin" })
+          .catch(function () {});
+      }
     });
   }());
   (function () {

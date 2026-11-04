@@ -50,7 +50,7 @@ arquivo acima de 900 palavras fora deste bloco.
 ## O sistema
 
 Aplicação Flask para importar resultados da Mega-Sena, consultar estatísticas e
-organizar apostas. Uso individual do mantenedor, local e no VPS
+organizar apostas. Usado pelo mantenedor e por mais uma pessoa, local e no VPS
 (`https://megasena-mspa.duckdns.org`, deploy `~/deploy.sh megasena`).
 Frequências e filtros descrevem os concursos carregados: não são previsão, e a
 interface não deve sugerir o contrário.
@@ -101,8 +101,9 @@ todo commit de código. O mypy cobre os arquivos de `tool.mypy.files` no
 - Aposta só é gravada depois da confirmação; normalização, deduplicação e
   gravação ficam no servidor. A importação de XLSX é atômica e mantém os
   limites de tamanho.
-- Acervo comum: qualquer conta autenticada vê todos os dados; `/usuarios` exige
-  `admin`. O ADR 0002 diz por quê e quando rever.
+- Apostas, padrões de geração e tema são de cada conta, sem exceção para
+  `admin`; concursos são comuns. `/usuarios`, o endereço da planilha e
+  `/reset` exigem `admin`. O ADR 0004 diz por quê.
 - HTML do servidor com HTMX (`Vary: HX-Request` quando a rota devolve página
   ou fragmento) é o padrão, não proibição: JSON ou JS novo pode entrar desde
   que não duplique regra que já vive no servidor.

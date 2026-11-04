@@ -22,7 +22,11 @@ from flask.typing import ResponseReturnValue
 from flask_login import current_user, login_user
 
 from ..accounts.commands import change_own_password
-from ..accounts.service import MIN_PASSWORD_LENGTH, update_own_regional_format
+from ..accounts.service import (
+    MIN_PASSWORD_LENGTH,
+    update_own_regional_format,
+    update_own_theme,
+)
 from ..audit.contracts import AuditContext
 from ..audit.service import record_event
 from ..core.regional import (
@@ -108,3 +112,17 @@ def preferences() -> ResponseReturnValue:
             for valor, rotulo in REGIONAL_FORMAT_LABELS.items()
         ],
     )
+
+
+@bp.post("/preferencias/tema")
+def save_theme() -> ResponseReturnValue:
+    """Tema claro/escuro da própria conta, enviado pelo botão do topo (`base.js`).
+
+    Responde sem corpo: quem chama é o `fetch` do botão, que já trocou a tela
+    e o cookie antes de enviar.
+    """
+    try:
+        update_own_theme(current_user, request.form.get("theme"))
+    except ValueError as exc:
+        return str(exc), 400
+    return "", 204

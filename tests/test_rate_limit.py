@@ -57,7 +57,7 @@ def test_rationale_bloqueia_apos_o_limite_dedicado(client, monkeypatch) -> None:
     banco) -- mesma técnica de mock de tests/test_bet_generation_routes.py
     para exercitar a rota sem PostgreSQL.
     """
-    monkeypatch.setattr(bets, "get_generation_defaults", lambda: dict(_GENERATION_DEFAULTS))
+    monkeypatch.setattr(bets, "get_generation_defaults", lambda _user_id: dict(_GENERATION_DEFAULTS))
     _login_as(client, User(id=1, username="admin", role=ROLE_ADMIN, is_active_user=True))
 
     for _ in range(10):
@@ -69,7 +69,7 @@ def test_rationale_bloqueia_apos_o_limite_dedicado(client, monkeypatch) -> None:
 
 def test_rationale_dentro_do_limite_nao_e_afetada_pelo_padrao_global(client, monkeypatch) -> None:
     """O limite dedicado (mais estreito) é o que vale, não o global de 60/min."""
-    monkeypatch.setattr(bets, "get_generation_defaults", lambda: dict(_GENERATION_DEFAULTS))
+    monkeypatch.setattr(bets, "get_generation_defaults", lambda _user_id: dict(_GENERATION_DEFAULTS))
     _login_as(client, User(id=1, username="admin", role=ROLE_ADMIN, is_active_user=True))
 
     for _ in range(5):

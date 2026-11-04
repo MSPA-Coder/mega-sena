@@ -22,7 +22,7 @@ from app.bets.service import (
     list_recent_generations_with_bets,
 )
 from app.core.numbers import draw_parameters
-from app.models import Draw, GeneratedBet
+from app.models import Draw, GeneratedBet, User
 
 pytestmark = pytest.mark.banco
 
@@ -31,10 +31,24 @@ pytestmark = pytest.mark.banco
 _INICIO = datetime(2099, 1, 1, tzinfo=UTC)
 
 
-def _lote(sessao, generation_id: int, quantidade: int, minutos: int) -> None:
+def _conta(sessao, nome: str) -> int:
+    usuario = User(username=nome, role="operador", password_hash="sintetico")
+    sessao.add(usuario)
+    sessao.flush()
+    return usuario.id
+
+
+@pytest.fixture
+def dono(sessao) -> int:
+    """Conta dona dos lotes: o histórico é sempre o de uma conta (ADR 0004)."""
+    return _conta(sessao, "historico_dono")
+
+
+def _lote(sessao, dono: int, generation_id: int, quantidade: int, minutos: int) -> None:
     for indice in range(quantidade):
         sessao.add(
             GeneratedBet(
+                owner_id=dono,
                 generation_id=generation_id,
                 quantity=6,
                 numbers_csv=f"1,2,3,4,5,{6 + indice % 55}",
@@ -45,12 +59,12 @@ def _lote(sessao, generation_id: int, quantidade: int, minutos: int) -> None:
     sessao.flush()
 
 
-def test_lotes_vem_do_mais_recente_com_apostas_em_ordem_e_truncados(sessao):
-    _lote(sessao, 900_001, 3, minutos=0)
-    _lote(sessao, 900_002, MAX_RECENT_BETS_PER_GENERATION + 5, minutos=10)
-    _lote(sessao, 900_003, 1, minutos=20)
+def test_lotes_vem_do_mais_recente_com_apostas_em_ordem_e_truncados(sessao, dono):
+    _lote(sessao, dono, 900_001, 3, minutos=0)
+    _lote(sessao, dono, 900_002, MAX_RECENT_BETS_PER_GENERATION + 5, minutos=10)
+    _lote(sessao, dono, 900_003, 1, minutos=20)
 
-    geracoes = list_recent_generations_with_bets()
+    geracoes = list_recent_generations_with_bets(dono)
 
     assert [g["generation_id"] for g in geracoes] == [900_003, 900_002, 900_001]
     por_id = {g["generation_id"]: g for g in geracoes}
@@ -68,9 +82,9 @@ def test_lotes_vem_do_mais_recente_com_apostas_em_ordem_e_truncados(sessao):
         assert len(por_id[generation_id]["bets"]) == tamanho
 
 
-def test_historico_usa_duas_consultas_qualquer_que_seja_o_numero_de_lotes(sessao):
+def test_historico_usa_duas_consultas_qualquer_que_seja_o_numero_de_lotes(sessao, dono):
     for deslocamento in range(8):
-        _lote(sessao, 910_000 + deslocamento, 2, minutos=deslocamento)
+        _lote(sessao, dono, 910_000 + deslocamento, 2, minutos=deslocamento)
 
     consultas: list[str] = []
 
@@ -80,7 +94,7 @@ def test_historico_usa_duas_consultas_qualquer_que_seja_o_numero_de_lotes(sessao
     engine = sessao.get_bind()
     event.listen(engine, "before_cursor_execute", contar)
     try:
-        geracoes = list_recent_generations_with_bets()
+        geracoes = list_recent_generations_with_bets(dono)
     finally:
         event.remove(engine, "before_cursor_execute", contar)
 
@@ -88,19 +102,32 @@ def test_historico_usa_duas_consultas_qualquer_que_seja_o_numero_de_lotes(sessao
     assert len(consultas) == 2
 
 
-def test_historico_marca_todos_os_acertos_e_distingue_resultado_ausente(sessao):
+def test_historico_e_so_da_propria_conta(sessao, dono):
+    outra = _conta(sessao, "historico_outra")
+    _lote(sessao, dono, 930_001, 2, minutos=0)
+    _lote(sessao, outra, 930_002, 3, minutos=5)
+
+    proprias = list_recent_generations_with_bets(dono)
+    alheias = list_recent_generations_with_bets(outra)
+
+    assert [g["generation_id"] for g in proprias] == [930_001]
+    assert [g["generation_id"] for g in alheias] == [930_002]
+    assert all(aposta.owner_id == dono for aposta in proprias[0]["bets"])
+
+
+def test_historico_marca_todos_os_acertos_e_distingue_resultado_ausente(sessao, dono):
     sorteadas = [6, 30, 32, 38, 49, 57]
     sessao.add(Draw(contest=87654, **{f"n{i}": n for i, n in enumerate(sorteadas, 1)},
                     **draw_parameters(sorteadas)))
     for indice, numeros in enumerate(("7,29,38,40,42,58", "17,21,32,36,41,49",
                                       "1,2,3,4,5,7")):
-        sessao.add(GeneratedBet(generation_id=920_000 + indice, contest=87654,
+        sessao.add(GeneratedBet(owner_id=dono, generation_id=920_000 + indice, contest=87654,
                                quantity=6, numbers_csv=numeros, score=0))
-    sessao.add(GeneratedBet(generation_id=920_003, contest=87655, quantity=6,
+    sessao.add(GeneratedBet(owner_id=dono, generation_id=920_003, contest=87655, quantity=6,
                            numbers_csv="1,2,3,4,5,7", score=0))
     sessao.flush()
 
-    geracoes = {g["generation_id"]: g for g in list_recent_generations_with_bets()}
+    geracoes = {g["generation_id"]: g for g in list_recent_generations_with_bets(dono)}
     for indice, acertos in enumerate(({38}, {32, 49}, set())):
         aposta = geracoes[920_000 + indice]["bets"][0]
         assert aposta.winning_numbers == acertos

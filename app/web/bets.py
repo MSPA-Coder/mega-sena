@@ -134,7 +134,7 @@ def _coverage_metrics(
 def _read_generation_state(
     values: MultiDict, *, strict: bool = False
 ) -> tuple[int, dict[str, int | None], int]:
-    defaults = get_generation_defaults()
+    defaults = get_generation_defaults(current_user.id)
     has_url_state = any(key in values for key in GENERATION_PARAM_KEYS)
     if has_url_state:
         source = MultiDict(
@@ -528,12 +528,13 @@ def bet_generation():
 
 @bp.get("/bets/minhas")
 def my_bets():
-    """Histórico e conferência das apostas gravadas, paginado e filtrável por concurso."""
+    """Histórico e conferência das apostas gravadas pela própria conta (ADR 0004),
+    paginado e filtrável por concurso."""
     page = max(1, request.args.get("page", 1, type=int) or 1)
     contest = optional_int(request.args.get("contest"))
     return render_template(
         "bets/minhas.html",
-        generations=paginate_generations(page=page, contest=contest),
+        generations=paginate_generations(owner_id=current_user.id, page=page, contest=contest),
         contest=contest,
     )
 

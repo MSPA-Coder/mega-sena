@@ -377,6 +377,17 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
     def _contexto_regional() -> dict[str, str]:
         return {"regional_format": regional.formato_ativo()}
 
+    # Tema claro/escuro: o da conta, quando a pessoa já escolheu (ADR 0004);
+    # senão o cookie do navegador, que é também o que vale na tela de login.
+    @app.context_processor
+    def _contexto_tema() -> dict[str, str]:
+        from .models import THEMES
+
+        tema = current_user.theme if current_user.is_authenticated else None
+        if tema not in THEMES:
+            tema = "dark" if request.cookies.get("theme") == "dark" else "light"
+        return {"ui_theme": tema}
+
     # ------------------------------------------------------------------
     # Cache-busting de assets estáticos: evita que o navegador continue
     # servindo um style.css antigo do cache após alterações de CSS.

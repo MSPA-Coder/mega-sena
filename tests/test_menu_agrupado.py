@@ -111,11 +111,16 @@ def test_administrador_ve_os_tres_grupos_na_ordem_combinada(monkeypatch, client)
 
 
 def test_operador_nao_perde_preferencias_nem_minha_senha(monkeypatch, client):
-    """O grupo é de todos: só Configurações e Usuários dependem do papel."""
+    """O grupo é de todos: só Usuários depende do papel.
+
+    Configurações também é do operador desde 04/11/2026 (ADR 0004): os
+    padrões de geração são de cada conta.
+    """
     menu, _html = _menu(monkeypatch, client, _operador(), "/preferencias")
 
     assert list(menu.grupos) == ["Apostas", "Concursos", "Conta e administração"]
     assert _rotulos(menu.grupos["Conta e administração"]["itens"]) == [
+        "Configurações",
         "Preferências",
         "Minha senha",
     ]

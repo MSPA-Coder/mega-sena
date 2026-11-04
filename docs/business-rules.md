@@ -77,7 +77,8 @@ A prévia (`/bets/preview`), o racional e a gravação das configurações segue
 mesma regra: o erro aparece na tela em vez de o valor ser trocado em silêncio.
 
 Os parâmetros da URL representam o estado da tela. Sem parâmetros na URL, são
-usados os valores salvos em **Configurações**.
+usados os padrões da conta, salvos em **Configurações** (cada conta tem os
+próprios; ADR 0004).
 
 ## Fechamento
 
@@ -157,8 +158,10 @@ A barra do topo tem o Dashboard e três grupos, que abrem por clique:
 - **Apostas:** Gerar apostas e Minhas apostas;
 - **Concursos:** Resultados e Importar resultados;
 - **Conta e administração:** Configurações, Preferências, Usuários e Minha
-  senha. O grupo é de todos os usuários; Configurações e Usuários só aparecem
-  para administradores (e a rota recusa os demais com 403).
+  senha. O grupo é de todos os usuários; Usuários só aparece para
+  administradores (e a rota recusa os demais com 403). Em Configurações, as
+  seções Sistema (endereço da planilha) e Reiniciar base também são só de
+  administradores.
 
 O grupo e o item acendem conforme a tela aberta. O Racional abre a partir de
 Gerar apostas e mantém esse item aceso. Os grupos não têm tela própria.
@@ -169,8 +172,8 @@ duzentos e trinta e quatro ou um vírgula duzentos e trinta e quatro. Valores
 com centavos (`1.234,56`) e células numéricas não são afetados.
 
 Cada aposta salva pode ser excluída individualmente, com confirmação. A
-exclusão remove somente a aposta escolhida; concursos importados não são
-afetados.
+exclusão remove somente a aposta escolhida, e só da própria conta; concursos
+importados não são afetados.
 
 ## Auditoria
 
@@ -186,11 +189,12 @@ entram na auditoria.
 Operações que alteram dados exigem token CSRF, e as respostas recebem cabeçalhos
 HTTP defensivos. A aplicação nega por padrão: `requer_login` exige sessão em
 toda requisição, e `PUBLIC_ENDPOINTS` é a lista curta e explícita do que fica
-de fora (tela de login, health check e estáticos). Não há, porém, dono de
-dado — autenticar não é particionar: concursos, apostas e configurações são
-um acervo único que qualquer usuário autenticado vê e altera por inteiro. Isso
-não significa que toda operação administrativa seja aberta: `/usuarios` e
-suas mutações exigem o papel `admin`; contas comuns usam o papel `operador`.
+de fora (tela de login, health check e estáticos). Desde 04/11/2026 (ADR
+0004) apostas, padrões de geração e tema são de cada conta: cada usuário vê e
+apaga só as próprias apostas, inclusive o `admin`. Concursos são comuns, porque
+são o resultado público do sorteio. `/usuarios` e suas mutações, o endereço da
+planilha e `/reset` (que apaga concursos e as apostas de todas as contas)
+exigem o papel `admin`; contas comuns usam o papel `operador`.
 Administradores podem criar contas, redefinir senhas, alterar papéis e ativar
 ou desativar usuários. O serviço impede remover o último administrador, deixar
 o último administrador ativo desativado, desativar a própria conta ou deixar

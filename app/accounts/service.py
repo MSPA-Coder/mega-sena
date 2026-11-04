@@ -18,7 +18,7 @@ from sqlalchemy.exc import IntegrityError
 
 from ..core.regional import normalize_regional_format
 from ..extensions import db
-from ..models import ROLE_ADMIN, ROLE_OPERADOR, USER_ROLES, User
+from ..models import ROLE_ADMIN, ROLE_OPERADOR, THEMES, USER_ROLES, User
 
 MAX_USERNAME_LENGTH = 80  # coluna `users.username` é VARCHAR(80)
 
@@ -176,6 +176,20 @@ def update_own_regional_format(user: User, regional_format: str | None) -> str:
     user.regional_format = normalizado
     db.session.commit()
     return normalizado
+
+
+def update_own_theme(user: User, theme: str | None) -> str:
+    """Grava o tema claro/escuro do próprio dono (só apresentação, ADR 0004).
+
+    Valor desconhecido é recusado, e não trocado por um padrão: quem pede um
+    tema que não existe é um cliente com defeito, e gravar "claro" no lugar
+    mudaria a tela da pessoa sem ela ter pedido.
+    """
+    if theme not in THEMES:
+        raise ValueError("Tema desconhecido.")
+    user.theme = theme
+    db.session.commit()
+    return theme
 
 
 def set_active(user: User, active: bool, *, actor: User, commit: bool = True) -> None:

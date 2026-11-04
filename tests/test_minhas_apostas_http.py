@@ -64,19 +64,23 @@ def logado(app_com_banco):
     yield client
     with app_com_banco.app_context():
         db.session.rollback()
+        # Toda aposta é de uma conta (ADR 0004), e a conta não sai com apostas.
+        GeneratedBet.query.filter_by(owner_id=user_id).delete()
         AuditEvent.query.filter_by(actor_user_id=user_id).delete()
         db.session.delete(db.session.get(User, user_id))
         db.session.commit()
 
 
 @pytest.fixture
-def lotes(app_com_banco):
-    """Doze gerações do mesmo concurso, a mais antiga com o menor id."""
+def lotes(app_com_banco, logado):
+    """Doze gerações do mesmo concurso, da conta logada, a mais antiga com o menor id."""
     inicio = datetime(2098, 1, 1, tzinfo=UTC)
     with app_com_banco.app_context():
+        dono = User.query.filter_by(username=NOME).one().id
         for indice in range(LOTES):
             db.session.add(
                 GeneratedBet(
+                    owner_id=dono,
                     generation_id=PRIMEIRO_LOTE + indice,
                     contest=CONCURSO,
                     quantity=6,
@@ -206,3 +210,51 @@ def test_importacao_recusada_com_htmx_devolve_so_o_aviso(logado):
     assert 'id="import-feedback"' in html
     assert "Selecione uma planilha" in html
     assert "contests-results" not in html
+
+
+@pytest.fixture
+def aposta_alheia(app_com_banco):
+    """Uma aposta de outra conta, no mesmo concurso dos lotes da conta logada."""
+    with app_com_banco.app_context():
+        outra = User(username="qa_minhas_apostas_outra", role="operador")
+        outra.set_password(SENHA)
+        db.session.add(outra)
+        db.session.flush()
+        aposta = GeneratedBet(
+            owner_id=outra.id, generation_id=PRIMEIRO_LOTE + 500, contest=CONCURSO,
+            quantity=6, numbers_csv="7,8,9,10,11,12", score=0,
+            # Mais nova que os lotes: sem o filtro por dono, seria a primeira da lista.
+            created_at=datetime(2099, 1, 1, tzinfo=UTC),
+        )
+        db.session.add(aposta)
+        db.session.commit()
+        ids = outra.id, aposta.id
+    yield ids[1]
+    with app_com_banco.app_context():
+        db.session.rollback()
+        GeneratedBet.query.filter_by(owner_id=ids[0]).delete()
+        db.session.delete(db.session.get(User, ids[0]))
+        db.session.commit()
+
+
+def test_minhas_apostas_mostra_so_as_da_propria_conta(logado, lotes, aposta_alheia):
+    html = logado.get(f"/bets/minhas?contest={CONCURSO}").get_data(as_text=True)
+
+    assert PRIMEIRO_LOTE + 500 not in _geracoes_na_pagina(html)
+    assert "7,8,9,10,11,12" not in html and "07 08 09 10 11 12" not in html
+    assert f"{LOTES} gerações do concurso {CONCURSO}" in html
+
+
+def test_aposta_de_outra_conta_nao_e_apagada_e_responde_como_inexistente(
+    app_com_banco, logado, aposta_alheia
+):
+    token = _csrf(logado.get("/bets"))
+
+    resposta = logado.post(f"/bets/saved/{aposta_alheia}/delete", data={"csrf_token": token})
+
+    assert resposta.status_code == 302
+    with logado.session_transaction() as sessao:
+        avisos = [mensagem for _categoria, mensagem in sessao.get("_flashes", [])]
+    assert avisos == ["A aposta salva não foi encontrada."]
+    with app_com_banco.app_context():
+        assert db.session.get(GeneratedBet, aposta_alheia) is not None

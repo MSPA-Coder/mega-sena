@@ -17,15 +17,17 @@ from sqlalchemy import text, update
 
 from app.bets.service import stage_delete_bet
 from app.core.numbers import draw_parameters
+from app.draws.downloading import DEFAULT_RESULTS_SOURCE_URL
 from app.draws.importing import IMPORT_ADVISORY_LOCK_KEY, import_results_from_xlsx
 from app.extensions import db
-from app.models import Config, Draw, GeneratedBet
-from app.settings.service import update_config_values
+from app.models import Config, Draw, GeneratedBet, User, UserConfig
+from app.settings.service import update_generation_values, update_results_source_url
 
 pytestmark = pytest.mark.banco
 
 CONCURSO = 54321
 APOSTA = "37,41,43,47,53,59"
+DONO = "travas_dono"
 
 
 def _planilha() -> BytesIO:
@@ -45,12 +47,26 @@ def aplicacao(app_com_banco):
     def limpar():
         with app_com_banco.app_context():
             db.session.rollback()
-            db.session.execute(text("TRUNCATE draws, config, generated_bets RESTART IDENTITY CASCADE"))
+            db.session.execute(
+                text("TRUNCATE draws, config, generated_bets, user_config RESTART IDENTITY CASCADE")
+            )
+            User.query.filter_by(username=DONO).delete()
             db.session.commit()
 
     limpar()
     yield app_com_banco
     limpar()
+
+
+@pytest.fixture
+def dono_id(aplicacao):
+    """Conta dona das apostas e dos padrões de geração destes testes."""
+    with aplicacao.app_context():
+        dono = User(username=DONO, role="operador", is_active_user=True)
+        dono.set_password("senha-sintetica-de-teste")
+        db.session.add(dono)
+        db.session.commit()
+        return dono.id
 
 
 def _com_primeira_operacao_aberta(aplicacao, testada, mexer_no_estado):
@@ -138,39 +154,67 @@ def test_importacao_espera_a_linha_do_concurso_e_decide_sobre_o_estado_novo(apli
         assert Draw.query.filter_by(contest=CONCURSO).one().draw_date == date(2026, 8, 1)
 
 
-def test_primeiro_salvamento_de_configuracao_espera_o_outro_e_atualiza_em_vez_de_inserir(aplicacao):
+def test_primeiro_salvamento_do_endereco_espera_o_outro_e_atualiza_em_vez_de_inserir(aplicacao):
+    primeiro, segundo = f"{DEFAULT_RESULTS_SOURCE_URL}?v=1", f"{DEFAULT_RESULTS_SOURCE_URL}?v=2"
     resultado, erro = _com_primeira_operacao_aberta(
         aplicacao,
-        lambda: update_config_values({"bet_quantity": "8"}),
-        lambda: update_config_values({"bet_quantity": "7"}, commit=False),
+        lambda: update_results_source_url(segundo),
+        lambda: update_results_source_url(primeiro, commit=False),
+    )
+
+    assert erro is None
+    assert resultado == segundo
+    with aplicacao.app_context():
+        assert Config.query.filter_by(key="results_source_url").one().value == segundo
+
+
+def _padrao(user_id: int, chave: str) -> str:
+    return db.session.get(UserConfig, (user_id, chave)).value
+
+
+def test_primeiro_salvamento_dos_padroes_da_conta_espera_o_outro_e_atualiza(aplicacao, dono_id):
+    # Os dois primeiros salvamentos da mesma conta disputam o mesmo INSERT; o
+    # `ON CONFLICT` faz o segundo esperar o primeiro e atualizar, sem erro.
+    resultado, erro = _com_primeira_operacao_aberta(
+        aplicacao,
+        lambda: update_generation_values(dono_id, {"bet_quantity": "8"}),
+        lambda: update_generation_values(dono_id, {"bet_quantity": "7"}, commit=False),
     )
 
     assert erro is None
     assert resultado["bet_quantity"] == "8"
     with aplicacao.app_context():
-        assert Config.query.filter_by(key="bet_quantity").one().value == "8"
+        assert _padrao(dono_id, "bet_quantity") == "8"
 
 
-def test_salvamento_de_configuracao_espera_a_gravacao_em_andamento_das_linhas_existentes(aplicacao):
+def test_salvamento_dos_padroes_espera_a_gravacao_em_andamento_das_linhas_existentes(
+    aplicacao, dono_id
+):
     with aplicacao.app_context():
-        update_config_values({"bet_quantity": "6"})
+        update_generation_values(dono_id, {"bet_quantity": "6"})
 
     def outra_transacao_grava_a_linha():
-        db.session.execute(update(Config).where(Config.key == "generation_amount").values(value="9"))
+        db.session.execute(
+            update(UserConfig)
+            .where(UserConfig.user_id == dono_id, UserConfig.key == "generation_amount")
+            .values(value="9")
+        )
 
     _, erro = _com_primeira_operacao_aberta(
-        aplicacao, lambda: update_config_values({"bet_quantity": "8", "generation_amount": "4"}), outra_transacao_grava_a_linha
+        aplicacao,
+        lambda: update_generation_values(dono_id, {"bet_quantity": "8", "generation_amount": "4"}),
+        outra_transacao_grava_a_linha,
     )
 
     assert erro is None
     with aplicacao.app_context():
-        assert Config.query.filter_by(key="generation_amount").one().value == "4"
-        assert Config.query.filter_by(key="bet_quantity").one().value == "8"
+        assert _padrao(dono_id, "generation_amount") == "4"
+        assert _padrao(dono_id, "bet_quantity") == "8"
 
 
-def test_excluir_aposta_ja_excluida_por_outra_transacao_e_recusado(aplicacao):
+def test_excluir_aposta_ja_excluida_por_outra_transacao_e_recusado(aplicacao, dono_id):
     with aplicacao.app_context():
-        aposta = GeneratedBet(quantity=6, numbers_csv=APOSTA, score=0)
+        aposta = GeneratedBet(owner_id=dono_id, quantity=6, numbers_csv=APOSTA, score=0)
         db.session.add(aposta)
         db.session.commit()
         aposta_id = aposta.id
@@ -179,7 +223,9 @@ def test_excluir_aposta_ja_excluida_por_outra_transacao_e_recusado(aplicacao):
         db.session.delete(db.session.get(GeneratedBet, aposta_id))
         db.session.flush()
 
-    _, erro = _com_primeira_operacao_aberta(aplicacao, lambda: stage_delete_bet(aposta_id), outra_transacao_exclui)
+    _, erro = _com_primeira_operacao_aberta(
+        aplicacao, lambda: stage_delete_bet(aposta_id, dono_id), outra_transacao_exclui
+    )
 
     assert isinstance(erro, RuntimeError)
     with aplicacao.app_context():

@@ -50,8 +50,11 @@ def confirm_closure_bets(numbers: Iterable[int], *, audit: AuditContext, contest
 
 
 def delete_saved_bet(bet_id: int, *, audit: AuditContext) -> DeletedBet:
+    """Apaga uma aposta de quem está agindo: o dono é sempre o autor (ADR 0004)."""
     try:
-        bet = stage_delete_bet(bet_id)
+        if audit.actor_id is None:
+            raise RuntimeError("A aposta salva não foi encontrada.")
+        bet = stage_delete_bet(bet_id, audit.actor_id)
         result = DeletedBet(bet.id, bet.generation_id)
         add_success(
             audit,

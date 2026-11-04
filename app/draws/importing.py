@@ -272,11 +272,16 @@ def import_results_from_xlsx(
         seen_contests: set[int] = set()
         existing_draws: dict[int, Draw] = {}
 
+        # O aviso de apostas premiadas conta só as de quem importou: as apostas
+        # são de cada conta (ADR 0004), e o aviso não pode revelar as alheias.
+        importer_id = getattr(audit.get("actor"), "id", None) if audit else None
+
         def finish(result: dict[str, int], quarantined: int = 0) -> dict[str, int]:
-            if seen_contests:
+            if seen_contests and importer_id is not None:
                 db.session.flush()
                 winning = sum(
                     1 for bet in db.session.query(GeneratedBet)
+                    .filter(GeneratedBet.owner_id == importer_id)
                     .filter(GeneratedBet.contest.in_(seen_contests))
                     if len(set(bet.numbers) & set(existing_draws[bet.contest].numbers)) >= 4
                 )

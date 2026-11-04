@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="pt-br" data-theme="{{ 'dark' if request.cookies.get('theme') == 'dark' else 'light' }}" data-regional="{{ regional_format }}">
+<html lang="pt-br" data-theme="{{ ui_theme }}" data-regional="{{ regional_format }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -39,8 +39,9 @@
     {% set eh_admin = current_user.is_authenticated and current_user.is_admin %}
     {% set eps_apostas = ['web.bet_generation', 'web.rationale'] %}
     {% set eps_importar = ['web.import_page', 'web.import_upload', 'web.import_from_link'] %}
-    {% set eps_admin = ['web.settings_page', 'web.save_settings', 'web.reset_database', 'web.users_page', 'web.create_user', 'web.reset_user_password', 'web.toggle_user_active', 'web.change_user_role'] %}
-    {% set eps_conta = ['web.preferences', 'web.change_password'] %}
+    {% set eps_admin = ['web.users_page', 'web.create_user', 'web.reset_user_password', 'web.toggle_user_active', 'web.change_user_role'] %}
+    {% set eps_configuracoes = ['web.settings_page', 'web.save_settings', 'web.save_system_settings', 'web.reset_database'] %}
+    {% set eps_conta = ['web.preferences', 'web.change_password'] + eps_configuracoes %}
     <a class="{{ 'active' if ep == 'web.dashboard' else '' }}" href="{{ url_for('web.dashboard') }}"{% if ep == 'web.dashboard' %} aria-current="page"{% endif %}>Dashboard</a>
     <div class="nav-group{{ ' active' if ep in eps_apostas or ep == 'web.my_bets' else '' }}" data-nav-group>
       <button type="button" class="nav-group-toggle" aria-expanded="false" aria-controls="nav-sub-apostas">Apostas<span class="nav-caret" aria-hidden="true"></span></button>
@@ -57,17 +58,15 @@
       </div>
     </div>
     {% if current_user.is_authenticated %}
-    {# O grupo é de todos: Preferências e Minha senha são da conta de quem está
-       logado. Configurações e Usuários exigem `admin` na rota (ver
-       `web/authorization.py`); esconder aqui é apresentação, o controle está
-       no decorator, e um operador que digite /settings recebe 403 mesmo sem
-       ver o item. #}
+    {# O grupo é de todos: Configurações (os padrões de geração da própria
+       conta, ADR 0004), Preferências e Minha senha são de quem está logado.
+       Usuários exige `admin` na rota (ver `web/authorization.py`); esconder
+       aqui é apresentação, o controle está no decorator, e um operador que
+       digite /usuarios recebe 403 mesmo sem ver o item. #}
     <div class="nav-group{{ ' active' if ep in eps_admin or ep in eps_conta else '' }}" data-nav-group data-align="end">
       <button type="button" class="nav-group-toggle" aria-expanded="false" aria-controls="nav-sub-conta">Conta e administração<span class="nav-caret" aria-hidden="true"></span></button>
       <div class="nav-submenu" id="nav-sub-conta">
-        {% if eh_admin %}
-        <a class="{{ 'active' if ep in ['web.settings_page', 'web.save_settings', 'web.reset_database'] else '' }}" href="{{ url_for('web.settings_page') }}"{% if ep in ['web.settings_page', 'web.save_settings', 'web.reset_database'] %} aria-current="page"{% endif %}>Configurações</a>
-        {% endif %}
+        <a class="{{ 'active' if ep in eps_configuracoes else '' }}" href="{{ url_for('web.settings_page') }}"{% if ep in eps_configuracoes %} aria-current="page"{% endif %}>Configurações</a>
         <a class="{{ 'active' if ep == 'web.preferences' else '' }}" href="{{ url_for('web.preferences') }}"{% if ep == 'web.preferences' %} aria-current="page"{% endif %}>Preferências</a>
         {% if eh_admin %}
         <a class="{{ 'active' if ep in ['web.users_page', 'web.create_user', 'web.reset_user_password', 'web.toggle_user_active', 'web.change_user_role'] else '' }}" href="{{ url_for('web.users_page') }}"{% if ep in ['web.users_page', 'web.create_user', 'web.reset_user_password', 'web.toggle_user_active', 'web.change_user_role'] %} aria-current="page"{% endif %}>Usuários</a>
@@ -80,7 +79,11 @@
       <button type="submit" class="logout-button">Sair</button>
     </form>
     {% endif %}
-    <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Alternar tema escuro">
+    {#- Com sessão, a escolha também vai para a conta (ADR 0004): `base.js`
+        envia para `data-theme-url` com o token CSRF. Sem sessão, fica só o
+        cookie do navegador. -#}
+    <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Alternar tema escuro"
+            {%- if current_user.is_authenticated %} data-theme-url="{{ url_for('web.save_theme') }}" data-csrf-token="{{ csrf_token() }}"{% endif %}>
       <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false">
         <circle cx="12" cy="12" r="4.2"></circle>
         <path d="M12 2.5v2.4M12 19.1v2.4M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.2 19.8l1.7-1.7M18.1 5.9l1.7-1.7"></path>

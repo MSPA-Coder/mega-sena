@@ -10,9 +10,16 @@ from app.bets.commands import confirm_generated_bets
 from app.bets.service import list_recent_generations_with_bets
 from app.draws.importing import import_results_from_xlsx
 from app.extensions import db
-from app.models import AuditEvent, Draw, GeneratedBet
+from app.models import AuditEvent, Draw, GeneratedBet, User
 
 pytestmark = pytest.mark.banco
+
+
+def _conta(nome: str) -> User:
+    usuario = User(username=nome, role="operador", password_hash="sintetico")
+    db.session.add(usuario)
+    db.session.commit()
+    return usuario
 
 
 def spreadsheet(numbers):
@@ -29,25 +36,35 @@ def spreadsheet(numbers):
 
 def test_import_checks_matching_contest_and_reimport_updates_result(app_com_banco):
     with app_com_banco.app_context():
-        audit = AuditContext(None)
+        dono, outra = _conta("concurso_dono"), _conta("concurso_outra")
+        audit = AuditContext(dono.id)
         first = confirm_generated_bets(6, ["1,2,3,4,5,20"], audit=audit, contest=87654)
         other = confirm_generated_bets(6, ["1,2,3,4,5,20"], audit=audit, contest=87655)
+        # Premiada também, mas de outra conta: não entra no aviso de quem importa.
+        confirm_generated_bets(6, ["1,2,3,4,5,30"], audit=AuditContext(outra.id), contest=87654)
         assert first.generation_id != other.generation_id
         try:
-            result = import_results_from_xlsx(spreadsheet([1, 2, 3, 4, 5, 6]))
+            result = import_results_from_xlsx(
+                spreadsheet([1, 2, 3, 4, 5, 6]), audit={"actor": dono}
+            )
             assert result["winning_bets"] == 1
-            groups = {g["generation_id"]: g for g in list_recent_generations_with_bets()}
+            groups = {g["generation_id"]: g for g in list_recent_generations_with_bets(dono.id)}
             bet = groups[first.generation_id]["bets"][0]
             assert bet.hit_count == 5 and bet.winning_numbers == {1, 2, 3, 4, 5}
             assert groups[other.generation_id]["bets"][0].hit_count is None
-            result = import_results_from_xlsx(spreadsheet([21, 22, 23, 24, 25, 26]))
+            result = import_results_from_xlsx(
+                spreadsheet([21, 22, 23, 24, 25, 26]), audit={"actor": dono}
+            )
             assert "winning_bets" not in result
-            groups = {g["generation_id"]: g for g in list_recent_generations_with_bets()}
+            groups = {g["generation_id"]: g for g in list_recent_generations_with_bets(dono.id)}
             assert groups[first.generation_id]["bets"][0].winning_numbers == set()
         finally:
-            GeneratedBet.query.filter(GeneratedBet.generation_id.in_([first.generation_id, other.generation_id])).delete(synchronize_session=False)
+            db.session.rollback()
+            ids = [dono.id, outra.id]
+            GeneratedBet.query.filter(GeneratedBet.owner_id.in_(ids)).delete(synchronize_session=False)
             Draw.query.filter_by(contest=87654).delete()
-            AuditEvent.query.filter(AuditEvent.entity_id.in_([str(first.generation_id), str(other.generation_id)]), AuditEvent.action == "bets.save").delete(synchronize_session=False)
+            AuditEvent.query.filter(AuditEvent.actor_user_id.in_(ids)).delete(synchronize_session=False)
+            User.query.filter(User.id.in_(ids)).delete(synchronize_session=False)
             db.session.commit()
 
 

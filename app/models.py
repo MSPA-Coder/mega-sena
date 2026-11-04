@@ -119,9 +119,16 @@ class GeneratedBet(db.Model):
             "generation_id IS NULL OR generation_id > 0",
             name="ck_generated_bets_generation_id_positive",
         ),
+        db.Index("ix_generated_bets_owner_generation", "owner_id", "generation_id"),
     )
 
     id = db.Column(db.Integer, primary_key=True)
+    # Dono da aposta: cada conta vê e apaga só as próprias (ADR 0004).
+    owner_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.id", name="fk_generated_bets_owner_id", ondelete="RESTRICT"),
+        nullable=False,
+    )
     generation_id = db.Column(db.Integer, nullable=True, index=True)
     contest = db.Column(db.Integer, nullable=True, index=True)
     numbers_csv = db.Column(db.String(200), nullable=False)
@@ -146,10 +153,31 @@ class BetConfirmation(db.Model):
 
 
 class Config(db.Model):
+    """Configuração do sistema: o endereço dos resultados e o padrão de geração
+    de quem ainda não salvou o próprio (ver `UserConfig`)."""
+
     __tablename__ = "config"
 
     id = db.Column(db.Integer, primary_key=True)
     key = db.Column(db.String(80), nullable=False, unique=True, index=True)
+    value = db.Column(db.String(200), nullable=False, default="")
+
+
+class UserConfig(db.Model):
+    """Padrões de geração de cada conta (ADR 0004).
+
+    Chave ausente vale o padrão do sistema, então ninguém precisa ser semeado:
+    a primeira gravação da pessoa em Configurações é que cria as linhas dela.
+    """
+
+    __tablename__ = "user_config"
+
+    user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.id", name="fk_user_config_user_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    key = db.Column(db.String(80), primary_key=True)
     value = db.Column(db.String(200), nullable=False, default="")
 
 
@@ -225,19 +253,22 @@ ROLE_OPERADOR = "operador"
 USER_ROLES = (ROLE_ADMIN, ROLE_OPERADOR)
 
 
+THEMES = ("light", "dark")
+
+
 class User(UserMixin, db.Model):
     """Usuário da aplicação.
 
-    Autenticar não é o mesmo que particionar dados: concursos, apostas e
-    configurações continuam sendo um acervo único, visível por qualquer usuário
-    autenticado. Este modelo estabelece *quem entra*, não *o que cada um vê* —
-    a segunda coisa exigiria uma decisão de produto sobre o que é privado por
-    usuário, registrada em AGENTS.md como lacuna conhecida.
+    Desde 04/11/2026 (ADR 0004) cada conta tem as próprias apostas
+    (`GeneratedBet.owner_id`), os próprios padrões de geração (`UserConfig`) e
+    o próprio tema. Concursos continuam comuns: são o resultado público do
+    sorteio, não dado de quem os importou.
     """
 
     __tablename__ = "users"
     __table_args__ = (
         CheckConstraint("regional_format IN ('br', 'us')", name="ck_users_regional_format_valid"),
+        CheckConstraint("theme IS NULL OR theme IN ('light', 'dark')", name="ck_users_theme_valid"),
     )
 
     id = db.Column(db.Integer, primary_key=True)
@@ -266,6 +297,9 @@ class User(UserMixin, db.Model):
         default=DEFAULT_REGIONAL_FORMAT,
         server_default=DEFAULT_REGIONAL_FORMAT,
     )
+    # Tema claro ou escuro escolhido pela pessoa, em qualquer aparelho. Nulo
+    # enquanto ela não escolhe: vale o cookie do navegador, como antes.
+    theme = db.Column(db.String(5), nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
 
     def set_password(self, password: str) -> None:
