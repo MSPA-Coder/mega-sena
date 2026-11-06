@@ -10,6 +10,7 @@ from app.bets.combinatorics import (
     count_distinct_internal_combinations,
     count_draws_matching_filters,
 )
+from app.draws.service import search_contests
 from app.draws.statistics import all_draw_numbers, build_stats
 from app.models import Draw
 
@@ -57,6 +58,50 @@ def test_janela_estatistica_considera_concurso_mais_recente(historico):
     assert resultado["total_draws"] == 1
     assert {n for n, quantidade in resultado["frequency"].items() if quantidade} == set(historico[-1])
     assert resultado["prize_cards"]["mega_sena"]["winners"] == 2
+
+
+def test_busca_de_concursos_aplica_recorte_recente_antes_do_filtro(historico):
+    from app.extensions import db
+
+    for contest in range(4, 12):
+        db.session.add(
+            Draw(
+                contest=contest,
+                draw_date=date(2026, 10, contest),
+                n1=1,
+                n2=2,
+                n3=3,
+                n4=4,
+                n5=5,
+                n6=6,
+                total_sum=21,
+                even_count=3,
+                consecutive_count=6,
+                winners_6=0,
+                winners_5=0,
+                winners_4=0,
+            )
+        )
+    db.session.flush()
+    fora_da_janela = search_contests(
+        page=1,
+        winners_only=False,
+        consecutive_count=None,
+        even_count=3,
+        count=2,
+    )
+    assert fora_da_janela.pagination.total == 8
+    assert fora_da_janela.count == 10
+    assert fora_da_janela.active_filters[0] == "últimos 10 concursos"
+
+    dentro_da_janela = search_contests(
+        page=1,
+        winners_only=False,
+        consecutive_count=None,
+        even_count=0,
+        count=10,
+    )
+    assert [item.contest for item in dentro_da_janela.pagination.items] == [2]
 
 
 @pytest.mark.parametrize(("filtros", "esperado"), [

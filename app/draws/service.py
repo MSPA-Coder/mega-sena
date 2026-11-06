@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from sqlalchemy import select
+
 from ..models import Draw
 
 
@@ -15,6 +17,7 @@ class ContestSearchResult:
     consecutive_count: int | None
     even_count: int | None
     contest: int | None
+    count: int | None
     active_filters: tuple[str, ...]
     summary: str
 
@@ -30,11 +33,21 @@ def search_contests(
     consecutive_count: int | None,
     even_count: int | None,
     contest: int | None = None,
+    count: int | None = None,
 ) -> ContestSearchResult:
     """Consulta concursos e devolve os metadados necessarios para a pagina."""
     page = max(1, page)
     query = Draw.query
     active_filters: list[str] = []
+    if count is not None:
+        count = max(10, min(count, 10_000))
+        recent_contests = (
+            select(Draw.contest)
+            .order_by(Draw.contest.desc())
+            .limit(count)
+        )
+        query = query.filter(Draw.contest.in_(recent_contests))
+        active_filters.append(f"últimos {count} concursos")
     if contest is not None:
         query = query.filter(Draw.contest == contest)
         active_filters.append(f"concurso = {contest}")
@@ -74,6 +87,7 @@ def search_contests(
         consecutive_count=consecutive_count,
         even_count=even_count,
         contest=contest,
+        count=count,
         active_filters=tuple(active_filters),
         summary=summary,
     )

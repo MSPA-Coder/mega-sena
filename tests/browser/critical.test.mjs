@@ -34,6 +34,8 @@ test('gerar não grava; confirmar e repetir preservam lote e auditoria', async (
     await page.locator('#generate-bets').click();
     await page.locator('#generation-result [name=bet]').first().waitFor({state: 'attached'});
     assert.equal(await page.locator('#generation-result [name=bet]').count(), 2);
+    const previewScores = (await page.locator('#generation-result .bet-line small').allTextContents())
+      .filter(text => text.startsWith('Diversidade '));
     assert.match(await page.locator('#generation-result').innerText(), /Quadra ou mais:.*resultados/);
     assert.deepEqual(await state(page), before);
     const confirmation = await page.locator('#generation-result form').evaluate(form => [...new FormData(form)]);
@@ -50,6 +52,32 @@ test('gerar não grava; confirmar e repetir preservam lote e auditoria', async (
     assert.deepEqual(await state(page), saved);
     await page.goto(base + '/bets/minhas');
     assert.equal(await page.locator('#saved-generations .generation-group').count(), 1);
+    await page.locator('#saved-generations .generation-toggle').click();
+    const savedScores = (await page.locator('.generation-bets-inline:not([hidden]) .bet-line small').allTextContents())
+      .filter(text => text.startsWith('Diversidade '));
+    assert.deepEqual(savedScores, previewScores);
+  });
+});
+test('Últimos 10 preserva recorte no histórico antes dos filtros', async () => {
+  await withPage('br', async page => {
+    await page.goto(base + '/dashboard');
+    await page.getByRole('link', {name: 'Últ. 10', exact: true}).click();
+    await page.waitForURL('**/dashboard?count=10');
+    await page.locator('.history-card').first().getByRole('link', {name: '3'}).click();
+    await page.waitForFunction(() => {
+      const current = new URL(window.location.href);
+      return current.pathname === '/contests' && current.searchParams.get('count') === '10'
+        && current.searchParams.get('even_count') === '3';
+    });
+    assert.equal(await page.locator('#contests-results tbody tr').count(), 9);
+    await page.getByLabel('Pares').selectOption('0');
+    await page.waitForFunction(() => {
+      const current = new URL(window.location.href);
+      return current.pathname === '/contests' && current.searchParams.get('count') === '10'
+        && current.searchParams.get('even_count') === '0';
+    });
+    assert.equal(await page.locator('#contests-results tbody tr .empty-state').count(), 1);
+    assert.match(await page.locator('#contests-results').innerText(), /Recorte: últimos 10 concursos/);
   });
 });
 test('fechamento/previsão, critérios inválidos e percentual regional BR/EUA', async () => {
@@ -59,7 +87,8 @@ test('fechamento/previsão, critérios inválidos e percentual regional BR/EUA',
     const preview = page.waitForResponse(r => r.url().includes('/bets/preview') && r.status() === 200);
     await page.locator('#filter-even-min').fill('1');
     await preview;
-    assert.match(await page.locator('[data-filter-preview-percent]').inputValue(), region === 'br' ? /^50,0/ : /^50\.0/);
+    assert.equal(await page.locator('[data-filter-preview-percent]').inputValue(),
+      region === 'br' ? '90,91%' : '90.91%');
     await page.locator('#closure-numbers').fill('01 02 03 04 05 06 07');
     await page.waitForFunction(() => document.querySelector('#filter-even-min').readOnly);
     await page.locator('#generate-bets').click();

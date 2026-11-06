@@ -35,6 +35,8 @@ arquivos corrompidos ou consumo excessivo de recursos, não regras da loteria.
 O dashboard calcula seus indicadores somente com os concursos presentes no
 banco. O usuário pode considerar todo o histórico importado ou um período
 recente — os períodos disponíveis vão de "Todos" aos últimos 10 concursos.
+Os links das distribuições para Resultados preservam esse recorte e aplicam-no
+antes dos filtros; a paginação e os controles do histórico mantêm o período.
 
 O dashboard mostra: total de concursos e proporção com e sem acertadores;
 acertadores de sena, quina e quadra; distribuição da quantidade de pares; maior
@@ -125,6 +127,10 @@ Ao gravar:
 
 - dezenas são normalizadas;
 - duplicatas do mesmo envio são removidas;
+- o score de diversidade das apostas aleatórias é recalculado no servidor a
+  partir das dezenas validadas e da ordem do lote confirmado; ele coincide com
+  a prévia quando o lote é confirmado sem alteração. Fechamentos mantêm score
+  zero, pois as opções de geração não se aplicam a eles;
 - as apostas recebem um identificador comum de geração e o concurso informado;
 - o concurso sugerido é o maior concurso importado mais um, e pode ser alterado;
 - ao importar resultados, apostas do mesmo concurso são conferidas; quadra,

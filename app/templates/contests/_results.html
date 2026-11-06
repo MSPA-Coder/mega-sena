@@ -9,6 +9,7 @@
             hx-get="{{ url_for('web.contests') }}" hx-trigger="change, input changed delay:500ms from:#contest-search"
             hx-target="#contests-results" hx-swap="outerHTML" hx-replace-url="true">
         <label>Concurso<input id="contest-search" type="number" inputmode="numeric" name="contest" min="1" placeholder="Número" value="{{ contest if contest is not none else '' }}"></label>
+        {% if count is not none %}<input type="hidden" name="count" value="{{ count }}">{% endif %}
         <label>Pares
           <select name="even_count">
             <option value="">Todos</option>
@@ -23,10 +24,10 @@
         </label>
         <label class="contests-filter-check"><input type="checkbox" name="winners_only" value="1" {% if winners_only %}checked{% endif %}> Com acertador da Mega Sena</label>
         {% if contest is not none or even_count is not none or consecutive_count is not none or winners_only %}
-        <a class="button secondary" href="{{ url_for('web.contests') }}" hx-get="{{ url_for('web.contests') }}" hx-target="#contests-results" hx-swap="outerHTML" hx-push-url="true">Limpar</a>
+        <a class="button secondary" href="{{ url_for('web.contests', count=count) }}" hx-get="{{ url_for('web.contests', count=count) }}" hx-target="#contests-results" hx-swap="outerHTML" hx-push-url="true">Limpar filtros</a>
         {% endif %}
       </form>
-      {% if active_filters %}<p class="active-filter">Filtro ativo: {{ active_filters|join(' e ') }}{% if winners_only %} e Mega Sena{% endif %}.</p>{% endif %}
+      {% if active_filters or winners_only %}<p class="active-filter">{% if count is not none %}Recorte: últimos {{ count }} concursos.{% endif %}{% set other_filters = active_filters[1:] if count is not none else active_filters %}{% if other_filters or winners_only %} Filtros ativos: {{ other_filters|join(' e ') }}{% if winners_only %}{% if other_filters %} e {% endif %}Mega Sena{% endif %}.{% endif %}</p>{% endif %}
     </div>
     {% if pagination.pages > 1 %}
       <nav class="pagination pagination-compact" aria-label="Paginação dos concursos">

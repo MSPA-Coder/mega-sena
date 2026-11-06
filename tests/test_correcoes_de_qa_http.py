@@ -7,6 +7,7 @@ pessoa vê ou recebe, não o texto do código.
 from __future__ import annotations
 
 import re
+from datetime import date
 
 import pytest
 
@@ -14,7 +15,7 @@ from app.accounts import service as contas
 from app.bets import service as geracao
 from app.bets.criteria import GENERATION_LIMITS
 from app.extensions import db
-from app.models import AuditEvent, GeneratedBet, User
+from app.models import AuditEvent, Draw, GeneratedBet, User
 
 pytestmark = pytest.mark.banco
 
@@ -223,3 +224,38 @@ def test_graficos_do_dashboard_tem_alternativa_em_texto(logado):
     html = logado.get("/dashboard").get_data(as_text=True)
     assert re.search(r'id="sum-histogram"[^>]*role="img"[^>]*aria-label="', html)
     assert re.search(r'id="freq-chart"[^>]*role="img"[^>]*aria-label="', html)
+
+
+def test_links_de_distribuicao_do_dashboard_preservam_periodo_na_busca(app_com_banco, logado):
+    with app_com_banco.app_context():
+        sorteio_mais_recente = Draw.query.order_by(Draw.contest.desc()).first()
+        maior_concurso = sorteio_mais_recente.contest if sorteio_mais_recente else 0
+    sorteios = [
+        Draw(contest=maior_concurso + 1, draw_date=date(2026, 11, 1),
+             n1=1, n2=2, n3=3, n4=4, n5=5, n6=6,
+             total_sum=21, even_count=3, consecutive_count=6,
+             winners_6=0, winners_5=0, winners_4=0),
+        Draw(contest=maior_concurso + 2, draw_date=date(2026, 11, 2),
+             n1=11, n2=13, n3=15, n4=17, n5=19, n6=21,
+             total_sum=96, even_count=0, consecutive_count=0,
+             winners_6=0, winners_5=0, winners_4=0),
+    ]
+    concursos_teste = [maior_concurso + 1, maior_concurso + 2]
+    with app_com_banco.app_context():
+        db.session.add_all(sorteios)
+        db.session.commit()
+    try:
+        html = logado.get("/dashboard?count=10").get_data(as_text=True)
+        assert re.search(r'href="/contests\?(?=[^\"]*count=10)(?=[^\"]*even_count=)', html)
+        assert re.search(
+            r'href="/contests\?(?=[^\"]*count=10)(?=[^\"]*consecutive_count=)', html
+        )
+        resultados = logado.get("/contests?count=10&even_count=3").get_data(as_text=True)
+        assert "Recorte: últimos 10 concursos." in resultados
+        assert 'name="count" value="10"' in resultados
+    finally:
+        with app_com_banco.app_context():
+            Draw.query.filter(Draw.contest.in_(concursos_teste)).delete(
+                synchronize_session=False
+            )
+            db.session.commit()

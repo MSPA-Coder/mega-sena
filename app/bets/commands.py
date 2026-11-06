@@ -41,7 +41,9 @@ def confirm_generated_bets(
     quantity: int, bets: Iterable[str], *, audit: AuditContext, contest: int | None = None,
     token: str | None = None,
 ) -> ConfirmationResult:
-    return _confirm(prepare_generated_bets(quantity, bets), audit, contest, token)
+    return _confirm(
+        prepare_generated_bets(quantity, bets, recompute_diversity=True), audit, contest, token
+    )
 
 
 def confirm_closure_bets(numbers: Iterable[int], *, audit: AuditContext, contest: int | None = None,

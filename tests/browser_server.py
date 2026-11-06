@@ -30,6 +30,10 @@ with application.app_context():
     for contest, numbers in enumerate(([1, 3, 5, 7, 9, 11], [2, 4, 6, 8, 10, 12]), 1):
         db.session.add(Draw(contest=contest, draw_date=date(2026, 1, contest),
             **{f"n{i}": n for i, n in enumerate(numbers, 1)}, **draw_parameters(numbers)))
+    for contest in range(3, 12):
+        numbers = [1, 2, 3, 4, 5, 6]
+        db.session.add(Draw(contest=contest, draw_date=date(2026, 2, contest - 2),
+            **{f"n{i}": n for i, n in enumerate(numbers, 1)}, **draw_parameters(numbers)))
     db.session.commit()
 
 

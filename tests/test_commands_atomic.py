@@ -136,6 +136,29 @@ def test_command_and_success_event_are_one_transaction(database, operation, fail
         assert PASSWORD not in str(AuditEvent.query.first().context)
 
 
+def test_confirmacao_recalcula_diversidade_do_lote_validado(database):
+    _, admin, _ = database
+    resultado = bets.confirm_generated_bets(
+        6,
+        ["1,2,3,4,5,6", "1,2,3,4,7,8"],
+        audit=AuditContext(admin.id),
+    )
+    salvas = GeneratedBet.query.filter_by(generation_id=resultado.generation_id).order_by(
+        GeneratedBet.id
+    ).all()
+    assert [aposta.score for aposta in salvas] == [1.0, 0.3333]
+
+
+def test_fechamento_mantem_score_de_diversidade_zero(database):
+    _, admin, _ = database
+    resultado = bets.confirm_closure_bets(
+        [1, 2, 3, 4, 5, 6, 7], audit=AuditContext(admin.id)
+    )
+    salvas = GeneratedBet.query.filter_by(generation_id=resultado.generation_id).all()
+    assert len(salvas) == 7
+    assert {aposta.score for aposta in salvas} == {0}
+
+
 @pytest.mark.parametrize("same", [True, False])
 def test_concurrent_confirmation_preserves_batch_and_event_identity(database, same):
     application, admin, _ = database

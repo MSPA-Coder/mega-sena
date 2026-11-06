@@ -48,24 +48,31 @@ def _contests_context() -> dict:
     consecutive_count = optional_int(request.args.get("consecutive_count"))
     even_count = optional_int(request.args.get("even_count"))
     contest = optional_int(request.args.get("contest"))
+    raw_count = optional_int(request.args.get("count"))
+    count = max(10, min(raw_count, 10_000)) if raw_count is not None else None
     result = search_contests(
         page=page,
         winners_only=winners_only,
         consecutive_count=consecutive_count,
         even_count=even_count,
         contest=contest,
+        count=count,
     )
+    pagination_args = {key: value for key, value in request.args.items() if key != "page"}
+    if count is None:
+        pagination_args.pop("count", None)
+    else:
+        pagination_args["count"] = count
     return {
         "pagination": result.pagination,
         "winners_only": result.winners_only,
         "consecutive_count": result.consecutive_count,
         "even_count": result.even_count,
         "contest": result.contest,
+        "count": result.count,
         "active_filters": result.active_filters,
         "contests_summary": result.summary,
-        "pagination_args": {
-            key: value for key, value in request.args.items() if key != "page"
-        },
+        "pagination_args": pagination_args,
     }
 
 

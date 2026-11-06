@@ -395,7 +395,9 @@ def stage_delete_bet(bet_id: int, owner_id: int) -> GeneratedBet:
     return bet
 
 
-def prepare_generated_bets(quantity: int, bets: Iterable[str]) -> list[GeneratedBet]:
+def prepare_generated_bets(
+    quantity: int, bets: Iterable[str], *, recompute_diversity: bool = True
+) -> list[GeneratedBet]:
     quantity = clamp_int(
         parse_int(quantity) or MIN_BET_NUMBERS,
         MIN_BET_NUMBERS,
@@ -417,11 +419,19 @@ def prepare_generated_bets(quantity: int, bets: Iterable[str]) -> list[Generated
         normalized_bet = ",".join(map(str, nums))
         if normalized_bet not in seen_bets:
             seen_bets.add(normalized_bet)
+            score = (
+                round(
+                    _diversity_score(nums, [bet.numbers for bet in valid_bets]),
+                    4,
+                )
+                if recompute_diversity
+                else 0
+            )
             valid_bets.append(
                 GeneratedBet(
                     quantity=quantity,
                     numbers_csv=normalized_bet,
-                    score=0,
+                    score=score,
                 )
             )
 
@@ -437,4 +447,5 @@ def prepare_closure_bets(numbers: Iterable[int]) -> list[GeneratedBet]:
     return prepare_generated_bets(
         MIN_BET_NUMBERS,
         serialized_bets,
+        recompute_diversity=False,
     )
