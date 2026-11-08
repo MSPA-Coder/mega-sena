@@ -28,6 +28,7 @@ def test_gestao_de_usuarios_recusa_operador(app, client):
     resposta = client.get("/usuarios")
 
     assert resposta.status_code == 403
+    assert "Acesso negado" in resposta.get_data(as_text=True)
 
 
 def test_gestao_de_usuarios_exige_admin_em_todas_as_operacoes(app, client):

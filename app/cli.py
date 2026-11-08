@@ -13,11 +13,20 @@ from sharedauth.passwords import SenhaMuitoCurtaError, validar_tamanho
 
 from .accounts.commands import provision_cli_user
 from .accounts.service import UserManagementError
+from .bets.commands import recalcular_scores_zerados
 from .extensions import db
 from .models import ROLE_ADMIN, ROLE_OPERADOR, User
 
 
 def register_commands(app: Flask) -> None:
+    @app.cli.command("recalcular-diversidade")
+    @click.option("--aplicar", is_flag=True, help="Grava; sem isto, só informa o que mudaria.")
+    def recalcular_diversidade(aplicar: bool) -> None:
+        """Corrige a diversidade das gerações gravadas com score zero."""
+        geracoes, apostas = recalcular_scores_zerados(aplicar=aplicar)
+        verbo = "corrigidas" if aplicar else "seriam corrigidas (simulação)"
+        click.echo(f"{apostas} aposta(s) de {geracoes} geração(ões) {verbo}.")
+
     @app.cli.command("criar-usuario")
     @click.option("--usuario", prompt=True, help="Nome de usuario para o login.")
     @click.option(

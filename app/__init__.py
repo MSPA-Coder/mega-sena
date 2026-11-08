@@ -415,6 +415,16 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
         return {"asset_version": version}
 
     # ------------------------------------------------------------------
+    # Acesso negado (403): sem isto a pessoa recebe a página crua do Flask
+    # ------------------------------------------------------------------
+    @app.errorhandler(403)
+    def _acesso_negado(error):  # type: ignore[no-untyped-def]
+        mensagem = "Sua conta não tem permissão para esta ação."
+        if request.headers.get("HX-Request", "").lower() == "true":
+            return mensagem, 403
+        return render_template("error.html", titulo="Acesso negado", mensagem=mensagem), 403
+
+    # ------------------------------------------------------------------
     # Tratamento de arquivo muito grande (413)
     # ------------------------------------------------------------------
     @app.errorhandler(413)

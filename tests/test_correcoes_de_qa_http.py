@@ -220,6 +220,12 @@ def test_cada_pagina_tem_titulo_proprio_e_h1(logado, rota, titulo):
     assert re.search(rf"<h1[^>]*>\s*{titulo}\s*</h1>", html)
 
 
+def test_filtro_sem_resultado_nao_sugere_importar(logado):
+    html = logado.get("/contests?contest=99999999").get_data(as_text=True)
+    assert "Nenhum concurso atende a este filtro" in html
+    assert "Para trazer concursos" not in html
+
+
 def test_graficos_do_dashboard_tem_alternativa_em_texto(logado):
     html = logado.get("/dashboard").get_data(as_text=True)
     assert re.search(r'id="sum-histogram"[^>]*role="img"[^>]*aria-label="', html)
