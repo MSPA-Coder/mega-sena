@@ -126,3 +126,35 @@ test('resultado importado destaca acertos mesmo sem prêmio', async () => {
     assert.deepEqual(await balls.allTextContents(), ['01', '03', '05']);
   });
 });
+test('acesso negado tem página em português, com menu e caminho de volta', async () => {
+  // Os cenários acima já gastaram o limite de login do minuto (LIMITE_LOGIN_PADRAO).
+  await new Promise(resolve => setTimeout(resolve, 61000));
+  await withPage('operador', async page => {
+    const resposta = await page.goto(base + '/usuarios');
+    assert.equal(resposta.status(), 403);
+    assert.equal(await page.locator('html').getAttribute('lang'), 'pt-br');
+    await page.getByRole('heading', {name: 'Acesso negado'}).first().waitFor();
+    await page.getByText('Sua conta não tem permissão para esta ação.').waitFor();
+    await page.getByRole('link', {name: 'Voltar ao início'}).click();
+    await page.waitForURL('**/dashboard');
+  });
+});
+test('filtro sem resultado não sugere importar concursos', async () => {
+  await withPage('br', async page => {
+    await page.goto(base + '/contests?contest=99999');
+    await page.getByText('Nenhum concurso atende a este filtro').waitFor();
+    assert.equal(await page.getByText('Para trazer concursos').count(), 0);
+  });
+});
+test('resultado da importação continua visível na tela', async () => {
+  await withPage('br', async page => {
+    await page.goto(base + '/contests/importar');
+    await page.locator('input[type=file]').setInputFiles({name: 'nao-e-planilha.txt', mimeType: 'text/plain', buffer: Buffer.from('x')});
+    await page.getByRole('button', {name: 'Importar arquivo'}).click();
+    await page.getByRole('dialog').getByRole('button', {name: 'Confirmar', exact: true}).click();
+    const feedback = page.locator('#import-feedback p').filter({hasText: 'Formato inválido'});
+    await feedback.waitFor();
+    await page.waitForTimeout(6000);
+    assert.equal(await feedback.isVisible(), true);
+  });
+});

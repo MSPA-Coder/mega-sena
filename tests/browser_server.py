@@ -27,6 +27,9 @@ with application.app_context():
         user = User(username=f"browser-{region}", role="admin", regional_format=region)
         user.set_password("Synthetic-browser-only-2026!")
         db.session.add(user)
+    operador = User(username="browser-operador", role="operador", regional_format="br")
+    operador.set_password("Synthetic-browser-only-2026!")
+    db.session.add(operador)
     for contest, numbers in enumerate(([1, 3, 5, 7, 9, 11], [2, 4, 6, 8, 10, 12]), 1):
         db.session.add(Draw(contest=contest, draw_date=date(2026, 1, contest),
             **{f"n{i}": n for i, n in enumerate(numbers, 1)}, **draw_parameters(numbers)))
