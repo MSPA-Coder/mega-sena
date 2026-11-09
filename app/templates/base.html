@@ -9,8 +9,8 @@
       mas não deve ser desenhado neste ponto. -#}
   {% if false %}{% block page_name %}{% endblock %}{% endif %}
   <title>{% block title %}{% if self.page_name()|trim %}{{ self.page_name()|trim }} · {% endif %}Mega Sena AI{% endblock %}</title>
-  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}?v={{ asset_version }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ asset_version }}">
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <link rel="stylesheet" href="{{ url_for('sharedauth_ui.static', filename='sharedauth-ui.css') }}">
   {% block head %}{% endblock %}
 </head>
@@ -95,9 +95,9 @@
   </nav>
 </header>
 {% endblock %}
-<script src="{{ url_for('static', filename='vendor/htmx-2.0.10.min.js') }}?v={{ asset_version }}" defer></script>
-<script src="{{ url_for('static', filename='base.js') }}?v={{ asset_version }}" defer></script>
-<script src="{{ url_for('static', filename='regional.js') }}?v={{ asset_version }}" defer></script>
+<script src="{{ url_for('static', filename='vendor/htmx-2.0.10.min.js') }}" defer></script>
+<script src="{{ url_for('static', filename='base.js') }}" defer></script>
+<script src="{{ url_for('static', filename='regional.js') }}" defer></script>
 <script src="{{ url_for('sharedauth_ui.static', filename='sharedauth-ui.js') }}" defer></script>
 <main id="conteudo" class="container" tabindex="-1">
   {% if self.page_name()|trim %}<h1 class="sr-only">{{ self.page_name()|trim }}</h1>{% endif %}

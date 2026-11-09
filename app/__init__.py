@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import contextlib
 import logging
 import os
 from collections.abc import Mapping
@@ -11,6 +10,7 @@ from flask_login import current_user
 from sharedauth.access import requer_login, requer_troca_de_senha
 from sharedauth.config import ler_flag, montar_url_postgres
 from sharedauth.csrf import iniciar_csrf
+from sharedauth.estaticos import instalar_versao_de_estaticos
 from sharedauth.health import registrar_health
 from sharedauth.ratelimit import LIMITE_LOGIN_PADRAO, aplicar_limite, iniciar_limiter
 from sharedauth.secrets import resolver_segredo
@@ -245,6 +245,9 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
     # sharedauth/ui/__init__.py. Serve CSS/JS com ETag/304 e expõe
     # `sharedauth_icone` para os templates.
     registrar_ui(app)
+    # `url_for` de estático ganha o hash do conteúdo, e o navegador guarda o
+    # arquivo por um ano: nenhum template escreve `?v=` à mão.
+    instalar_versao_de_estaticos(app)
 
     from .models import User
 
@@ -387,32 +390,6 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
         if tema not in THEMES:
             tema = "dark" if request.cookies.get("theme") == "dark" else "light"
         return {"ui_theme": tema}
-
-    # ------------------------------------------------------------------
-    # Cache-busting de assets estáticos: evita que o navegador continue
-    # servindo um style.css antigo do cache após alterações de CSS.
-    # ------------------------------------------------------------------
-    @app.context_processor
-    def _inject_asset_version():
-        static_dir = Path(app.static_folder or "")
-        asset_paths = [
-            static_dir / name
-            for name in (
-                "style.css",
-                "base.js",
-                "bets.js",
-                "regional.js",
-                "vendor/htmx-2.0.10.min.js",
-            )
-        ]
-        asset_paths.extend(sorted((static_dir / "css").glob("*.css")))
-        mtimes = []
-        for asset_path in asset_paths:
-            # Um asset ausente apenas não entra no cálculo da versão.
-            with contextlib.suppress(OSError):
-                mtimes.append(asset_path.stat().st_mtime)
-        version = int(max(mtimes, default=0))
-        return {"asset_version": version}
 
     # ------------------------------------------------------------------
     # Acesso negado (403): sem isto a pessoa recebe a página crua do Flask
