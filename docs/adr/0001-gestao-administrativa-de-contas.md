@@ -1,5 +1,7 @@
 # ADR 0001 — Gestão administrativa de contas
 
+Estado: vigente.
+
 ## Decisão
 
 O MegaSena mantém concursos, apostas e configurações como um acervo

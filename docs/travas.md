@@ -2,11 +2,11 @@
 
 Inventário das travas (`with_for_update`, `pg_advisory_xact_lock`, `LOCK TABLE`) que protegem apostas,
 concursos, configuração e acesso, e de **qual teste ou qual outra garantia** responde por cada uma. A regra está
-em `docs/TESTES.md` (T7 e T11): trava nova nasce com teste de disputa que falha quando ela é retirada, ou com uma
+em `docs/TESTES.md` (T7 e T14): trava nova nasce com teste de disputa que falha quando ela é retirada, ou com uma
 linha aqui dizendo qual garantia a cobre.
 
 Medido em 29/10/2026 retirando cada trava numa cópia do commit e rodando o arquivo de disputa 5 vezes (receita
-em T11). "Detectada" quer dizer que o teste falhou em todas as repetições sem a trava.
+em T14). "Detectada" quer dizer que o teste falhou em todas as repetições sem a trava.
 
 Os testes de `tests/test_travas_postgres.py` seguem um padrão: uma "primeira operação" muda o estado e fica aberta
 (sem confirmar); a operação testada precisa esperar por ela e então enxergar o estado confirmado. Não dependem de

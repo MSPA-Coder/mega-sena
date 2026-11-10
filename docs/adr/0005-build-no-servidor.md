@@ -1,5 +1,7 @@
 # ADR 0005 — Build no servidor a partir do `main`
 
+Estado: vigente.
+
 Decisão: 20/10/2026. Substitui o ADR 0003.
 
 A entrega por imagem validada na CI (ADR 0003) fazia o deploy depender do

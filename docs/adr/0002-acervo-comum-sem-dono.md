@@ -1,5 +1,7 @@
 # ADR 0002 — Acervo comum sem dono (MS-04)
 
+Estado: substituído em parte pelo ADR 0004.
+
 > **Substituído em 04/11/2026 pelo [ADR 0004](0004-apostas-parametros-e-tema-por-conta.md)**
 > para apostas e configurações, por decisão do mantenedor e antes do gatilho de
 > revisão abaixo (o uso continua individual). Concursos continuam acervo comum.

@@ -1,5 +1,7 @@
 # Entregar o artefato efetivamente validado
 
+Estado: substituído pelo ADR 0005.
+
 Decisão: 18/10/2026.
 
 **Substituído em 20/10/2026** pelo ADR 0005 (build no servidor a partir do

@@ -1,5 +1,7 @@
 # ADR 0004 — Apostas, padrões de geração e tema por conta
 
+Estado: vigente.
+
 Substitui o ADR 0002 no que diz respeito a apostas e configurações. Concursos
 continuam acervo comum.
 
