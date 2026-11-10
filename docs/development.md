@@ -1,5 +1,8 @@
 # Desenvolvimento e validação
 
+O que validar em cada tipo de mudança está na seção "Validação" do
+[`AGENTS.md`](../AGENTS.md).
+
 ## Gate de tipos incremental
 
 O estágio `quality` executa Ruff, `mypy` estrito e pytest. O conjunto pequeno
@@ -73,11 +76,16 @@ aplicação e não consulta o banco, cria tabelas ou dados iniciais.
 
 ## Validação automatizada
 
-O comando oficial executa Ruff e toda a suíte pytest na imagem `quality`:
+O comando oficial executa Ruff, mypy e toda a suíte pytest na imagem
+`quality`:
 
 ```powershell
-docker compose --env-file .env.docker -f compose.yaml --profile quality run --build --rm quality
+.\scripts\quality.ps1
 ```
+
+O script roda
+`docker compose --env-file .env.docker -f compose.yaml --profile quality run --build --rm quality`,
+uma execução por vez.
 
 **`--build` não é opcional.** O serviço `quality` não monta o código do
 host: o que ele executa é o que foi copiado para a imagem. `docker compose
@@ -122,20 +130,8 @@ O CI valida o Compose, reconstrói sem cache e executa o estágio `quality`. Ele
 também audita as dependências Python instaladas com `pip-audit` e a imagem de
 runtime com Trivy. O Dependabot acompanha o `uv.lock`, a imagem base e as
 GitHub Actions. O CodeQL roda pela configuração padrão do GitHub e é check
-obrigatório no `main`, ao lado de `Qualidade`. Não há análise estática de tipos.
-
-## Validação proporcional
-
-Além do comando automatizado:
-
-1. percorra no navegador o fluxo alterado;
-2. em mudança de Docker ou dependências, reconstrua a imagem e confira a subida
-   e os health checks;
-3. em mudança de autenticação, sessão, autorização, CSRF ou proxy, exercite
-   também login, logout e uma operação mutante;
-4. em mudança persistente, gere e verifique um backup conforme
-   `docs/deployment-vps.md`, aplique a cadeia completa em PostgreSQL vazio e
-   teste upgrade e downgrade da revisão alterada.
+obrigatório nos PRs (os do Dependabot), ao lado de `Qualidade`; o push direto
+do mantenedor não espera por eles.
 
 ## Schema
 

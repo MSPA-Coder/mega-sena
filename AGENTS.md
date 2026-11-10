@@ -3,48 +3,59 @@
 <!-- comum: início. Cópia de _manutencao/compartilhados/AGENTS-comum.md; mude lá e rode sincronizar.py --aplicar. -->
 ## Regras comuns aos repositórios
 
-**O que espera o "sim" do mantenedor:** commit e push (quando ele pedir),
-deploy, qualquer ação no VPS, e apagar dados, volumes ou backups
-(`docker compose down -v` inclusive). Na dúvida sobre algo irreversível,
-pergunte; no resto, decida e diga o que decidiu.
+**O que espera o "sim" do mantenedor:** deploy ou publicação, qualquer ação no
+VPS, e apagar dados, volumes ou backups (`docker compose down -v` inclusive).
+Commit e push não esperam. Na dúvida sobre algo irreversível, pergunte; no
+resto, decida e diga o que decidiu.
 
 **Ciclo.** Altere, rode a verificação completa deste repositório (seção
-"Validação"), commite direto no `main` e dê `git push`: sem PR, sem push
-forçado, sem rebase do `main` publicado. A CI roda depois, só como aviso, mas
-vermelho no `main` se investiga. O Dependabot chega por PR, com merge manual. O
-deploy é `~/deploy.sh <app>` no VPS1: monta a imagem a partir do `main`,
-confere `/health` e volta sozinho se falhar. O VPS só espelha o `main`; nada se
-edita lá. Imagem-base nova (correção do Debian ou do Python) só quando ele
-pedir: testa na máquina e depois `~/deploy.sh <app> --refresh`. Ao terminar,
-diga o que rodou, o resultado e o que deixou de validar.
+"Validação"), commite direto no `main` quando o bloco de trabalho estiver
+pronto e dê `git push`: sem PR, sem push forçado, sem rebase do `main`
+publicado. A CI roda depois, só como aviso, mas vermelho no `main` se
+investiga. O Dependabot chega por PR, com merge manual. Ao terminar, diga o que
+rodou, o resultado e o que deixou de validar.
 
-**Dados e segredos.** Mudança destrutiva ou conversão de dados reais começa por
-backup conferido no BackupRestore. Segredos ficam fora do Git (`.secrets/` ou
-configuração do usuário) e não aparecem em código, imagem, log, diff,
+**Dados e segredos.** Os bancos desta máquina são de teste: não provam nada
+sobre valores reais e não pedem backup. Segredos ficam fora do Git (`.secrets/`
+ou configuração do usuário) e não aparecem em código, imagem, log, diff,
 documento nem relatório.
 
 **Dependências.** Alargue o teto e preserve o piso já verificado: elevar o piso
 afirma uma incompatibilidade, e isso exige prova. Vulnerabilidade se corrige
 atualizando; exceção só explícita, com motivo e data. Enquanto o Dependabot não
 aceitar Python 3.15, ele não propõe atualização de `uv` e o grafo do GitHub fica
-parado no lock de 13/10/2026: confira alerta pela versão do `uv.lock`, e
-atualize à mão (`uv lock --upgrade-package <pacote>`) quando o `pip-audit` ou o
-Trivy apontarem.
+parado no lock de 13/10/2026: confira alerta pela versão travada no repositório
+e atualize à mão (`uv lock --upgrade-package <pacote>`, onde há `uv.lock`)
+quando o `pip-audit` ou o Trivy apontarem.
 
-**Testes.** `docs/TESTES.md` diz o que testar e como. Diante de vermelho,
-decida de quem é o defeito; nunca escreva código para um teste passar. Não
-rode duas verificações do mesmo repositório ao mesmo tempo: a segunda recria o
-banco de teste e derruba a primeira.
+**Testes.** `docs/TESTES.md`, onde existe, diz o que testar e como. Diante de
+vermelho, decida de quem é o defeito; nunca escreva código para um teste
+passar. Não rode duas verificações do mesmo repositório ao mesmo tempo: a
+segunda recria o ambiente de teste e derruba a primeira.
 
 **Cópias.** Este bloco, `docs/TESTES.md` e os arquivos listados em
 `_manutencao/compartilhados/sincronizar.py` são cópias: mude a canônica lá e
 rode `python compartilhados/sincronizar.py --aplicar` no `_manutencao`.
 
 **Este arquivo.** Guarde aqui só o que o código não diz: limites, decisões com
-o motivo, armadilhas e comandos. História fica no `git log`; decisão com
-alternativas vira ADR; detalhe de implementação fica no código. Para
-acrescentar uma regra, retire ou funda outra: `sincronizar.py` reprova este
-arquivo acima de 900 palavras fora deste bloco.
+o motivo, armadilhas e comandos. Cada regra mora num lugar só: o que este bloco
+ou `docs/` já dizem não se repete. História fica no `git log`; decisão com
+alternativas vira ADR, e ADR superado ganha a linha "Substituído por"; detalhe
+de implementação fica no código. Para acrescentar uma regra, retire ou funda
+outra: `sincronizar.py` reprova este arquivo acima de 900 palavras fora deste
+bloco.
+
+**Deploy (o que roda no VPS).** Só com o "sim", a cada vez. `~/deploy.sh <app>`
+no VPS1 leva o checkout ao `main`, monta a imagem no servidor, confere
+`/health` e volta sozinho se falhar; a volta não desfaz migração nem dado. O
+VPS só espelha o `main`: nada se edita lá. Imagem-base nova (correção do Debian
+ou do Python) só quando ele pedir: testa na máquina e depois
+`~/deploy.sh <app> --refresh`.
+
+**Dados de produção.** Mudança destrutiva, migração que transforma dado ou
+conversão começa por um dump novo, feito com `~/backup-db.sh --forcar` no VPS e
+conferido no catálogo do BackupRestore. Dump feito à mão não tem `.sha256` e
+reprova a sincronização.
 <!-- comum: fim -->
 
 ## O sistema
@@ -68,10 +79,10 @@ cobre) e `docs/adr/` (decisões).
 ## Validação
 
 ```powershell
-docker compose --env-file .env.docker -f compose.yaml --profile quality run --build --rm quality
+.\scripts\quality.ps1
 ```
 
-Roda Ruff, mypy estrito e pytest contra um `postgres-teste` recriado vazio a
+Roda (passos em `scripts/quality.passos`) Ruff, mypy estrito e pytest contra um `postgres-teste` recriado vazio a
 cada execução, o que também prova a cadeia inteira de migrações. Rode antes de
 todo commit de código. O mypy cobre os arquivos de `tool.mypy.files` no
 `pyproject.toml` e cresce por fronteira, sem ignore em massa.
@@ -81,6 +92,9 @@ todo commit de código. O mypy cobre os arquivos de `tool.mypy.files` no
   `python ../_manutencao/compartilhados/sincronizar.py`.
 - Docker ou dependência: também subir a pilha (`up --build -d`) e conferir
   `/health`.
+- Autenticação, sessão, autorização, CSRF ou proxy: login, logout e uma
+  operação mutante.
+- Mudança persistente: `upgrade` e `downgrade` da revisão alterada.
 - JS que afeta aposta ou confirmação: o runner de navegador de
   `compose.browser.yaml` (comandos em `docs/development.md`).
 
@@ -115,10 +129,9 @@ todo commit de código. O mypy cobre os arquivos de `tool.mypy.files` no
 
 ## Armadilhas
 
-- O backup que protege produção é o do VPS. Antes de mexer em dados ou schema
-  de produção, `python cli.py listar --projeto mega_sena_vps`, na pasta do
-  BackupRestore, precisa mostrar dump do dia; `backup --projeto mega_sena`
-  copia só o banco local de testes.
+- O dump de produção do bloco comum se confere com
+  `python cli.py listar --projeto mega_sena_vps`, na pasta do BackupRestore;
+  `backup --projeto mega_sena` copia só o banco local de testes.
 - `.secrets/` (criado por `scripts/provision_secrets.ps1`; `-Force` é rotação
   coordenada) e `.certs/` vivem só onde rodam: um reclone no VPS
   (`/home/ubuntu/apps/mega-sena`) precisa restaurá-los, ou o build falha. Os

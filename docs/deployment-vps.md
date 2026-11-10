@@ -3,7 +3,7 @@
 ## Build no servidor
 
 No VPS, use somente `~/deploy.sh megasena`, e só quando o usuário mandar. O
-script (de `manutencao/main`) monta as imagens no próprio servidor a partir do
+script (do `main` do `_manutencao`) monta as imagens no próprio servidor a partir do
 código do `main`, sem esperar a CI nem baixar nada do GHCR; confere a saúde e
 volta sozinho para o código e a imagem anteriores se falhar, nunca para
 dados/schema. Só o serviço PostgreSQL recebe `mspa.backup.postgres=true`, o
@@ -101,9 +101,10 @@ curl -I https://megasena-mspa.duckdns.org/
 
 Backup, catálogo, verificação e ensaio de restauração são responsabilidade do
 projeto irmão BackupRestore. Este repositório não contém script próprio de
-backup ou restauração. Antes de manutenção de dados, migration ou implantação
-que possa alterar o schema em produção, confira no ambiente do BackupRestore
-que existe um dump recente do VPS (projeto `mega_sena_vps`):
+backup ou restauração. Antes de mudança destrutiva ou de migration que
+transforma dados em produção, peça um dump novo com `~/backup-db.sh --forcar`
+no VPS e confira no ambiente do BackupRestore que ele chegou (projeto
+`mega_sena_vps`):
 
 ```powershell
 python cli.py listar --projeto mega_sena_vps
@@ -111,8 +112,8 @@ python cli.py listar --projeto mega_sena_vps
 
 O dump de produção é feito pelo agente do servidor e entra no catálogo pela
 `sincronizar-vps`; o comando `backup` do BackupRestore não alcança a produção.
-O `backup --projeto mega_sena` cobre só o banco local de testes. Se não houver
-dump do dia, avise o mantenedor antes de seguir. Considere o backup válido
+O `backup --projeto mega_sena` cobre só o banco local de testes. Considere o
+backup válido
 somente quando o BackupRestore o registrar como verificado.
 Agendamento, retenção, localização dos artefatos e
 procedimento de restauração pertencem à documentação e à configuração desse
