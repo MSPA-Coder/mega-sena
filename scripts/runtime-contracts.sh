@@ -4,9 +4,11 @@ set -euo pipefail
 app_id=$DELIVERY_APP_ID
 compose=(docker compose -p mega-sena-runtime-ci -f compose.yaml -f compose.ci.yaml)
 trap '"${compose[@]}" down --remove-orphans' EXIT
-docker run --rm --read-only --tmpfs /tmp --entrypoint sh "$app_id" -ec '
+# Sem --read-only de propósito: com ele o teste de escrita passaria por construção.
+docker run --rm --tmpfs /tmp --entrypoint sh "$app_id" -ec '
   test "$(id -u)" != 0
-  for path in /app /app/app /app/migrations; do test ! -w "$path"; done
+  for path in /app /app/app /app/migrations /app/run.py; do test ! -w "$path"; done
+  test "$(stat -c %U /app/app /app/migrations /app/run.py | sort -u)" = root
   for path in /app/.secrets /app/.certs /app/.env /app/tests; do test ! -e "$path"; done
   for tool in gcc make wget ruff pytest mypy pip pip-audit; do ! command -v "$tool"; done
 '

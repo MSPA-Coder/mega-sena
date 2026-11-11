@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1.7
 #
-# Imagem única para uso local: gunicorn, usuário não-root e sem ferramentas
-# de teste. Migrações nunca rodam durante o build nem dentro de `create_app()`;
+# Imagem única, usada no desenvolvimento local e montada também no servidor
+# (ADR 0005): gunicorn, usuário não-root e sem ferramentas de teste. Migrações
+# nunca rodam durante o build nem dentro de `create_app()`;
 # docker-entrypoint.sh aplica `flask db upgrade` antes do servidor iniciar.
 
 # -----------------------------------------------------------------------
@@ -103,9 +104,11 @@ RUN groupadd --system mega_sena \
     && useradd --system --gid mega_sena --home-dir /app --no-create-home mega_sena
 
 COPY --from=builder /opt/venv /opt/venv
-COPY --chown=mega_sena:mega_sena app ./app
-COPY --chown=mega_sena:mega_sena migrations ./migrations
-COPY --chown=mega_sena:mega_sena run.py ./
+# O código fica do root: o processo (mega_sena) só lê. Com dono mega_sena, um
+# RCE reescreveria o código se um override tirasse o `read_only` do Compose.
+COPY app ./app
+COPY migrations ./migrations
+COPY run.py ./
 COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 # Tira `pip` e `setuptools` da imagem SERVIDA.
