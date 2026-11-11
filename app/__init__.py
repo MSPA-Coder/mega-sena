@@ -271,7 +271,7 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
     )
     iniciar_csrf(app)
     login_manager.init_app(app)
-    # MS-03: teto global para as 21 rotas que não são o login -- sem ele,
+    # MS-03: teto global para as rotas que não são o login -- sem ele,
     # nenhuma delas tinha limite algum. O valor é generoso para o uso normal
     # (folga de tela em tela) e serve de rede para qualquer rota futura que
     # esqueça limite dedicado.

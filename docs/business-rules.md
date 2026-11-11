@@ -185,10 +185,13 @@ importados não são afetados.
 
 O sistema registra ações relevantes de escrita e administração: gravação e
 exclusão de apostas, importações, configurações, limpeza total de dados e
-gestão de contas. Cada evento contém ator, ação, entidade, identificador quando
+gestão de contas, além de login e falha de login (`auth.login`, sem o nome
+digitado). Cada evento contém ator, ação, entidade, identificador quando
 existir, instante, resultado e contexto mínimo (rota, IP e origem quando
 aplicável). Senhas, tokens, conteúdo de arquivos e formulários completos não
-entram na auditoria.
+entram na auditoria. A trilha só aceita inserção: um gatilho (revisão 0013)
+recusa `UPDATE` e `DELETE` de quem não é superusuário, e o papel administrativo
+(`migrate`, backup) ainda pode corrigir ou expurgar.
 
 ## Escopo de segurança
 

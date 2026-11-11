@@ -96,6 +96,13 @@ superusuária. O `docker-entrypoint.sh` ainda migra quando
 Compose. Fora do Docker, rode o comando manualmente após qualquer alteração
 de schema.
 
+Toda sessão do `app` com o banco leva `statement_timeout` (55 s),
+`lock_timeout` (10 s) e `idle_in_transaction_session_timeout` (5 min),
+pelas opções de conexão em `create_app` (`DB_STATEMENT_TIMEOUT_MS`,
+`DB_LOCK_TIMEOUT_MS`, `DB_IDLE_IN_TRANSACTION_TIMEOUT_MS`; 0 desliga). O
+`migrate` desliga o de comando. Páginas da aplicação saem com
+`Cache-Control: no-store`; só os estáticos têm cache.
+
 O Compose monta `postgres_password` e `secret_key` como Docker secrets. A
 fábrica lê a senha pelo caminho em `DB_PASSWORD_FILE` para construir a URL do
 PostgreSQL, e lê a chave pelo caminho em `SECRET_KEY_FILE`. Nenhum dos dois

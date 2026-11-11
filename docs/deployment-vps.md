@@ -16,8 +16,10 @@ localmente com as bases novas e depois roda `~/deploy.sh megasena --refresh`.
 
 O MegaSena roda em um VPS Oracle com Ubuntu, atrás de Nginx e TLS, em
 <https://megasena-mspa.duckdns.org>. O Compose publica a aplicação e o
-PostgreSQL somente no loopback, respectivamente nas portas 5101 e 5102; apenas
-80 e 443 devem ficar expostas à internet.
+PostgreSQL somente no loopback, respectivamente nas portas 5101 e 5102; para a
+internet, só 80 e 443 são esperadas. O SSH escuta em todas as interfaces do
+servidor; se a rede da Oracle ou o Tailscale o restringem, isso não se vê neste
+repositório e quem opera o VPS confere.
 
 O checkout em `/home/ubuntu/apps/mega-sena` é um espelho do branch `main`. Toda
 mudança nasce na máquina de desenvolvimento, passa pelo GitHub e chega ao VPS
@@ -62,10 +64,20 @@ chmod 0444 .secrets/postgres_password.txt .secrets/postgres_app_password.txt .se
 
 Os redirecionamentos gravam os valores sem exibi-los. Mantenha `.secrets/` com
 modo `0700`, pertencente ao usuário de deploy, e os dois arquivos com modo
-`0444`. No host, os demais usuários não conseguem atravessar o diretório; nos
+`0444` (a `secret_key.txt` pode ficar `0400` do uid do app). Confira com
+`stat -c "%a %U %n" .secrets`: com modo diferente de `700` os demais usuários
+do host atravessam o diretório e leem as senhas, e a regra abaixo deixa de
+valer (corrija com `chmod 700 .secrets`). Com o `0700`, os demais usuários
+não conseguem atravessar o diretório; nos
 contêineres, o Compose monta cada arquivo somente nos serviços que declaram o
 secret. Assim, a senha do PostgreSQL fica visível para `postgres` e `app`, e a
 chave de sessão somente para `app`, sem depender de um UID numérico estável.
+
+Rotação: trocar `secret_key.txt` encerra todas as sessões abertas; trocar
+`postgres_app_password.txt` vale na próxima subida, porque o `db-provision`
+reaplica a senha ao papel; a senha do dono (`postgres_password.txt`) só foi
+gravada no banco na criação do volume, então trocá-la exige também alterar o
+papel no PostgreSQL.
 
 Fora do modo Swarm, os secrets do Compose são arquivos montados do host, não um
 cofre ou mecanismo de distribuição criptografada. Por isso, a proteção depende

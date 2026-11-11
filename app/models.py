@@ -28,7 +28,13 @@ _CONSECUTIVE_COUNT_SQL = (
 
 
 def _utcnow() -> datetime:
-    """Retorna o instante atual em UTC como objeto timezone-aware."""
+    """Retorna o instante atual em UTC como objeto timezone-aware.
+
+    Atenção: `draws.created_at` e `generated_bets.created_at` são `timestamp`
+    sem fuso. Ao gravar o valor aware, o PostgreSQL o converte para o fuso da
+    sessão (`America/Sao_Paulo`, pelo `TZ` do contêiner) e guarda a hora local,
+    não UTC. As demais colunas de instante são `timestamptz`.
+    """
     return datetime.now(UTC)
 
 
