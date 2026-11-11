@@ -44,3 +44,25 @@ def test_csp_nao_admite_inline_nem_origem_externa(client):
     # Nenhuma origem externa: fontes e bibliotecas sao servidas pela aplicacao.
     assert "http://" not in csp
     assert "https://" not in csp
+
+
+def test_pagina_publica_e_pagina_autenticada_nao_ficam_em_cache(client):
+    from app.extensions import login_manager
+    from app.models import ROLE_OPERADOR, User
+
+    assert client.get("/login").headers.get("Cache-Control") == "no-store"
+
+    operador = User(id=1, username="operador", role=ROLE_OPERADOR, is_active_user=True)
+    login_manager._user_callback = lambda _user_id: operador
+    with client.session_transaction() as sessao:
+        sessao["_user_id"] = "1"
+        sessao["_fresh"] = True
+    resposta = client.get("/usuarios")
+    assert resposta.status_code == 403
+    assert resposta.headers.get("Cache-Control") == "no-store"
+
+
+def test_estatico_mantem_o_cache_proprio(client):
+    resposta = client.get("/static/favicon.svg")
+    assert resposta.status_code == 200
+    assert resposta.headers.get("Cache-Control") != "no-store"

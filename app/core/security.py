@@ -9,7 +9,7 @@ A excecao de `img-src` continua sendo uma decisao local deste projeto.
 
 from __future__ import annotations
 
-from flask import Blueprint
+from flask import Blueprint, Response
 from sharedauth.security import SECURITY_HEADERS, montar_csp, registrar_cabecalhos
 
 __all__ = ["SECURITY_HEADERS", "register_security_hooks"]
@@ -34,3 +34,13 @@ CONTENT_SECURITY_POLICY = montar_csp(imagens_data_uri=_IMAGENS_DATA_URI)
 def register_security_hooks(blueprint: Blueprint) -> None:
     """Registra os cabecalhos defensivos no blueprint principal."""
     registrar_cabecalhos(blueprint, imagens_data_uri=_IMAGENS_DATA_URI)
+
+    @blueprint.after_request
+    def _sem_cache(response: Response) -> Response:
+        # Página da aplicação traz dado da conta (apostas, usuários): nem o
+        # navegador nem um proxy guardam, e o botão "voltar" depois do logout
+        # não mostra a tela de quem saiu. Os estáticos não passam por aqui
+        # (têm o cache próprio do SharedAuth); rota com `Cache-Control` próprio
+        # o mantém.
+        response.headers.setdefault("Cache-Control", "no-store")
+        return response
