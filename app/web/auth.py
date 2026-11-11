@@ -12,6 +12,7 @@ from flask import flash, redirect, render_template, request, url_for
 from flask.typing import ResponseReturnValue
 from flask_login import current_user, login_required, login_user, logout_user
 from sharedauth.access import url_proximo_seguro
+from sharedauth.passwords import conferir_login
 
 from ..extensions import db
 from ..models import User
@@ -58,13 +59,21 @@ def login() -> ResponseReturnValue:
         # POST que já está sendo respondido, sem redirect -- guardar na
         # sessão para reler na sequência seria um passo a mais sem motivo e
         # tiraria o erro do card estruturado da tela de login.
-        if user is None or not user.is_active_user or not user.check_password(password):
+        #
+        # `conferir_login` paga o scrypt também quando o usuário não existe ou
+        # está inativo: o tempo da resposta não separa os três casos.
+        if not conferir_login(
+            user.password_hash if user else None,
+            password,
+            ativo=bool(user and user.is_active_user),
+        ):
             return render_template(
                 "auth/login.html",
                 username=username,
                 erro="Usuário ou senha inválidos.",
                 proximo=proximo,
             ), 401
+        assert user is not None  # `conferir_login` só aceita usuário existente
         login_user(user, remember=True)
         return redirect(proximo or url_for("web.dashboard"))
 
