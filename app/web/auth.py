@@ -14,9 +14,11 @@ from flask_login import current_user, login_required, login_user, logout_user
 from sharedauth.access import url_proximo_seguro
 from sharedauth.passwords import conferir_login
 
+from ..audit.service import record_event
 from ..extensions import db
 from ..models import User
 from . import bp
+from .helpers import audit_request_context
 
 
 def _safe_next_url() -> str | None:
@@ -67,6 +69,16 @@ def login() -> ResponseReturnValue:
             password,
             ativo=bool(user and user.is_active_user),
         ):
+            record_event(
+                action="auth.login",
+                entity="user",
+                entity_id=user.id if user else None,
+                actor_user_id=user.id if user else None,
+                success=False,
+                # Sem o nome digitado: é texto livre e pode ser uma senha
+                # colada no campo errado.
+                context=audit_request_context(),
+            )
             return render_template(
                 "auth/login.html",
                 username=username,
@@ -75,6 +87,14 @@ def login() -> ResponseReturnValue:
             ), 401
         assert user is not None  # `conferir_login` só aceita usuário existente
         login_user(user, remember=True)
+        record_event(
+            action="auth.login",
+            entity="user",
+            entity_id=user.id,
+            actor_user_id=user.id,
+            success=True,
+            context=audit_request_context(),
+        )
         return redirect(proximo or url_for("web.dashboard"))
 
     return render_template("auth/login.html", username="", proximo=proximo)
