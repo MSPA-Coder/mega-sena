@@ -522,9 +522,13 @@ def import_results_from_xlsx(
                         for key, value in payload.items()
                         if key != "import_batch_id"
                     )
-                    for key, value in payload.items():
-                        setattr(draw, key, value)
+                    # Linha igual não é tocada: regravar só para trocar o lote
+                    # reescreveria a tabela toda a cada importação (e o rótulo
+                    # "ignorado" mentiria). `import_batch_id` fica sendo o lote
+                    # que forneceu a versão atual do concurso.
                     if data_changed:
+                        for key, value in payload.items():
+                            setattr(draw, key, value)
                         updated += 1
                     else:
                         ignored += 1

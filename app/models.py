@@ -89,7 +89,8 @@ class Draw(db.Model):
     accumulated_cents = db.Column(db.BigInteger, nullable=False, default=0)
     quina_rateio_cents = db.Column(db.BigInteger, nullable=False, default=0)
     quadra_rateio_cents = db.Column(db.BigInteger, nullable=False, default=0)
-    # Lote que forneceu a versão mais recente do concurso. A trilha completa
+    # Lote que forneceu a versão atual do concurso: só muda quando o dado muda
+    # (importação que repete o concurso sem alteração não regrava a linha). A trilha completa
     # fica em ImportBatch/ImportQuarantine; esta FK torna a proveniência atual
     # consultável sem guardar o arquivo importado.
     import_batch_id = db.Column(
