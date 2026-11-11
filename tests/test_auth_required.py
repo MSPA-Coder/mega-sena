@@ -132,6 +132,7 @@ def test_login_leva_ao_destino_pedido(app, client, monkeypatch):
     monkeypatch.setattr(
         db.session, "scalar", lambda _stmt: usuario
     )
+    monkeypatch.setattr("app.web.auth.record_event", lambda **_: None)  # sem banco
 
     resposta = client.post(
         "/login",
@@ -149,6 +150,7 @@ def test_login_com_destino_externo_cai_no_dashboard(app, client, monkeypatch):
     usuario = User(id=1, username="fulano", role=ROLE_ADMIN, is_active_user=True)
     usuario.set_password("senha-de-teste")
     monkeypatch.setattr(db.session, "scalar", lambda _stmt: usuario)
+    monkeypatch.setattr("app.web.auth.record_event", lambda **_: None)  # sem banco
 
     resposta = client.post(
         "/login",
