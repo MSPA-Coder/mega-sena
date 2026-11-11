@@ -125,6 +125,8 @@ services:
       DB_PASSWORD_FILE: /run/secrets/postgres_password
       SECRET_KEY_FILE: /run/secrets/secret_key
       TZ: America/Sao_Paulo
+      # Migração pode demorar de propósito; o limite de espera por lock continua.
+      DB_STATEMENT_TIMEOUT_MS: "0"
     secrets:
       - postgres_password
       - secret_key

@@ -107,6 +107,44 @@ def _database_uri_from_environment() -> str:
         raise RuntimeError(f"Configuração PostgreSQL inválida: {erro}") from erro
 
 
+def _opcoes_de_sessao_do_banco() -> str:
+    """Limites de servidor para toda sessão da aplicação, em milissegundos.
+
+    O Gunicorn mata a requisição aos 60 s, mas sem isto o PostgreSQL seguia
+    rodando a consulta ou esperando o lock, e a conexão ficava presa. A maior
+    operação legítima medida (importar 9 mil linhas de planilha, o teto) leva
+    cerca de 2,5 s; o download da planilha segura uma transação de leitura por
+    até ~20 s por tentativa. Os padrões deixam folga larga sobre isso. 0 desliga
+    o limite: o `migrate` desliga o de comando, porque uma migração pode
+    demorar de propósito (o de trava continua valendo).
+    """
+    return " ".join(
+        f"-c {parametro}={_ler_inteiro(variavel, padrao)}"
+        for parametro, variavel, padrao in (
+            ("statement_timeout", "DB_STATEMENT_TIMEOUT_MS", 55000),
+            ("lock_timeout", "DB_LOCK_TIMEOUT_MS", 10000),
+            (
+                "idle_in_transaction_session_timeout",
+                "DB_IDLE_IN_TRANSACTION_TIMEOUT_MS",
+                300000,
+            ),
+        )
+    )
+
+
+def _ler_inteiro(variavel: str, padrao: int) -> int:
+    bruto = os.environ.get(variavel, "").strip()
+    if not bruto:
+        return padrao
+    try:
+        valor = int(bruto)
+    except ValueError as erro:
+        raise RuntimeError(f"{variavel} precisa ser um inteiro em milissegundos.") from erro
+    if valor < 0:
+        raise RuntimeError(f"{variavel} não pode ser negativo.")
+    return valor
+
+
 def create_app(config: Mapping[str, object] | None = None) -> Flask:
     _configure_logging()
 
@@ -115,7 +153,10 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
     force_https = ler_flag("MEGA_SENA_FORCE_HTTPS")
 
     app.config.from_mapping(
-        SQLALCHEMY_ENGINE_OPTIONS={"pool_pre_ping": True},
+        SQLALCHEMY_ENGINE_OPTIONS={
+            "pool_pre_ping": True,
+            "connect_args": {"connect_timeout": 10, "options": _opcoes_de_sessao_do_banco()},
+        },
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         MAX_CONTENT_LENGTH=10 * 1024 * 1024,
         TRUSTED_HOSTS=_trusted_hosts_from_environment(),
