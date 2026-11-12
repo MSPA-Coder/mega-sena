@@ -35,3 +35,20 @@ def test_todo_servico_roda_sem_privilegios_extras() -> None:
         if not ok
     }
     assert not fora, f"serviços sem endurecimento: {fora}"
+
+
+def test_producao_nao_publica_a_porta_do_postgres() -> None:
+    """Em produção só o app fala com o banco: o `compose.release.yaml` zera as portas.
+
+    O `compose.yaml` publica o banco no loopback para ferramentas do
+    desenvolvimento local; o `deploy.sh` soma o override e a porta some.
+    """
+
+    class Leitor(yaml.SafeLoader):
+        pass
+
+    Leitor.add_constructor("!reset", lambda loader, no: [])
+    release = yaml.load(  # noqa: S506 - Leitor herda de SafeLoader
+        (COMPOSE.parent / "compose.release.yaml").read_text(encoding="utf-8"), Loader=Leitor
+    )
+    assert release["services"]["postgres"]["ports"] == []

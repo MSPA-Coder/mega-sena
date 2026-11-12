@@ -10,7 +10,7 @@ RUN python -m ensurepip --upgrade && python -m pip install --no-cache-dir uv
 ENV UV_PROJECT_ENVIRONMENT=/opt/venv
 RUN --mount=type=cache,target=/root/.cache/uv uv sync --locked --no-editable --extra dev
 COPY tests ./tests
-COPY compose.yaml ./
+COPY compose.yaml compose.release.yaml ./
 ENV RUFF_CACHE_DIR=/tmp/ruff-cache PYTEST_ADDOPTS="-o cache_dir=/tmp/pytest-cache"
 USER mega_sena
 ENTRYPOINT []

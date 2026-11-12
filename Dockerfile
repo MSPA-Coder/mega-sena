@@ -172,7 +172,7 @@ COPY --chown=mega_sena:mega_sena pyproject.toml uv.lock README.md ./
 COPY --chown=mega_sena:mega_sena tests ./tests
 # A suíte confere propriedades da implantação (endurecimento dos serviços) no
 # próprio arquivo que o VPS usa.
-COPY --chown=mega_sena:mega_sena compose.yaml ./
+COPY --chown=mega_sena:mega_sena compose.yaml compose.release.yaml ./
 # `--extra dev` acrescenta as ferramentas de teste ao MESMO venv que o runtime
 # usa, em vez de montar outro: a suíte tem de medir exatamente o que a imagem
 # servida instala, e o lock garante que sejam as mesmas versões.

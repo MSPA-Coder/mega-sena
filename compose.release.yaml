@@ -9,6 +9,8 @@ services:
   postgres:
     image: ${POSTGRES_IMAGE:?deploy.sh deve fornecer POSTGRES_IMAGE por ID}
     pull_policy: never
+    # Em produção só o app fala com o banco (o backup usa docker exec).
+    ports: !reset []
   db-provision:
     image: ${POSTGRES_IMAGE:?deploy.sh deve fornecer POSTGRES_IMAGE por ID}
     pull_policy: never
