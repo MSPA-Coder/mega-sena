@@ -14,6 +14,8 @@ próprio VPS a partir do código do `main`, sem consultar a CI, confere
 Custo aceito: a imagem que sobe não é, byte a byte, a que foi testada na
 máquina (AMD64 local, ARM64 no servidor; a base só muda com `--refresh`). O
 lock de dependências, o `/health` e o rollback automático cobrem a diferença.
+Pelo mesmo motivo, o contrato de runtime (`scripts/runtime-contracts.sh`) mede
+a imagem candidata montada na CI, não a que o servidor monta.
 
 Revisitar se um defeito chegar à produção por diferença entre a imagem
 testada e a servida.

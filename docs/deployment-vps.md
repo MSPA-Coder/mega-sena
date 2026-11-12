@@ -15,9 +15,10 @@ localmente com as bases novas e depois roda `~/deploy.sh megasena --refresh`.
 ## Topologia atual
 
 O MegaSena roda em um VPS Oracle com Ubuntu, atrás de Nginx e TLS, em
-<https://megasena-mspa.duckdns.org>. O Compose publica a aplicação e o
-PostgreSQL somente no loopback, respectivamente nas portas 5101 e 5102; para a
-internet, só 80 e 443 são esperadas. O SSH escuta em todas as interfaces do
+<https://megasena-mspa.duckdns.org>. O Compose publica a aplicação somente no
+loopback (porta 5101); o PostgreSQL só é publicado no loopback (5102) no
+desenvolvimento local, e o `compose.release.yaml` do deploy tira essa porta.
+Para a internet, só 80 e 443 são esperadas. O SSH escuta em todas as interfaces do
 servidor; se a rede da Oracle ou o Tailscale o restringem, isso não se vê neste
 repositório e quem opera o VPS confere.
 
