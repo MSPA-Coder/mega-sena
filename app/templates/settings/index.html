@@ -39,7 +39,7 @@
           hx-disabled-elt="find button" hx-indicator="#system-saving"
           hx-confirm="Salvar o endereço da planilha para todas as contas?">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <label class="settings-source-url">Link da planilha de resultados<input type="url" name="results_source_url" maxlength="200" value="{{ results_source_url }}" required></label>
+        <label class="settings-source-url"><span>Link da planilha de resultados <span class="required-mark" aria-hidden="true">*</span></span><input type="url" name="results_source_url" maxlength="200" value="{{ results_source_url }}" required></label>
         <div class="form-actions">
             <button type="submit">Salvar endereço</button>
             <span id="system-saving" class="htmx-indicator" role="status">Salvando…</span>

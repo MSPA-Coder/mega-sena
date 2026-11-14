@@ -33,11 +33,11 @@
         na view; o `|e` do Jinja fecha o atributo. -#}
     {% if proximo %}<input type="hidden" name="next" value="{{ proximo }}">{% endif %}
 
-    <label for="username">Usuário</label>
+    <label for="username">Usuário <span class="required-mark" aria-hidden="true">*</span></label>
     <input type="text" id="username" name="username" value="{{ username }}"
            autocomplete="username" required autofocus maxlength="80">
 
-    <label for="password">Senha</label>
+    <label for="password">Senha <span class="required-mark" aria-hidden="true">*</span></label>
     <input type="password" id="password" name="password"
            autocomplete="current-password" required>
 

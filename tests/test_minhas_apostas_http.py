@@ -98,7 +98,7 @@ def lotes(app_com_banco, logado):
 
 
 def _geracoes_na_pagina(html: str) -> list[int]:
-    return [int(n) for n in re.findall(r"Geração #(\d+)</strong>", html)]
+    return [int(n) for n in re.findall(r'data-generation-toggle="(\d+)"', html)]
 
 
 def test_gerar_apostas_nao_mostra_mais_o_historico(logado, lotes):

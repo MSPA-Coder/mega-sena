@@ -42,7 +42,7 @@
     {% set eps_admin = ['web.users_page', 'web.create_user', 'web.reset_user_password', 'web.toggle_user_active', 'web.change_user_role'] %}
     {% set eps_configuracoes = ['web.settings_page', 'web.save_settings', 'web.save_system_settings', 'web.reset_database'] %}
     {% set eps_conta = ['web.preferences', 'web.change_password'] + eps_configuracoes %}
-    <a class="{{ 'active' if ep == 'web.dashboard' else '' }}" href="{{ url_for('web.dashboard') }}"{% if ep == 'web.dashboard' %} aria-current="page"{% endif %}>Dashboard</a>
+    <a class="{{ 'active' if ep == 'web.dashboard' else '' }}" href="{{ url_for('web.dashboard') }}"{% if ep == 'web.dashboard' %} aria-current="page"{% endif %}>Painel</a>
     <div class="nav-group{{ ' active' if ep in eps_apostas or ep == 'web.my_bets' else '' }}" data-nav-group>
       <button type="button" class="nav-group-toggle" aria-expanded="false" aria-controls="nav-sub-apostas">Apostas<span class="nav-caret" aria-hidden="true"></span></button>
       <div class="nav-submenu" id="nav-sub-apostas">

@@ -9,11 +9,12 @@
           hx-post="{{ url_for('web.create_user') }}" hx-target="#users-feedback" hx-swap="outerHTML"
           hx-disabled-elt="find button" hx-indicator="#users-creating">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <label>Usuário<input type="text" name="username" maxlength="80" required autocomplete="off"></label>
-        <label>Senha<input type="password" name="password" minlength="{{ min_password_length }}" required autocomplete="new-password"></label>
+        <label><span>Usuário <span class="required-mark" aria-hidden="true">*</span></span><input type="text" name="username" maxlength="80" required autocomplete="off"></label>
+        <label><span>Senha <span class="required-mark" aria-hidden="true">*</span></span><input type="password" name="password" minlength="{{ min_password_length }}" required autocomplete="new-password"></label>
         <label>Papel<select name="role">
           {% for role in roles %}<option value="{{ role }}">{{ 'Administrador' if role == 'admin' else 'Operador' }}</option>{% endfor %}
         </select></label>
+        <p class="form-required-note"><span class="required-mark" aria-hidden="true">*</span> Campo obrigatório</p>
         <div class="form-actions">
             <button type="submit">Criar usuário</button>
             <span id="users-creating" class="htmx-indicator" role="status">Criando…</span>

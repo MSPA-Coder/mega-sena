@@ -541,3 +541,37 @@ span.htmx-indicator {
 .htmx-request.htmx-indicator {
   display: inline-block;
 }
+
+/* Campo obrigatório: o asterisco é reforço visual; quem usa leitor de tela
+   recebe a informação pelo atributo `required` do campo. */
+.required-mark {
+  color: var(--warning);
+  font-weight: 700;
+}
+
+.form-required-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* `.card span` vira bloco e fica esmaecido; o rótulo com asterisco não. */
+label > span:has(> .required-mark),
+label span.required-mark,
+.form-required-note span.required-mark {
+  display: inline;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: none;
+}
+
+label > span:has(> .required-mark) {
+  color: inherit;
+}
+
+label span.required-mark,
+.form-required-note span.required-mark {
+  color: var(--warning);
+  font-weight: 700;
+}

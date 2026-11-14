@@ -9,7 +9,7 @@
         hx-target="#import-feedback" hx-swap="outerHTML" hx-disabled-elt="find button" hx-indicator="#import-indicator"
         hx-confirm="Importar pode sobrescrever concursos já cadastrados (prêmios, ganhadores e data) se a planilha trouxer valores diferentes para o mesmo concurso, sem possibilidade de desfazer. Continuar?">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label>Escolher planilha<input type="file" name="file" accept=".xlsx" required></label>
+    <label><span>Escolher planilha <span class="required-mark" aria-hidden="true">*</span></span><input type="file" name="file" accept=".xlsx" required></label>
     <button type="submit">Importar arquivo</button>
     <span id="import-indicator" class="htmx-indicator" role="status">Importando…</span>
   </form>

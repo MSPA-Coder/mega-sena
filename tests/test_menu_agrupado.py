@@ -1,7 +1,7 @@
 """Estrutura do menu do topo: grupos, quem vê o quê e qual item acende.
 
 O menu tem três grupos (Apostas, Concursos e Conta e administração) além do
-Dashboard solto. O que pode quebrar sem ninguém notar: um grupo "só
+Painel solto. O que pode quebrar sem ninguém notar: um grupo "só
 administrador" que esconde Preferências e Minha senha de quem não é admin, um
 item que acende em tela que não é dele (`/contests` é prefixo de
 `/contests/importar`) e um submenu sem o botão que o abre. As páginas usadas
@@ -94,7 +94,7 @@ def _operador():
 def test_administrador_ve_os_tres_grupos_na_ordem_combinada(monkeypatch, client):
     menu, html = _menu(monkeypatch, client, _administrador(), "/preferencias")
 
-    assert _rotulos(menu.soltos) == ["Dashboard"]
+    assert _rotulos(menu.soltos) == ["Painel"]
     assert list(menu.grupos) == ["Apostas", "Concursos", "Conta e administração"]
     assert _rotulos(menu.grupos["Apostas"]["itens"]) == ["Gerar apostas", "Minhas apostas"]
     assert _rotulos(menu.grupos["Concursos"]["itens"]) == ["Resultados", "Importar resultados"]

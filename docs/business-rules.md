@@ -159,7 +159,7 @@ usuário autenticado.
 
 ## Menu
 
-A barra do topo tem o Dashboard e três grupos, que abrem por clique:
+A barra do topo tem o Painel e três grupos, que abrem por clique:
 
 - **Apostas:** Gerar apostas e Minhas apostas;
 - **Concursos:** Resultados e Importar resultados;

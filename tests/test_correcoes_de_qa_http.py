@@ -205,7 +205,7 @@ def test_concursos_aceitam_busca_por_numero_e_filtros_de_pares_e_sequencia(logad
 @pytest.mark.parametrize(
     ("rota", "titulo"),
     [
-        ("/dashboard", "Dashboard"),
+        ("/dashboard", "Painel"),
         ("/contests", "Resultados"),
         ("/contests/importar", "Importar resultados"),
         ("/settings", "Configurações"),
