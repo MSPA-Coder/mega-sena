@@ -2,8 +2,8 @@
   <div class="panel-header">
     <h2>Usuários</h2>
   </div>
-  <table class="users-table">
-    <thead><tr><th>Usuário</th><th>Papel atual</th><th>Status</th><th>Redefinir senha</th><th>Alterar papel</th><th>Acesso</th></tr></thead>
+  <table class="users-table" aria-label="Usuários cadastrados">
+    <thead><tr><th scope="col">Usuário</th><th scope="col">Papel atual</th><th scope="col">Status</th><th scope="col">Redefinir senha</th><th scope="col">Alterar papel</th><th scope="col">Acesso</th></tr></thead>
     <tbody>
       {% for usuario in users %}
       <tr>
@@ -18,7 +18,7 @@
             {#- Sem campo de senha: quem administra nao escolhe mais a senha de
                 outra pessoa. O sistema sorteia, mostra uma vez, e o dono e
                 obrigado a trocar no primeiro acesso. -#}
-            <button type="submit">Redefinir</button>
+            <button type="submit" aria-label="Redefinir a senha de {{ usuario.username }}">Redefinir</button>
         </form>
         </td>
         <td data-label="Alterar papel">
@@ -30,19 +30,19 @@
               <option value="admin"{% if usuario.is_admin %} selected{% endif %}>Administrador</option>
               <option value="operador"{% if not usuario.is_admin %} selected{% endif %}>Operador</option>
             </select>
-            <button type="submit">Salvar</button>
+            <button type="submit" aria-label="Salvar o papel de {{ usuario.username }}">Salvar</button>
           </form>
         </td>
         <td data-label="Acesso">
           <form method="post" action="{{ url_for('web.toggle_user_active', user_id=usuario.id) }}" class="inline-form"
                 hx-post="{{ url_for('web.toggle_user_active', user_id=usuario.id) }}" hx-target="#users-feedback" hx-swap="outerHTML"
-                hx-confirm="{{ 'Desativar ' ~ usuario.username ~ '? A conta pode ser reativada depois.' if usuario.is_active_user else 'Reativar ' ~ usuario.username ~ '?' }}">
+                {% if usuario.is_active_user %}hx-confirm="Desativar {{ usuario.username }}? A conta pode ser reativada depois."{% endif %}>
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="active" value="{{ '0' if usuario.is_active_user else '1' }}">
             {% if usuario.is_active_user %}
-            <button type="submit" class="danger">Desativar</button>
+            <button type="submit" class="danger" aria-label="Desativar {{ usuario.username }}">Desativar</button>
             {% else %}
-            <button type="submit">Reativar</button>
+            <button type="submit" aria-label="Reativar {{ usuario.username }}">Reativar</button>
             {% endif %}
           </form>
         </td>

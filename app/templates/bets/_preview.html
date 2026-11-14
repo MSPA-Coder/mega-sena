@@ -4,7 +4,7 @@
   <div class="panel"><div class="flash flash-error" role="alert">{{ validation_error }} Corrija o filtro para ver o universo e os concursos que passariam.</div></div>
   {% else %}
   <div class="panel form-grid generator-preview-fields">
-    <label>Concursos no BD que passariam<input type="text" readonly data-filter-preview-count value="{{ filter_preview.count }}"></label>
+    <label>Concursos já sorteados que passariam<input type="text" readonly data-filter-preview-count value="{{ filter_preview.count|uint }}"></label>
     <label>Percentual de jogos que passariam<input type="text" readonly data-filter-preview-percent value="{{ filter_preview.percentage_text }}"></label>
   </div>
   <section class="panel combinations-panel">

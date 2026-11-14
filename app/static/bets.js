@@ -19,6 +19,8 @@
         const willOpen = target.hidden;
         target.hidden = !willOpen;
         button.textContent = willOpen ? "Recolher" : "Ver";
+        button.setAttribute("aria-expanded", String(willOpen));
+        button.setAttribute("aria-label", `${willOpen ? "Recolher" : "Ver"} apostas da geração ${button.dataset.generationToggle}`);
         button.closest(".generation-line")?.classList.toggle("active-generation", willOpen);
       });
     });

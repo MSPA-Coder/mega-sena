@@ -6,7 +6,7 @@
     <div class="contests-heading">
       <div class="contests-title-line">
         <h2>Apostas gravadas</h2>
-        <span class="contests-title-summary {{ 'active-filter' if contest is not none else 'muted' }}">{{ generations.total }} {{ 'geração' if generations.total == 1 else 'gerações' }}{% if contest is not none %} do concurso {{ contest }}{% endif %}.</span>
+        <span class="contests-title-summary {{ 'active-filter' if contest is not none else 'muted' }}">{{ generations.total|uint }} {{ 'geração' if generations.total == 1 else 'gerações' }}{% if contest is not none %} do concurso {{ contest }}{% endif %}.</span>
       </div>
       <form method="get" action="{{ url_for('web.my_bets') }}" class="contests-filter">
         <label>Concurso<input id="bets-contest" type="number" inputmode="numeric" name="contest" min="1" placeholder="Número" value="{{ contest if contest is not none else '' }}"></label>

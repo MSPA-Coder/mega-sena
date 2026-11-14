@@ -100,7 +100,10 @@
 <script src="{{ url_for('static', filename='regional.js') }}" defer></script>
 <script src="{{ url_for('sharedauth_ui.static', filename='sharedauth-ui.js') }}" defer></script>
 <main id="conteudo" class="container" tabindex="-1">
-  {% if self.page_name()|trim %}<h1 class="sr-only">{{ self.page_name()|trim }}</h1>{% endif %}
+  {#- Tela que desenha o próprio h1 declara `titulo_proprio`; sem isso
+      ficariam dois h1 (o oculto e o visível). -#}
+  {% set titulo_proprio %}{% block titulo_proprio %}{% endblock %}{% endset %}
+  {% if self.page_name()|trim and not titulo_proprio|trim %}<h1 class="sr-only">{{ self.page_name()|trim }}</h1>{% endif %}
   {% set avisos = flashed_avisos() %}
   {% if avisos %}
   {#- Resultado de uma submissão sem HTMX (POST + redirect) vira toast igual

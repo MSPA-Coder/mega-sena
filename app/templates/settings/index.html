@@ -8,8 +8,7 @@
     <p>Valores usados ao abrir a geração e o racional. São da sua conta: cada pessoa tem os próprios.</p>
     <form method="post" action="{{ url_for('web.save_settings') }}" class="form-grid settings-grid"
           hx-post="{{ url_for('web.save_settings') }}" hx-target="#settings-feedback" hx-swap="outerHTML"
-          hx-disabled-elt="find button" hx-indicator="#settings-saving"
-          hx-confirm="Salvar estas configurações?">
+          hx-disabled-elt="find button" hx-indicator="#settings-saving">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label>Números por aposta<input type="number" name="bet_quantity" min="{{ generation_limits['quantity'][0] }}" max="{{ generation_limits['quantity'][1] }}" value="{{ config_values.bet_quantity }}"></label>
         <label>Quantas apostas deseja gerar<input type="number" name="generation_amount" min="{{ generation_limits['amount'][0] }}" max="{{ generation_limits['amount'][1] }}" value="{{ config_values.generation_amount }}"></label>

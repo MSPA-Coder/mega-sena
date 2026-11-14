@@ -25,7 +25,7 @@ from sqlalchemy import select
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .core import regional
-from .core.formatting import format_brl_without_cents
+from .core.formatting import format_brl_without_cents, format_int
 from .extensions import db, login_manager, migrate
 from .web.helpers import flashed_avisos
 
@@ -250,6 +250,7 @@ def create_app(config: Mapping[str, object] | None = None) -> Flask:
     app.config["SECRET_KEY"] = secret_key
 
     app.jinja_env.filters["brl0"] = format_brl_without_cents
+    app.jinja_env.filters["uint"] = format_int
     app.jinja_env.filters["udate"] = regional.formatar_data
     app.jinja_env.filters["unumber"] = regional.formatar_numero_simples
     app.jinja_env.filters["udatetime"] = regional.formatar_data_hora

@@ -3,18 +3,21 @@
     <h2>Dashboard</h2>
     <p class="muted">Estatísticas dos concursos importados e dos números sorteados.</p>
   </div>
+  {% if not stats.total_draws %}
+  <p class="panel empty-state">Ainda não há concursos importados, por isso os quadros abaixo estão vazios.{% if current_user.is_admin %} Traga os resultados em <a href="{{ url_for('web.import_page') }}">Importar</a>.{% else %} Peça a um administrador para importar os resultados.{% endif %}</p>
+  {% endif %}
   <section class="cards">
     <div class="card metric-card">
       <span>Concursos</span>
-      <strong>{{ stats.total_draws }}</strong>
-      <p><small>Com acertadores</small><b>{{ stats.mega_sena_games_with_winners }}</b><em>{{ stats.mega_sena_games_with_winners_pct|unumber }}%</em></p>
-      <p><small>Sem acertadores</small><b>{{ stats.mega_sena_games_without_winners }}</b><em>{{ stats.mega_sena_games_without_winners_pct|unumber }}%</em></p>
+      <strong>{{ stats.total_draws|uint }}</strong>
+      <p><small>Com acertadores</small><b>{{ stats.mega_sena_games_with_winners|uint }}</b><em>{{ stats.mega_sena_games_with_winners_pct|unumber }}%</em></p>
+      <p><small>Sem acertadores</small><b>{{ stats.mega_sena_games_without_winners|uint }}</b><em>{{ stats.mega_sena_games_without_winners_pct|unumber }}%</em></p>
     </div>
     <div class="card metric-card winners-card tint-gold">
       <span>Acertadores</span>
-      <p><small>Mega Sena</small><b>{{ stats.prize_cards.mega_sena.winners }}</b></p>
-      <p><small>Quina</small><b>{{ stats.prize_cards.quina.winners }}</b></p>
-      <p><small>Quadra</small><b>{{ stats.prize_cards.quadra.winners }}</b></p>
+      <p><small>Mega Sena</small><b>{{ stats.prize_cards.mega_sena.winners|uint }}</b></p>
+      <p><small>Quina</small><b>{{ stats.prize_cards.quina.winners|uint }}</b></p>
+      <p><small>Quadra</small><b>{{ stats.prize_cards.quadra.winners|uint }}</b></p>
     </div>
     <div class="card metric-card period-card">
       <span>Período de análise</span>
@@ -26,7 +29,7 @@
              aria-current="{{ 'true' if selected_count == period else 'false' }}">{{ label }}</a>
         {% endfor %}
       </div>
-      <span class="period-label">{% if selected_count %}últimos {{ stats.actual_count }} concursos{% else %}{{ stats.total_draws }} concursos{% endif %}</span>
+      <span class="period-label">{% if selected_count %}últimos {{ stats.actual_count|uint }} concursos{% else %}{{ stats.total_draws|uint }} concursos{% endif %}</span>
     </div>
   </section>
 
@@ -36,7 +39,7 @@
         <h3>Quantidade de números pares</h3>
         <div>
           {% for qtd, total in stats.even_distribution.items() %}
-            <p><a class="history-filter-link" href="{{ url_for('web.contests', even_count=qtd, count=selected_count) }}"><b>{{ qtd }}</b></a><strong>{{ total }}</strong><em>concursos</em><em>{{ (total / stats.total_draws * 100)|round(1)|unumber if stats.total_draws else 0 }}%</em></p>
+            <p><a class="history-filter-link" href="{{ url_for('web.contests', even_count=qtd, count=selected_count) }}" aria-label="Ver os concursos com {{ qtd }} {{ 'número par' if qtd == 1 else 'números pares' }}"><b>{{ qtd }}</b></a><strong>{{ total|uint }}</strong><em>concursos</em><em>{{ (total / stats.total_draws * 100)|round(1)|unumber if stats.total_draws else 0 }}%</em></p>
           {% endfor %}
         </div>
       </div>
@@ -45,7 +48,7 @@
           <h3>Maior sequência consecutiva</h3>
           <div>
             {% for qtd, total in stats.consecutive_distribution.items() %}
-              <p><a class="history-filter-link" href="{{ url_for('web.contests', consecutive_count=qtd, count=selected_count) }}"><b>{{ qtd }}</b></a><strong>{{ total }}</strong><em>concursos</em><em>{{ (total / stats.total_draws * 100)|round(1)|unumber if stats.total_draws else 0 }}%</em></p>
+              <p><a class="history-filter-link" href="{{ url_for('web.contests', consecutive_count=qtd, count=selected_count) }}" aria-label="Ver os concursos com sequência de {{ qtd }}"><b>{{ qtd }}</b></a><strong>{{ total|uint }}</strong><em>concursos</em><em>{{ (total / stats.total_draws * 100)|round(1)|unumber if stats.total_draws else 0 }}%</em></p>
             {% endfor %}
           </div>
         </div>
@@ -53,14 +56,14 @@
           <h3>Distribuição por faixas</h3>
           <div class="range-band-list">
             {% for faixa, total in stats.ranges.items() %}
-              <p><span>{{ faixa }}</span><strong>{{ total }}</strong><em>{{ (total / (stats.total_draws * 6) * 100)|round(1)|unumber if stats.total_draws else 0 }}%</em></p>
+              <p><span>{{ faixa }}</span><strong>{{ total|uint }}</strong><em>{{ (total / (stats.total_draws * 6) * 100)|round(1)|unumber if stats.total_draws else 0 }}%</em></p>
             {% endfor %}
           </div>
         </div>
       </div>
       <div class="dashboard-stacked-cards dashboard-frequency-stacked">
-        <div class="card grouped-frequency-card compact-half-card tint-positive"><h3>Mais frequentes</h3><div class="frequency-sequence">{% for n, c in stats.most_frequent %}<span class="frequency-item"><b class="ball">{{ '%02d'|format(n) }}</b><strong>{{ c }}x</strong></span>{% endfor %}</div></div>
-        <div class="card grouped-frequency-card compact-half-card tint-warm"><h3>Menos frequentes</h3><div class="frequency-sequence">{% for n, c in stats.least_frequent %}<span class="frequency-item"><b class="ball warn">{{ '%02d'|format(n) }}</b><strong>{{ c }}x</strong></span>{% endfor %}</div></div>
+        <div class="card grouped-frequency-card compact-half-card tint-positive"><h3>Mais frequentes</h3><div class="frequency-sequence">{% for n, c in stats.most_frequent %}<span class="frequency-item"><b class="ball">{{ '%02d'|format(n) }}</b><strong>{{ c|uint }}x</strong></span>{% endfor %}</div></div>
+        <div class="card grouped-frequency-card compact-half-card tint-warm"><h3>Menos frequentes</h3><div class="frequency-sequence">{% for n, c in stats.least_frequent %}<span class="frequency-item"><b class="ball warn">{{ '%02d'|format(n) }}</b><strong>{{ c|uint }}x</strong></span>{% endfor %}</div></div>
       </div>
     </div>
 
