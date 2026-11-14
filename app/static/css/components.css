@@ -207,7 +207,7 @@ a:focus-visible {
 .frequency-bar small {
   align-self: end;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 12px;
   line-height: 18px;
 }
 
@@ -574,4 +574,13 @@ label span.required-mark,
 .form-required-note span.required-mark {
   color: var(--warning);
   font-weight: 700;
+}
+
+.danger-confirm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 320px;
+  margin-bottom: 12px;
+  font-weight: 600;
 }

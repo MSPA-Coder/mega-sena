@@ -110,6 +110,25 @@ def test_operador_nao_altera_o_sistema(contas, rota):
     assert resposta.status_code == 403
 
 
+@pytest.mark.parametrize("digitado", [None, "", "apaga", "SIM"])
+def test_reiniciar_base_sem_a_palavra_digitada_nao_apaga_nada(app_com_banco, contas, digitado):
+    """O diálogo do navegador não basta: o servidor exige a palavra APAGAR."""
+    clientes, ids = contas
+    admin = clientes[ADMIN]
+    with app_com_banco.app_context():
+        # A reinicialização grava um evento de auditoria: sem evento novo, não rodou.
+        eventos_antes = AuditEvent.query.filter_by(actor_user_id=ids[ADMIN]).count()
+    dados = {"csrf_token": _csrf(admin.get("/settings"))}
+    if digitado is not None:
+        dados["confirmacao"] = digitado
+
+    resposta = admin.post("/reset", data=dados, headers={"HX-Request": "true"})
+
+    assert "Nada foi apagado" in resposta.get_data(as_text=True)
+    with app_com_banco.app_context():
+        assert AuditEvent.query.filter_by(actor_user_id=ids[ADMIN]).count() == eventos_antes
+
+
 # --- Tema --------------------------------------------------------------------
 
 

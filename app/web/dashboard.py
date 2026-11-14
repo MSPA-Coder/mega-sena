@@ -10,13 +10,13 @@ from .helpers import is_htmx_request, optional_int
 
 _DASHBOARD_PERIODS = (
     (None, "Todos"),
-    (2000, "Últ. 2000"),
-    (1000, "Últ. 1000"),
-    (500, "Últ. 500"),
-    (200, "Últ. 200"),
-    (100, "Últ. 100"),
-    (50, "Últ. 50"),
-    (10, "Últ. 10"),
+    (2000, "Últimos 2000"),
+    (1000, "Últimos 1000"),
+    (500, "Últimos 500"),
+    (200, "Últimos 200"),
+    (100, "Últimos 100"),
+    (50, "Últimos 50"),
+    (10, "Últimos 10"),
 )
 
 

@@ -57,6 +57,7 @@
           hx-disabled-elt="find button" hx-indicator="#reset-saving"
           hx-confirm="Apagar TODOS os concursos e as apostas de TODAS as contas? Essa ação não pode ser desfeita.">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label class="danger-confirm-field"><span>Para confirmar, digite APAGAR <span class="required-mark" aria-hidden="true">*</span></span><input type="text" name="confirmacao" required autocomplete="off" autocapitalize="characters" pattern="[Aa][Pp][Aa][Gg][Aa][Rr]" title="Digite APAGAR"></label>
         <button type="submit" class="danger">Apagar concursos e apostas</button>
         <span id="reset-saving" class="htmx-indicator" role="status">Reiniciando…</span>
     </form>

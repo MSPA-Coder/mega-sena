@@ -61,7 +61,7 @@ test('gerar não grava; confirmar e repetir preservam lote e auditoria', async (
 test('Últimos 10 preserva recorte no histórico antes dos filtros', async () => {
   await withPage('br', async page => {
     await page.goto(base + '/dashboard');
-    await page.getByRole('link', {name: 'Últ. 10', exact: true}).click();
+    await page.getByRole('link', {name: 'Últimos 10', exact: true}).click();
     await page.waitForURL('**/dashboard?count=10');
     await page.locator('.history-card').first().getByRole('link', {name: '3'}).click();
     await page.waitForFunction(() => {

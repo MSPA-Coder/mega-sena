@@ -71,6 +71,18 @@
     font-size: 12px;
   }
 
+  /* 60 barras em tela estreita: cada uma fica com poucos pixels e os rótulos
+     se sobrepõem. Fica um rótulo a cada dez dezenas (10, 20, … 60). */
+  .frequency-bar small {
+    visibility: hidden;
+  }
+
+  .frequency-bar:nth-of-type(10n) small {
+    visibility: visible;
+    justify-self: center;
+    white-space: nowrap;
+  }
+
   .sum-histogram {
     grid-auto-columns: 24px;
   }

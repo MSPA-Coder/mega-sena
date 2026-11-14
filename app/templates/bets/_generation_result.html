@@ -1,5 +1,5 @@
 {% from "components/balls.html" import render_balls %}
-<section id="generation-result" class="panel" aria-live="polite">
+<section id="generation-result"{% if feedback or bets %} class="panel"{% endif %} aria-live="polite">
   {% if feedback %}<div class="flash{{ ' flash-error' if feedback_error }}"{% if feedback_error %} role="alert"{% endif %}>{{ feedback }}</div>{% endif %}
   {% if bets %}
     <div class="panel-header"><h2>{{ 'Prévia do fechamento' if closure_preview_truncated else 'Apostas geradas' }}</h2></div>

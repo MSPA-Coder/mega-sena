@@ -97,6 +97,14 @@ def save_system_settings():
 @bp.post("/reset")
 @admin_required
 def reset_database():
+    # Apaga tudo de todas as contas: além do diálogo, exige a palavra digitada,
+    # e quem confere é o servidor (o `pattern` do campo é só conforto).
+    if request.form.get("confirmacao", "").strip().upper() != "APAGAR":
+        return _feedback(
+            "Nada foi apagado: digite APAGAR no campo de confirmação.",
+            "error",
+            alvo="system-feedback",
+        )
     draw_count, bet_count = reset_all_data(
         audit=AuditContext(current_user.id, audit_request_context())
     )
