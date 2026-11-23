@@ -121,6 +121,7 @@ def _combination_distribution() -> dict[tuple[int, int, int, int, int], int]:
     return distribution
 
 
+@lru_cache(maxsize=256)
 def count_possible_draw_combinations(
     consecutive_count: int | None = None,
     even_min: int | None = None,

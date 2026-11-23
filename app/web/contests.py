@@ -154,6 +154,8 @@ def import_upload():
 def import_from_link():
     try:
         source_url = get_results_source_url()
+        # Libera a conexão da consulta de configuração antes de esperar pela rede.
+        db.session.rollback()
         source = fetch_results_xlsx(source_url)
         result = import_results_from_xlsx(
             source,

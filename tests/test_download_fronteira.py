@@ -39,6 +39,7 @@ def test_download_le_stream_fecha_resposta_e_volta_ao_inicio(rede):
 
 
 @pytest.mark.parametrize("http", [resposta(tipo="text/html"), resposta(tamanho="inválido"),
+                                   resposta(tamanho="99"), resposta(tamanho="-1"),
                                    resposta(tamanho=d.MAX_REMOTE_DOWNLOAD_BYTES + 1),
                                    resposta(b"x" * (d.MAX_REMOTE_DOWNLOAD_BYTES + 1))])
 def test_mime_tamanho_invalido_ou_stream_excessivo_nao_chegam_ao_importador(rede, http):
@@ -61,6 +62,18 @@ def test_erros_de_rede_viram_falha_de_download(rede, erro):
     rede.open.side_effect = erro
     with pytest.raises(d.ResultsDownloadError):
         d.fetch_results_xlsx(d.DEFAULT_RESULTS_SOURCE_URL)
+
+
+def test_recusa_resposta_lenta_mesmo_quando_continua_recebendo_dados(rede, monkeypatch):
+    from types import SimpleNamespace
+
+    ticks = iter([0, 0, d.DOWNLOAD_BUDGET_SECONDS + 1])
+    monkeypatch.setattr(d, "time", SimpleNamespace(monotonic=lambda: next(ticks)))
+    http = resposta()
+    rede.open.return_value = http
+    with pytest.raises(d.ResultsDownloadError, match="prazo"):
+        d.fetch_results_xlsx(d.DEFAULT_RESULTS_SOURCE_URL)
+    assert http.closed
 
 
 def test_redirecionamento_oficial_revalida_e_tem_limite(rede):

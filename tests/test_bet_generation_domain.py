@@ -68,6 +68,7 @@ def test_generation_criteria_applies_inclusive_filter_boundaries():
         ({"range_min_occupied": "7"}, "entre 1 e 6"),
         ({"even_min": "5", "even_max": "2"}, "mínimo de números pares"),
         ({"sum_min": "300", "sum_max": "217"}, "soma inicial"),
+        ({"even_min": "1e100"}, "número inteiro válido"),
         ({"even_min": "abc"}, "número inteiro válido"),
     ],
 )

@@ -61,9 +61,7 @@ concurso.
   idênticas a concursos importados são descartadas. A exclusão vem ativada por
   padrão; um resultado anterior pode voltar a ocorrer.
 - O gerador evita apostas excessivamente parecidas dentro do mesmo lote.
-- Opcionalmente, prioriza cobertura: compara até oito candidatas válidas por
-  aposta e favorece a que menos repete grupos de quatro dezenas do lote. É uma
-  heurística, sem garantia de cobertura ótima. Essas opções não alteram o fechamento.
+
 
 Filtros restritivos podem impedir que a quantidade solicitada seja alcançada.
 Nesse caso, o sistema entrega as apostas encontradas e informa a redução, em vez
@@ -125,7 +123,7 @@ Uma nova prévia representa nova intenção, mesmo com as mesmas dezenas e o mes
 concurso. Reutilizar o identificador com conteúdo ou usuário diferente é recusado.
 Ao gravar:
 
-- dezenas são normalizadas;
+- dezenas são normalizadas. Uma confirmação aleatória vazia, com mais de 100 entradas ou com uma aposta inválida é recusada por inteiro;
 - duplicatas do mesmo envio são removidas;
 - o score de diversidade das apostas aleatórias é recalculado no servidor a
   partir das dezenas validadas e da ordem do lote confirmado; ele coincide com
@@ -141,8 +139,7 @@ Ao gravar:
 - o histórico fica em **Minhas apostas** (`/bets/minhas`), da geração mais
   recente para a mais antiga, dez gerações por página, com filtro por número do
   concurso e salto para uma página. Uma página fora do intervalo mostra a
-  última. A tela carrega no máximo as primeiras 200 apostas de cada lote para
-  manter a resposta limitada. O lote completo continua persistido e o
+  última. Cada página de um lote mostra até 200 apostas e permite consultar as seguintes. O lote completo continua persistido e o
   fechamento completo continua sendo recalculado no servidor. Excluir uma
   aposta volta à mesma página e ao mesmo filtro;
 

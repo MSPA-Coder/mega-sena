@@ -199,8 +199,9 @@ def _generation_params(
 def _draw_filter_preview_payload(
     selected_filters: dict[str, int | None],
 ) -> dict[str, int | float | str]:
-    count = count_draws_matching_filters(**_active_filters(selected_filters))
+    active = _active_filters(selected_filters)
     total = count_draws()
+    count = count_draws_matching_filters(**active) if active else total
     percentage = (count / total) * 100 if total else 0
     return {
         "count": count,
@@ -243,7 +244,14 @@ def _preview_context(values: MultiDict) -> dict:
     }
 
 
-@bp.route("/rationale")
+@bp.post("/rationale")
+def submit_rationale():
+    keys = (*GENERATION_PARAM_KEYS, "closure_numbers", "exclude_previous")
+    params = {key: request.form[key] for key in keys if request.form.get(key)}
+    return redirect(url_for("web.rationale", **params), code=303)
+
+
+@bp.get("/rationale")
 def rationale():
     closure_numbers = request.args.get("closure_numbers", "")
     quantity, selected_filters, selected_amount, state_error = _state_or_defaults(request.args)
@@ -265,6 +273,8 @@ def rationale():
     )
     return_filters = selected_filters if not closure_mode else dict.fromkeys(GENERATION_FILTER_KEYS)
     return_params = _generation_params(return_quantity, return_filters, return_amount)
+    if request.args.get("exclude_previous") == "0":
+        return_params["exclude_previous"] = 0
     if closure_numbers:
         return_params["closure_numbers"] = closure_numbers
     return render_template(
@@ -298,13 +308,13 @@ def bet_generation():
     closure_numbers = request.args.get("closure_numbers", "")
     options = request.form if request.method == "POST" else request.args
     exclude_previous = options.get("exclude_previous", "1") != "0"
-    prioritize_coverage = options.get("prioritize_coverage", "0") == "1"
-    selected_quantity, selected_filters, selected_amount, state_error = _state_or_defaults(
-        request.args
-    )
-    if state_error:
-        feedback, feedback_error = state_error, True
-    if request.method == "POST":
+    if request.method != "POST":
+        selected_quantity, selected_filters, selected_amount, state_error = _state_or_defaults(
+            request.args
+        )
+        if state_error:
+            feedback, feedback_error = state_error, True
+    else:
         action = request.form.get("action", "generate")
         # Fechamento ignora quantidade de apostas e filtros (o servidor recalcula
         # tudo a partir das dezenas-base): o formulário de gravação os envia só
@@ -380,7 +390,6 @@ def bet_generation():
                         "web.bet_generation",
                         **_generation_params(quantity, selected_filters, selected_amount),
                         exclude_previous=int(exclude_previous),
-                        prioritize_coverage=int(prioritize_coverage),
                     )
                 )
             saved, generation_id = result.saved_count, result.generation_id
@@ -403,7 +412,6 @@ def bet_generation():
                         selected_amount,
                     ),
                     exclude_previous=int(exclude_previous),
-                    prioritize_coverage=int(prioritize_coverage),
                 )
             )
 
@@ -430,7 +438,6 @@ def bet_generation():
                     amount=amount,
                     filters=generation_filters,
                     exclude_previous=exclude_previous,
-                    prioritize_coverage=prioritize_coverage,
                 )
                 generated = len(bets)
                 if generated < amount:
@@ -501,13 +508,11 @@ def bet_generation():
         "coverage_metrics": coverage_metrics,
         "prize_coverage": prize_coverage_display,
         "exclude_previous": exclude_previous,
-        "prioritize_coverage": prioritize_coverage,
         "closure_numbers": closure_numbers,
         "generation_limits": GENERATION_LIMITS,
         "generation_params": {
             **_generation_params(selected_quantity, selected_filters, selected_amount),
             "exclude_previous": int(exclude_previous),
-            "prioritize_coverage": int(prioritize_coverage),
         },
         "feedback": feedback,
         "feedback_error": feedback_error,
@@ -534,7 +539,11 @@ def my_bets():
     contest = optional_int(request.args.get("contest"))
     return render_template(
         "bets/minhas.html",
-        generations=paginate_generations(owner_id=current_user.id, page=page, contest=contest),
+        generations=paginate_generations(
+            owner_id=current_user.id, page=page, contest=contest,
+            expanded_generation=optional_int(request.args.get("generation")),
+            bet_page=request.args.get("bet_page", 1, type=int) or 1,
+        ),
         contest=contest,
     )
 
@@ -561,6 +570,8 @@ def delete_bet(bet_id: int):
         url_for(
             "web.my_bets",
             page=optional_int(request.form.get("page")),
+            generation=optional_int(request.form.get("generation")),
+            bet_page=optional_int(request.form.get("bet_page")),
             contest=optional_int(request.form.get("contest")),
         )
     )

@@ -60,16 +60,6 @@
       event.preventDefault();
       document.getElementById("generate-bets")?.click();
     });
-    // "Racional" envia o formulário por GET: o token CSRF não pode ir para a
-    // URL (histórico, favoritos, cabeçalho Referer). Desabilitado só durante
-    // o envio, que lê os campos logo depois deste evento.
-    form.addEventListener("submit", (event) => {
-      const csrf = form.elements.csrf_token;
-      if (csrf && event.submitter && event.submitter.formMethod === "get") {
-        csrf.disabled = true;
-        setTimeout(() => { csrf.disabled = false; }, 0);
-      }
-    });
   }
 
   function setup(root = document) {

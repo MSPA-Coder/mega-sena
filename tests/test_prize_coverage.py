@@ -1,5 +1,4 @@
 """Cobertura de prêmios e opções de geração, com oráculos combinatórios."""
-from itertools import chain, repeat
 from math import comb
 
 from app.bets import service
@@ -36,13 +35,3 @@ def test_can_include_previous_results(monkeypatch):
     candidates = iter([previous, alternative])
     monkeypatch.setattr(service, "_secure_random_candidate", lambda _: next(candidates))
     assert service.generate_bets(6, 1, exclude_previous=True)[0].numbers == alternative
-
-
-def test_prioritization_prefers_less_overlapping_candidate(monkeypatch):
-    first = [1, 2, 3, 4, 5, 6]
-    overlapping = [1, 2, 3, 4, 7, 8]
-    distinct = [10, 11, 12, 13, 14, 15]
-    candidates = iter(chain([first, overlapping, distinct], repeat(overlapping)))
-    monkeypatch.setattr(service, "_secure_random_candidate", lambda _: next(candidates))
-    bets = service.generate_bets(6, 2, exclude_previous=False, prioritize_coverage=True)
-    assert [bet.numbers for bet in bets] == [first, distinct]

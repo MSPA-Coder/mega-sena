@@ -5,7 +5,7 @@ from itertools import combinations
 import pytest
 
 from app.bets.commands import recalcular_scores_zerados
-from app.bets.service import prepare_closure_bets
+from app.bets.service import generate_closure_bets
 from app.models import GeneratedBet, User, db
 
 GERACAO_DEFEITUOSA = 9001
@@ -52,4 +52,4 @@ def test_corrige_so_a_geracao_toda_zerada(apostas):
 def test_fechamento_continua_com_zero(apostas):
     recalcular_scores_zerados(aplicar=True)
     assert set(_scores(apostas, GERACAO_FECHAMENTO)) == {0}
-    assert all(b.score == 0 for b in prepare_closure_bets(range(1, 8)))
+    assert all(b.score == 0 for b in generate_closure_bets(range(1, 8)))

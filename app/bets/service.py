@@ -8,9 +8,9 @@ import time
 from collections.abc import Iterable
 from dataclasses import dataclass
 from hashlib import sha256
-from itertools import combinations, islice
+from itertools import batched, combinations, islice
 
-from sqlalchemy import func, text
+from sqlalchemy import Integer, column, func, insert, select, text, true, values
 
 from ..core.numbers import (
     clamp_int,
@@ -21,13 +21,13 @@ from ..extensions import db
 from ..models import BetConfirmation, Draw, GeneratedBet
 from .contracts import ConfirmationResult
 from .criteria import (
+    GENERATION_LIMITS,
     MAX_BET_NUMBERS,
     MIN_BET_NUMBERS,
     GenerationCriteria,
 )
 
 _log = logging.getLogger(__name__)
-MAX_SAVED_BETS = math.comb(MAX_BET_NUMBERS, MIN_BET_NUMBERS)
 MAX_RECENT_GENERATIONS = 20
 GENERATIONS_PER_PAGE = 10
 MAX_RECENT_BETS_PER_GENERATION = 200
@@ -43,29 +43,11 @@ MAX_CONCURRENT_GENERATIONS = 2
 _GENERATION_SLOTS = threading.BoundedSemaphore(MAX_CONCURRENT_GENERATIONS)
 
 
-def _passes_generation_filters(numbers: list[int], filters: dict | None) -> bool:
-    if not filters:
-        return True
-    return GenerationCriteria.from_mapping(filters, default_amount=1).matches_candidate(numbers)
-
-
 def _diversity_score(numbers: list[int], existing_candidates: list[list[int]]) -> float:
     if not existing_candidates:
         return 1.0
     max_overlap = max(len(set(numbers) & set(candidate)) for candidate in existing_candidates)
     return max(0.0, 1.0 - (max_overlap / max(len(numbers), 1)))
-
-
-def _passes_diversity_control(numbers: list[int], created_numbers: list[list[int]]) -> bool:
-    if not created_numbers:
-        return True
-    # Evita apostas praticamente iguais dentro da mesma geração.
-    # Para apostas de 6 dezenas, no máximo 4 números podem se repetir entre duas apostas.
-    max_allowed_overlap = max(0, len(numbers) - 2)
-    current = set(numbers)
-    return all(
-        len(current & set(candidate)) <= max_allowed_overlap for candidate in created_numbers
-    )
 
 
 def _secure_random_candidate(quantity: int) -> list[int]:
@@ -116,10 +98,12 @@ def stage_bet_batch(bets: list[GeneratedBet], token: str, actor_id: int | None) 
     generation_id = int(
         db.session.execute(text(f"SELECT nextval('{_GENERATION_ID_SEQUENCE}')")).scalar_one()
     )
-    for bet in bets:
-        bet.generation_id = generation_id
-        bet.owner_id = actor_id
-    db.session.add_all(bets)
+    for chunk in batched(bets, 1000, strict=False):
+        db.session.execute(insert(GeneratedBet), [
+            {"generation_id": generation_id, "owner_id": actor_id, "contest": contest,
+             "quantity": bet.quantity, "numbers_csv": bet.numbers_csv, "score": bet.score}
+            for bet in chunk
+        ])
     db.session.add(BetConfirmation(token=token, actor_id=actor_id, fingerprint=fingerprint,
                                    generation_id=generation_id, saved_count=len(bets)))
     return ConfirmationResult(len(bets), generation_id)
@@ -131,7 +115,6 @@ def generate_bets(
     filters: dict | None = None,
     *,
     exclude_previous: bool = True,
-    prioritize_coverage: bool = False,
 ) -> list[GeneratedBet]:
     """Gera candidatas em memória; gravar é uma decisão posterior do usuário.
 
@@ -143,7 +126,7 @@ def generate_bets(
             "Há outras gerações em andamento. Aguarde alguns segundos e tente de novo."
         )
     try:
-        return _generate_bets(quantity, amount, filters, exclude_previous, prioritize_coverage)
+        return _generate_bets(quantity, amount, filters, exclude_previous)
     finally:
         _GENERATION_SLOTS.release()
 
@@ -153,7 +136,6 @@ def _generate_bets(
     amount: int,
     filters: dict | None,
     exclude_previous: bool,
-    prioritize_coverage: bool,
 ) -> list[GeneratedBet]:
     quantity = clamp_int(
         parse_int(quantity) or MIN_BET_NUMBERS,
@@ -169,47 +151,31 @@ def _generate_bets(
     draws = all_draw_numbers() if exclude_previous and quantity == 6 else []
     existing_draws = {tuple(d) for d in draws}
     created: list[GeneratedBet] = []
-    created_numbers: list[list[int]] = []
+    created_sets: list[set[int]] = []
     attempts = 0
     # Limite razoável: evita loop infinito com filtros muito restritivos.
     # 2000 tentativas por aposta é suficiente para qualquer configuração prática.
     max_attempts = amount * 2000
     deadline = time.monotonic() + GENERATION_TIME_BUDGET_SECONDS
     while len(created) < amount and attempts < max_attempts:
-        candidates: list[list[int]] = []
-        target = 8 if prioritize_coverage and created_numbers else 1
-        while len(candidates) < target and attempts < max_attempts:
-            if attempts % 256 == 0 and time.monotonic() > deadline:
-                break
-            attempts += 1
-            nums = _secure_random_candidate(quantity)
-            if quantity == 6 and tuple(nums) in existing_draws:
-                continue
-            if not _passes_generation_filters(nums, filters):
-                continue
-            if not _passes_diversity_control(nums, created_numbers):
-                continue
-            candidates.append(nums)
-        if not candidates:
+        if attempts % 256 == 0 and time.monotonic() > deadline:
             break
-        # Penaliza subconjuntos de quatro dezenas já cobertos. É uma heurística
-        # limitada a oito candidatas, não uma otimização global exata.
-        nums = min(
-            candidates,
-            key=lambda candidate: sum(
-                math.comb(len(set(candidate) & set(previous)), 4)
-                for previous in created_numbers
-                if len(set(candidate) & set(previous)) >= 4
-            ),
-        )
-        score = _diversity_score(nums, created_numbers)
+        attempts += 1
+        nums = _secure_random_candidate(quantity)
+        if tuple(nums) in existing_draws or (filters and not criteria.matches_candidate(nums)):
+            continue
+        current = set(nums)
+        overlap = max((len(current & previous) for previous in created_sets), default=0)
+        if overlap > quantity - 2:
+            continue
+        score = 1.0 - overlap / quantity
         bet = GeneratedBet(
             quantity=quantity,
             numbers_csv=",".join(map(str, nums)),
             score=round(score, 4),
         )
         created.append(bet)
-        created_numbers.append(nums)
+        created_sets.append(current)
     if len(created) < amount:
         _log.warning(
             "generate_bets: geradas %d/%d apostas após %d tentativas (filtros: %s).",
@@ -319,6 +285,8 @@ def paginate_generations(
     page: int = 1,
     per_page: int = GENERATIONS_PER_PAGE,
     contest: int | None = None,
+    expanded_generation: int | None = None,
+    bet_page: int = 1,
 ) -> GenerationPage:
     """Histórico de gerações gravadas pela conta, da mais recente para a mais antiga.
 
@@ -339,30 +307,38 @@ def paginate_generations(
     generations = _generation_summaries(
         owner_id=owner_id, limit=per_page, offset=(page - 1) * per_page, contest=contest
     )
-    return GenerationPage(_attach_bets(generations, owner_id), page, pages, total)
+    items = _attach_bets(generations, owner_id, expanded_generation, bet_page)
+    return GenerationPage(items, page, pages, total)
 
 
-def _attach_bets(generations: list[dict], owner_id: int) -> list[dict]:
-    generation_ids = [generation["generation_id"] for generation in generations]
-    if not generation_ids:
+def _attach_bets(
+    generations: list[dict], owner_id: int, expanded_generation: int | None = None,
+    bet_page: int = 1,
+) -> list[dict]:
+    if not generations:
         return generations
 
-    # Uma consulta para todos os lotes, e não uma por lote: o ROW_NUMBER corta
-    # cada lote no limite de exibição dentro do próprio banco.
-    ranked = (
-        db.session.query(
-            GeneratedBet.id.label("id"),
-            func.row_number()
-            .over(partition_by=GeneratedBet.generation_id, order_by=GeneratedBet.id)
-            .label("position"),
-        )
-        .filter(GeneratedBet.owner_id == owner_id, GeneratedBet.generation_id.in_(generation_ids))
-        .subquery()
+    offsets = []
+    for group in generations:
+        group["expanded"] = group["generation_id"] == expanded_generation
+        group["bet_pages"] = math.ceil(group["bet_count"] / MAX_RECENT_BETS_PER_GENERATION)
+        page = clamp_int(bet_page, 1, group["bet_pages"]) if group["expanded"] else 1
+        group["bet_page"] = page
+        offsets.append((group["generation_id"], (page - 1) * MAX_RECENT_BETS_PER_GENERATION))
+
+    groups = values(column("generation_id", Integer), column("start_at", Integer),
+                    name="requested_groups").data(offsets)
+    selected = (
+        select(GeneratedBet.id)
+        .where(GeneratedBet.owner_id == owner_id, GeneratedBet.generation_id == groups.c.generation_id)
+        .order_by(GeneratedBet.id)
+        .offset(groups.c.start_at).limit(MAX_RECENT_BETS_PER_GENERATION)
+        .correlate(groups).lateral()
     )
     bets = (
-        db.session.query(GeneratedBet, Draw).join(ranked, GeneratedBet.id == ranked.c.id)
+        db.session.query(GeneratedBet, Draw).select_from(groups)
+        .join(selected, true()).join(GeneratedBet, GeneratedBet.id == selected.c.id)
         .outerjoin(Draw, Draw.contest == GeneratedBet.contest)
-        .filter(ranked.c.position <= MAX_RECENT_BETS_PER_GENERATION)
         .order_by(GeneratedBet.generation_id, GeneratedBet.id)
         .all()
     )
@@ -396,7 +372,7 @@ def stage_delete_bet(bet_id: int, owner_id: int) -> GeneratedBet:
 
 
 def prepare_generated_bets(
-    quantity: int, bets: Iterable[str], *, recompute_diversity: bool = True
+    quantity: int, bets: Iterable[str]
 ) -> list[GeneratedBet]:
     quantity = clamp_int(
         parse_int(quantity) or MIN_BET_NUMBERS,
@@ -405,28 +381,24 @@ def prepare_generated_bets(
     )
     valid_bets: list[GeneratedBet] = []
     seen_bets: set[str] = set()
+    previous_numbers: list[list[int]] = []
+    max_amount = GENERATION_LIMITS["amount"][1]
     for index, numbers_csv in enumerate(bets, start=1):
-        if index > MAX_SAVED_BETS:
-            raise RuntimeError(f"Uma geração pode conter no máximo {MAX_SAVED_BETS} apostas.")
+        if index > max_amount:
+            raise RuntimeError(f"Uma geração aleatória pode conter no máximo {max_amount} apostas.")
         nums = [parse_int(n) for n in numbers_csv.split(",")]
         if (
             len(nums) != quantity
             or any(n is None or n < 1 or n > 60 for n in nums)
             or len(set(nums)) != quantity
         ):
-            continue
+            raise RuntimeError(f"Confira as dezenas da aposta {index} e gere uma nova prévia.")
         nums = sorted(nums)  # type: ignore[arg-type]
         normalized_bet = ",".join(map(str, nums))
         if normalized_bet not in seen_bets:
             seen_bets.add(normalized_bet)
-            score = (
-                round(
-                    _diversity_score(nums, [bet.numbers for bet in valid_bets]),
-                    4,
-                )
-                if recompute_diversity
-                else 0
-            )
+            score = round(_diversity_score(nums, previous_numbers), 4)
+            previous_numbers.append(nums)
             valid_bets.append(
                 GeneratedBet(
                     quantity=quantity,
@@ -435,17 +407,6 @@ def prepare_generated_bets(
                 )
             )
 
+    if not valid_bets:
+        raise RuntimeError("Nenhuma aposta para gravar. Gere uma nova prévia.")
     return valid_bets
-
-
-def prepare_closure_bets(numbers: Iterable[int]) -> list[GeneratedBet]:
-    base_numbers = _normalize_closure_numbers(numbers)
-    serialized_bets = (
-        ",".join(map(str, combination))
-        for combination in combinations(base_numbers, MIN_BET_NUMBERS)
-    )
-    return prepare_generated_bets(
-        MIN_BET_NUMBERS,
-        serialized_bets,
-        recompute_diversity=False,
-    )

@@ -112,7 +112,7 @@ def _money_to_cents(value: object) -> int:
             elif "," in text:
                 text = text.replace(",", ".")
             amount = Decimal(text)
-        if not amount.is_finite() or amount < 0:
+        if not amount.is_finite() or not 0 <= amount <= MAX_INT64:
             raise ValueError("valor monetário inválido")
         cents = int((amount * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
         if cents > MAX_INT64:
@@ -279,11 +279,13 @@ def import_results_from_xlsx(
         def finish(result: dict[str, int], quarantined: int = 0) -> dict[str, int]:
             if seen_contests and importer_id is not None:
                 db.session.flush()
+                drawn = {contest: set(existing_draws[contest].numbers) for contest in seen_contests}
+                bets = (db.session.query(GeneratedBet.contest, GeneratedBet.numbers_csv)
+                        .filter(GeneratedBet.owner_id == importer_id, GeneratedBet.contest.in_(seen_contests))
+                        .yield_per(1000))
                 winning = sum(
-                    1 for bet in db.session.query(GeneratedBet)
-                    .filter(GeneratedBet.owner_id == importer_id)
-                    .filter(GeneratedBet.contest.in_(seen_contests))
-                    if len(set(bet.numbers) & set(existing_draws[bet.contest].numbers)) >= 4
+                    len(drawn[contest].intersection(map(int, numbers.split(",")))) >= 4
+                    for contest, numbers in bets
                 )
                 if winning:
                     result["winning_bets"] = winning
@@ -323,41 +325,34 @@ def import_results_from_xlsx(
         if not header:
             return finish({"imported": 0, "updated": 0, "ignored": 0})
 
-        normalized = [_norm(c) for c in header]
+        # A planilha oficial pode acrescentar a unidade ao cabeçalho de rateio.
+        normalized = [_norm(c).removesuffix("(r$)").strip() for c in header]
 
         def find_one(candidates: Iterable[str]) -> int | None:
             cand = {_norm(c) for c in candidates}
             for idx, name in enumerate(normalized):
                 if name in cand:
                     return idx
-            for idx, name in enumerate(normalized):
-                if any(c in name for c in cand):
-                    return idx
             return None
 
-        contest_idx = find_one(["concurso", "contest", "numero concurso", "n concurso"])
-        date_idx = find_one(["data sorteio", "data", "draw date"])
+        contest_idx = find_one(["concurso", "contest", "numero concurso", "numero do concurso", "n concurso", "nº concurso"])
+        date_idx = find_one(["data sorteio", "data do sorteio", "data", "draw date"])
         winners_6_idx = find_one(["ganhadores 6 acertos", "ganhadores sena", "sena"])
         winners_5_idx = find_one(["ganhadores 5 acertos", "ganhadores quina", "quina"])
         winners_4_idx = find_one(
             ["ganhadores 4 acertos", "ganhadores quadra", "quadra"]
         )
-        prize_idx = find_one(["rateio 6 acertos", "premio", "prêmio"])
+        prize_idx = find_one(["rateio 6 acertos", "rateio sena", "premio", "premio sena"])
         accumulated_idx = find_one(["acumulado 6 acertos", "acumulado"])
         quina_rateio_idx = find_one(["rateio 5 acertos", "rateio quina"])
         quadra_rateio_idx = find_one(["rateio 4 acertos", "rateio quadra"])
 
         number_indexes: list[int] = []
-        for token in [
-            "bola 1", "bola1", "dezena 1", "n1", "bola 2", "bola2", "dezena 2", "n2",
-            "bola 3", "bola3", "dezena 3", "n3", "bola 4", "bola4", "dezena 4", "n4",
-            "bola 5", "bola5", "dezena 5", "n5", "bola 6", "bola6", "dezena 6", "n6",
-        ]:
-            idx = find_one([token])
-            if idx is not None and idx not in number_indexes:
+        for number in range(1, 7):
+            idx = find_one([f"bola {number}", f"bola{number}", f"dezena {number}",
+                            f"dezena{number}", f"n{number}"])
+            if idx is not None:
                 number_indexes.append(idx)
-            if len(number_indexes) == 6:
-                break
 
         if contest_idx is None or len(number_indexes) < 6:
             ignored = _count_rows_with_limit(rows)
@@ -389,159 +384,158 @@ def import_results_from_xlsx(
                     )
                 )
 
-        try:
-            for row_number, row in enumerate(rows, start=1):
-                if row_number > MAX_IMPORT_ROWS:
-                    raise RuntimeError(
-                        f"A planilha ultrapassa o limite de {MAX_IMPORT_ROWS} linhas de dados."
-                    )
-                contest = parse_int(
-                    row[contest_idx] if contest_idx < len(row) else None,
-                    max_abs=MAX_INT32,
+        for row_number, row in enumerate(rows, start=1):
+            if row_number > MAX_IMPORT_ROWS:
+                raise RuntimeError(
+                    f"A planilha ultrapassa o limite de {MAX_IMPORT_ROWS} linhas de dados."
                 )
-                raw_numbers = [
-                    parse_int(row[i] if i < len(row) else None)
-                    for i in number_indexes[:6]
-                ]
-                if contest is None or contest <= 0:
-                    quarantine(row_number, contest, "contest_invalid", resolution="ignored")
-                    ignored += 1
-                    continue
-                if contest > MAX_REASONABLE_CONTEST:
-                    quarantine(row_number, contest, "contest_anomaly", resolution="ignored")
-                    ignored += 1
-                    continue
-                if (
-                    any(n is None or n < 1 or n > 60 for n in raw_numbers)
-                    or len(set(raw_numbers)) != 6
+            contest = parse_int(
+                row[contest_idx] if contest_idx < len(row) else None,
+                max_abs=MAX_INT32,
+            )
+            raw_numbers = [
+                parse_int(row[i] if i < len(row) else None)
+                for i in number_indexes[:6]
+            ]
+            if contest is None or contest <= 0:
+                quarantine(row_number, contest, "contest_invalid", resolution="ignored")
+                ignored += 1
+                continue
+            if contest > MAX_REASONABLE_CONTEST:
+                quarantine(row_number, contest, "contest_anomaly", resolution="ignored")
+                ignored += 1
+                continue
+            if (
+                any(n is None or n < 1 or n > 60 for n in raw_numbers)
+                or len(set(raw_numbers)) != 6
+            ):
+                quarantine(row_number, contest, "numbers_invalid", resolution="ignored")
+                ignored += 1
+                continue
+            if contest in seen_contests:
+                quarantine(row_number, contest, "duplicate_contest", resolution="ignored")
+                ignored += 1
+                continue
+            if previous_contest is not None and contest < previous_contest:
+                quarantine(
+                    row_number,
+                    contest,
+                    "contest_order_anomaly",
+                    resolution="normalized",
+                )
+            previous_contest = contest
+
+            numbers = [int(number) for number in raw_numbers]
+            if numbers != sorted(numbers):
+                quarantine(
+                    row_number,
+                    contest,
+                    "numbers_order_normalized",
+                    resolution="normalized",
+                )
+            numbers = sorted(numbers)
+            derived = draw_parameters(numbers)
+            payload = {
+                "n1": numbers[0],
+                "n2": numbers[1],
+                "n3": numbers[2],
+                "n4": numbers[3],
+                "n5": numbers[4],
+                "n6": numbers[5],
+                "total_sum": derived["total_sum"],
+                "even_count": derived["even_count"],
+                "consecutive_count": derived["consecutive_count"],
+            }
+            optional_payload: dict[str, object] = {}
+
+            def cell_at(index: int, *, row: tuple = row) -> object:
+                return row[index] if index < len(row) else None
+
+            parsed_date = None
+            if date_idx is not None:
+                try:
+                    parsed_date = _parse_date(cell_at(date_idx))
+                except ValueError as exc:
+                    raise RuntimeError(
+                        f"Data inválida no concurso {contest}."
+                    ) from exc
+                optional_payload["draw_date"] = parsed_date
+                if parsed_date is not None and (
+                    parsed_date < MEGA_SENA_FIRST_DRAW_DATE or parsed_date > date.today()
                 ):
-                    quarantine(row_number, contest, "numbers_invalid", resolution="ignored")
-                    ignored += 1
-                    continue
-                if contest in seen_contests:
-                    quarantine(row_number, contest, "duplicate_contest", resolution="ignored")
-                    ignored += 1
-                    continue
-                if previous_contest is not None and contest < previous_contest:
                     quarantine(
                         row_number,
                         contest,
-                        "contest_order_anomaly",
-                        resolution="normalized",
+                        "draw_date_anomaly",
+                        resolution="ignored",
                     )
-                previous_contest = contest
-
-                numbers = [int(number) for number in raw_numbers]
-                if numbers != sorted(numbers):
+                    ignored += 1
+                    continue
+                if previous_date is not None and parsed_date is not None and parsed_date < previous_date:
                     quarantine(
                         row_number,
                         contest,
-                        "numbers_order_normalized",
+                        "draw_date_order_anomaly",
                         resolution="normalized",
                     )
-                numbers = sorted(numbers)
-                derived = draw_parameters(numbers)
-                payload = {
-                    "n1": numbers[0],
-                    "n2": numbers[1],
-                    "n3": numbers[2],
-                    "n4": numbers[3],
-                    "n5": numbers[4],
-                    "n6": numbers[5],
-                    "total_sum": derived["total_sum"],
-                    "even_count": derived["even_count"],
-                    "consecutive_count": derived["consecutive_count"],
-                }
-                optional_payload: dict[str, object] = {}
-
-                def cell_at(index: int, *, row: tuple = row) -> object:
-                    return row[index] if index < len(row) else None
-
-                parsed_date = None
-                if date_idx is not None:
+                if parsed_date is not None:
+                    previous_date = parsed_date
+            for field, index, label in (
+                ("winners_6", winners_6_idx, "ganhadores de 6 acertos"),
+                ("winners_5", winners_5_idx, "ganhadores de 5 acertos"),
+                ("winners_4", winners_4_idx, "ganhadores de 4 acertos"),
+            ):
+                if index is not None:
                     try:
-                        parsed_date = _parse_date(cell_at(date_idx))
+                        optional_payload[field] = _parse_winner_count(cell_at(index))
                     except ValueError as exc:
                         raise RuntimeError(
-                            f"Data inválida no concurso {contest}."
+                            f"Quantidade inválida no concurso {contest} ({label})."
                         ) from exc
-                    optional_payload["draw_date"] = parsed_date
-                    if parsed_date is not None and (
-                        parsed_date < MEGA_SENA_FIRST_DRAW_DATE or parsed_date > date.today()
-                    ):
-                        quarantine(
-                            row_number,
-                            contest,
-                            "draw_date_anomaly",
-                            resolution="ignored",
-                        )
-                        ignored += 1
-                        continue
-                    if previous_date is not None and parsed_date is not None and parsed_date < previous_date:
-                        quarantine(
-                            row_number,
-                            contest,
-                            "draw_date_order_anomaly",
-                            resolution="normalized",
-                        )
-                    if parsed_date is not None:
-                        previous_date = parsed_date
-                for field, index, label in (
-                    ("winners_6", winners_6_idx, "ganhadores de 6 acertos"),
-                    ("winners_5", winners_5_idx, "ganhadores de 5 acertos"),
-                    ("winners_4", winners_4_idx, "ganhadores de 4 acertos"),
-                ):
-                    if index is not None:
-                        try:
-                            optional_payload[field] = _parse_winner_count(cell_at(index))
-                        except ValueError as exc:
-                            raise RuntimeError(
-                                f"Quantidade inválida no concurso {contest} ({label})."
-                            ) from exc
-                for field, index, label in (
-                    ("prize_cents", prize_idx, "rateio de 6 acertos"),
-                    ("accumulated_cents", accumulated_idx, "acumulado"),
-                    ("quina_rateio_cents", quina_rateio_idx, "rateio de 5 acertos"),
-                    ("quadra_rateio_cents", quadra_rateio_idx, "rateio de 4 acertos"),
-                ):
-                    if index is not None:
-                        try:
-                            optional_payload[field] = _money_to_cents(cell_at(index))
-                        except ValueError as exc:
-                            raise RuntimeError(
-                                f"Valor monetário inválido no concurso {contest} ({label})."
-                            ) from exc
+            for field, index, label in (
+                ("prize_cents", prize_idx, "rateio de 6 acertos"),
+                ("accumulated_cents", accumulated_idx, "acumulado"),
+                ("quina_rateio_cents", quina_rateio_idx, "rateio de 5 acertos"),
+                ("quadra_rateio_cents", quadra_rateio_idx, "rateio de 4 acertos"),
+            ):
+                if index is not None:
+                    try:
+                        optional_payload[field] = _money_to_cents(cell_at(index))
+                    except ValueError as exc:
+                        raise RuntimeError(
+                            f"Valor monetário inválido no concurso {contest} ({label})."
+                        ) from exc
 
-                draw = existing_draws.get(contest)
-                if batch is not None:
-                    payload["import_batch_id"] = batch.id
-                payload.update(optional_payload)
-                if draw:
-                    data_changed = any(
-                        getattr(draw, key) != value
-                        for key, value in payload.items()
-                        if key != "import_batch_id"
-                    )
-                    # Linha igual não é tocada: regravar só para trocar o lote
-                    # reescreveria a tabela toda a cada importação (e o rótulo
-                    # "ignorado" mentiria). `import_batch_id` fica sendo o lote
-                    # que forneceu a versão atual do concurso.
-                    if data_changed:
-                        for key, value in payload.items():
-                            setattr(draw, key, value)
-                        updated += 1
-                    else:
-                        ignored += 1
+            draw = existing_draws.get(contest)
+            if batch is not None:
+                payload["import_batch_id"] = batch.id
+            payload.update(optional_payload)
+            if draw:
+                data_changed = any(
+                    getattr(draw, key) != value
+                    for key, value in payload.items()
+                    if key != "import_batch_id"
+                )
+                # Linha igual não é tocada: regravar só para trocar o lote
+                # reescreveria a tabela toda a cada importação (e o rótulo
+                # "ignorado" mentiria). `import_batch_id` fica sendo o lote
+                # que forneceu a versão atual do concurso.
+                if data_changed:
+                    for key, value in payload.items():
+                        setattr(draw, key, value)
+                    updated += 1
                 else:
-                    draw = Draw(contest=contest, **payload)
-                    db.session.add(draw)
-                    existing_draws[contest] = draw
-                    imported += 1
-                seen_contests.add(contest)
-            result = {"imported": imported, "updated": updated, "ignored": ignored}
-            return finish(result, quarantined)
-        except Exception:
-            db.session.rollback()
-            raise
+                    ignored += 1
+            else:
+                draw = Draw(contest=contest, **payload)
+                db.session.add(draw)
+                existing_draws[contest] = draw
+                imported += 1
+            seen_contests.add(contest)
+        result = {"imported": imported, "updated": updated, "ignored": ignored}
+        return finish(result, quarantined)
+    except Exception:
+        db.session.rollback()
+        raise
     finally:
         workbook.close()

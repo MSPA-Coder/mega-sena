@@ -30,7 +30,6 @@ test('gerar não grava; confirmar e repetir preservam lote e auditoria', async (
     const before = await state(page);
     await page.locator('#generation-amount').fill('2');
     await page.locator('[name=exclude_previous]').selectOption('0');
-    await page.locator('[name=prioritize_coverage]').selectOption('1');
     await page.locator('#generate-bets').click();
     await page.locator('#generation-result [name=bet]').first().waitFor({state: 'attached'});
     assert.equal(await page.locator('#generation-result [name=bet]').count(), 2);
@@ -156,5 +155,26 @@ test('resultado da importação continua visível na tela', async () => {
     await feedback.waitFor();
     await page.waitForTimeout(6000);
     assert.equal(await feedback.isVisible(), true);
+  });
+});
+
+test('fechamento salvo permite consultar as apostas além da primeira página', async () => {
+  await withPage('br', async page => {
+    await page.goto(base + '/bets');
+    await page.locator('#closure-numbers').fill('1 2 3 4 5 6 7 8 9 10');
+    await page.locator('#generate-bets').click();
+    await page.locator('#generation-result [name=contest]').fill('4242');
+    await page.getByRole('button', {name: 'Gravar no banco'}).click();
+    await page.getByRole('dialog').getByRole('button', {name: 'Confirmar', exact: true}).click();
+    await page.getByText('A geração foi salva.', {exact: false}).waitFor();
+    await page.goto(base + '/bets/minhas?contest=4242');
+    await page.locator('.generation-toggle').first().click();
+    await page.getByRole('link', {name: 'Próximas apostas'}).click();
+    const expanded = page.locator('.generation-bets-inline:not([hidden])');
+    await expanded.getByText('Página 2 de 2').waitFor();
+    assert.equal(await expanded.locator('.bet-line').count(), 10);
+    await expanded.getByRole('link', {name: 'Apostas anteriores'}).click();
+    await expanded.getByText('Página 1 de 2').waitFor();
+    assert.equal(await expanded.locator('.bet-line').count(), 200);
   });
 });

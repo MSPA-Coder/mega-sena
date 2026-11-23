@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import ipaddress
 import socket
+import time
+from http.client import HTTPException
 from io import BytesIO
 from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin, urlsplit, urlunsplit
@@ -19,6 +21,7 @@ DEFAULT_RESULTS_SOURCE_URL = (
 OFFICIAL_RESULTS_HOSTS = frozenset({"servicebus3.caixa.gov.br"})
 MAX_REMOTE_DOWNLOAD_BYTES = 10 * 1024 * 1024
 MAX_REDIRECTS = 3
+DOWNLOAD_BUDGET_SECONDS = 30
 _ALLOWED_CONTENT_TYPES = frozenset(
     {
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -97,20 +100,28 @@ def fetch_results_xlsx(url: object) -> BytesIO:
     current_url = normalize_results_source_url(url)
     opener = build_opener(_NoRedirect())
 
+    deadline = time.monotonic() + DOWNLOAD_BUDGET_SECONDS
+
+    def remaining_time() -> float:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise ResultsDownloadError("A fonte excedeu o prazo de download da planilha.")
+        return remaining
+
     for _ in range(MAX_REDIRECTS + 1):
         _ensure_public_host(current_url)
         request = Request(current_url, headers={"User-Agent": "MegaSena/1.0"})
         try:
-            response = opener.open(request, timeout=20)
+            response = opener.open(request, timeout=min(20, remaining_time()))
         except HTTPError as exc:
-            if 300 <= exc.code < 400 and exc.headers.get("Location"):
-                current_url = normalize_results_source_url(
-                    urljoin(current_url, exc.headers["Location"])
-                )
-                exc.close()
-                continue
-            raise ResultsDownloadError("A fonte configurada recusou o download da planilha.") from exc
-        except URLError as exc:
+            with exc:
+                if 300 <= exc.code < 400 and exc.headers.get("Location"):
+                    current_url = normalize_results_source_url(
+                        urljoin(current_url, exc.headers["Location"])
+                    )
+                    continue
+                raise ResultsDownloadError("A fonte configurada recusou o download da planilha.") from exc
+        except (URLError, TimeoutError, HTTPException) as exc:
             raise ResultsDownloadError("Não foi possível acessar a fonte configurada.") from exc
 
         with response:
@@ -125,14 +136,22 @@ def fetch_results_xlsx(url: object) -> BytesIO:
                     raise ResultsDownloadError(
                         "A fonte configurada informou um tamanho de arquivo inválido."
                     ) from exc
+                if declared_size < 0:
+                    raise ResultsDownloadError("A fonte configurada informou um tamanho de arquivo inválido.")
                 if declared_size > MAX_REMOTE_DOWNLOAD_BYTES:
                     raise ResultsDownloadError("A planilha remota ultrapassa o limite de 10 MB.")
 
             content = BytesIO()
-            while chunk := response.read(64 * 1024):
-                if content.tell() + len(chunk) > MAX_REMOTE_DOWNLOAD_BYTES:
-                    raise ResultsDownloadError("A planilha remota ultrapassa o limite de 10 MB.")
-                content.write(chunk)
+            try:
+                while chunk := response.read1(64 * 1024):
+                    remaining_time()
+                    if content.tell() + len(chunk) > MAX_REMOTE_DOWNLOAD_BYTES:
+                        raise ResultsDownloadError("A planilha remota ultrapassa o limite de 10 MB.")
+                    content.write(chunk)
+            except (OSError, HTTPException) as exc:
+                raise ResultsDownloadError("O download da planilha foi interrompido.") from exc
+            if content_length and content.tell() != declared_size:
+                raise ResultsDownloadError("O download da planilha ficou incompleto.")
             content.seek(0)
             return content
 

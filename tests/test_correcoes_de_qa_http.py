@@ -178,6 +178,23 @@ def test_pagina_de_geracao_expoe_campo_de_dezenas_e_pontos_de_navegacao(logado):
     assert 'class="skip-link"' in pagina
 
 
+def test_head_da_tela_de_apostas_permanece_consulta(logado, monkeypatch):
+    def recusar_geracao(**kwargs):
+        pytest.fail("HEAD acionou a geração")
+    monkeypatch.setattr("app.web.bets.generate_bets", recusar_geracao)
+    assert logado.head("/bets").status_code == 200
+
+
+def test_racional_preserva_os_parametros_e_mantem_csrf_fora_da_url(logado):
+    response = logado.post("/rationale", data={
+        "csrf_token": _csrf(logado.get("/bets")), "quantity": "8", "exclude_previous": "0",
+    })
+    assert response.status_code == 303
+    url = response.headers["Location"]
+    assert "quantity=8" in url and "exclude_previous=0" in url and "csrf_token" not in url
+    assert logado.get(url).status_code == 200
+
+
 def test_previa_com_filtro_contraditorio_mostra_erro_em_vez_de_corrigir(logado):
     resposta = logado.get(
         "/bets/preview?quantity=6&amount=1&even_min=5&even_max=2",

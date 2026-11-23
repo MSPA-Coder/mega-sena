@@ -149,6 +149,27 @@ def test_confirmacao_recalcula_diversidade_do_lote_validado(database):
     assert [aposta.score for aposta in salvas] == [1.0, 0.3333]
 
 
+@pytest.mark.parametrize("entries", [[], [BET, "1,2,3"], [BET] * 101])
+def test_invalid_random_batch_is_rejected_in_full(database, entries):
+    _, admin, _ = database
+    before = _snapshot()
+    confirmations_before = BetConfirmation.query.count()
+    with pytest.raises(RuntimeError):
+        bets.confirm_generated_bets(6, entries, audit=AuditContext(admin.id))
+    assert _snapshot() == before
+    assert BetConfirmation.query.count() == confirmations_before
+    assert AuditEvent.query.count() == 0
+
+
+def test_fechamento_maximo_persiste_todos_os_blocos(database):
+    _, admin, _ = database
+    result = bets.confirm_closure_bets(range(1, 21), audit=AuditContext(admin.id), contest=4100)
+    saved = GeneratedBet.query.filter_by(owner_id=admin.id, contest=4100, generation_id=result.generation_id)
+    assert saved.with_entities(GeneratedBet.numbers_csv).distinct().count() == result.saved_count == 38760
+    assert saved.count() == 38760
+    assert AuditEvent.query.filter_by(action="bets.save", success=True).count() == 1
+
+
 def test_fechamento_mantem_score_de_diversidade_zero(database):
     _, admin, _ = database
     resultado = bets.confirm_closure_bets(

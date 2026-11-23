@@ -198,6 +198,20 @@ def test_import_rolls_back_earlier_valid_changes_when_later_metadata_is_invalid(
     assert session.rollback_calls == 1
 
 
+def test_rateio_e_estimativa_nao_substituem_ganhadores_ou_premio(fake_store):
+    rows, _ = fake_store
+    importing.import_results_from_xlsx(
+        _xlsx(FULL_HEADERS, [[101, "01/08/2026", 1, 2, 3, 4, 5, 6, 2, 123]])
+    )
+    rows[101].winners_5 = 9
+    headers = ["Concurso", *(f"Bola {n}" for n in range(1, 7)),
+               "Rateio Quina (R$)", "Estimativa prêmio"]
+    importing.import_results_from_xlsx(_xlsx(headers, [[101, 1, 2, 3, 4, 5, 6, 20, 999]]))
+    assert rows[101].winners_5 == 9
+    assert rows[101].prize_cents == 12300
+    assert rows[101].quina_rateio_cents == 2000
+
+
 def test_import_uses_transaction_lock_and_quarantines_normalized_order(fake_store, monkeypatch):
     rows, session = fake_store
 

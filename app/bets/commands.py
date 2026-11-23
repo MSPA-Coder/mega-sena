@@ -11,7 +11,7 @@ from ..models import GeneratedBet
 from .contracts import ConfirmationResult, DeletedBet
 from .service import (
     _diversity_score,
-    prepare_closure_bets,
+    generate_closure_bets,
     prepare_generated_bets,
     stage_bet_batch,
     stage_delete_bet,
@@ -49,13 +49,13 @@ def confirm_generated_bets(
     token: str | None = None,
 ) -> ConfirmationResult:
     return _confirm(
-        prepare_generated_bets(quantity, bets, recompute_diversity=True), audit, contest, token
+        prepare_generated_bets(quantity, bets), audit, contest, token
     )
 
 
 def confirm_closure_bets(numbers: Iterable[int], *, audit: AuditContext, contest: int | None = None,
                          token: str | None = None) -> ConfirmationResult:
-    return _confirm(prepare_closure_bets(numbers), audit, contest, token)
+    return _confirm(generate_closure_bets(numbers), audit, contest, token)
 
 
 def recalcular_scores_zerados(*, aplicar: bool) -> tuple[int, int]:

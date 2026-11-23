@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from decimal import Decimal, InvalidOperation
 
 from ..core.numbers import (
     count_consecutive_numbers,
     count_even_numbers,
+    parse_int,
     range_band_counts,
 )
 
@@ -37,21 +37,6 @@ GENERATION_LIMITS = {
 
 class InvalidGenerationCriteriaError(ValueError):
     """Entrada de filtro inválida ou contraditória."""
-
-
-def _optional_int(value: object) -> int | None:
-    if isinstance(value, bool) or value is None or value == "":
-        return None
-    try:
-        text = str(value).strip()
-        if not text or len(text) > 64:
-            return None
-        parsed = Decimal(text)
-        if not parsed.is_finite() or parsed != parsed.to_integral_value():
-            return None
-        return int(parsed)
-    except (InvalidOperation, OverflowError, TypeError, ValueError):
-        return None
 
 
 def _bounded(value: int | None, key: str, fallback: int | None = None) -> int | None:
@@ -91,7 +76,7 @@ class GenerationCriteria:
             if raw is None or str(raw).strip() == "":
                 parsed[key] = None
                 continue
-            value = _optional_int(raw)
+            value = parse_int(raw)
             if value is None:
                 raise InvalidGenerationCriteriaError(
                     f"{key}: informe um número inteiro válido."
@@ -135,15 +120,15 @@ class GenerationCriteria:
         source = values or {}
         quantity = (
             _bounded(
-                _optional_int(source.get("quantity")), "quantity", default_quantity
+                parse_int(source.get("quantity")), "quantity", default_quantity
             )
             or 6
         )
         amount = (
-            _bounded(_optional_int(source.get("amount")), "amount", default_amount) or 1
+            _bounded(parse_int(source.get("amount")), "amount", default_amount) or 1
         )
         normalized = {
-            key: _bounded(_optional_int(source.get(key)), key)
+            key: _bounded(parse_int(source.get(key)), key)
             for key in GENERATION_FILTER_KEYS
         }
         even_min = normalized["even_min"]

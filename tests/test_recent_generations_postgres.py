@@ -20,6 +20,7 @@ from sqlalchemy import event
 from app.bets.service import (
     MAX_RECENT_BETS_PER_GENERATION,
     list_recent_generations_with_bets,
+    paginate_generations,
 )
 from app.core.numbers import draw_parameters
 from app.models import Draw, GeneratedBet, User
@@ -80,6 +81,15 @@ def test_lotes_vem_do_mais_recente_com_apostas_em_ordem_e_truncados(sessao, dono
     for generation_id, tamanho in ((900_001, 3), (900_003, 1)):
         assert por_id[generation_id]["bets_truncated"] is False
         assert len(por_id[generation_id]["bets"]) == tamanho
+
+
+def test_pagina_interna_alcanca_as_ultimas_apostas_do_proprio_lote(sessao, dono):
+    _lote(sessao, dono, 910_400, MAX_RECENT_BETS_PER_GENERATION + 3, minutos=10)
+    first = paginate_generations(owner_id=dono).items[0]
+    last = paginate_generations(owner_id=dono, expanded_generation=910_400, bet_page=999).items[0]
+    assert last["bet_page"] == last["bet_pages"] == 2
+    assert len(last["bets"]) == 3
+    assert first["bets"][-1].id < last["bets"][0].id
 
 
 def test_historico_usa_duas_consultas_qualquer_que_seja_o_numero_de_lotes(sessao, dono):

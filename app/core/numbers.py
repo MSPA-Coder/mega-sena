@@ -25,12 +25,11 @@ def parse_int(value: object, *, max_abs: int = MAX_INT64) -> int | None:
         if not text or len(text) > 64:
             return None
         parsed = Decimal(text)
-        if not parsed.is_finite() or parsed != parsed.to_integral_value():
+        if not parsed.is_finite() or not -max_abs <= parsed <= max_abs:
             return None
-        result = int(parsed)
-        if not -max_abs <= result <= max_abs:
+        if parsed != parsed.to_integral_value():
             return None
-        return result
+        return int(parsed)
     except (InvalidOperation, OverflowError, TypeError, ValueError):
         return None
 
